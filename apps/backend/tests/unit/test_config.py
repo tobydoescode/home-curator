@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from home_curator.config import Settings

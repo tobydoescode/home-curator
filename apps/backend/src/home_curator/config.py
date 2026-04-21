@@ -51,8 +51,10 @@ class Settings(BaseSettings):
 
     @property
     def db_path(self) -> Path:
+        assert self.data_dir is not None
         return self.data_dir / "curator.db"
 
     @property
     def policies_path(self) -> Path:
+        assert self.config_dir is not None
         return self.config_dir / "policies.yaml"
