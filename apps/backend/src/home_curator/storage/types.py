@@ -1,5 +1,5 @@
 """SQLAlchemy custom column types."""
-from datetime import UTC, datetime
+from datetime import UTC
 
 from sqlalchemy import DateTime
 from sqlalchemy.types import TypeDecorator
@@ -15,12 +15,14 @@ class TZDateTime(TypeDecorator):
     impl = DateTime
     cache_ok = True
 
-    def process_bind_param(self, value, dialect):
+    def process_bind_param(self, value, _dialect):
+        del _dialect
         if value is not None and value.tzinfo is not None:
             return value.astimezone(UTC).replace(tzinfo=None)
         return value
 
-    def process_result_value(self, value, dialect):
+    def process_result_value(self, value, _dialect):
+        del _dialect
         if value is not None:
             return value.replace(tzinfo=UTC)
         return value
