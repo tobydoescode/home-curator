@@ -45,3 +45,9 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.pyright]
+include = ["src", "tests"]
+extraPaths = ["src"]
+venvPath = "."
+venv = ".venv"
