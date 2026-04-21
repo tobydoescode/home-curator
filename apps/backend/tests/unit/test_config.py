@@ -10,6 +10,8 @@ def test_defaults_in_dev(tmp_path, monkeypatch):
     assert s.config_dir == tmp_path / ".dev-config" / "home-curator"
     assert s.data_dir == tmp_path / ".dev-data"
     assert s.ha_url == "http://localhost:8123"
+    assert s.ha_token is None
+    assert s.effective_token is None
 
 
 def test_defaults_with_supervisor_token(monkeypatch):
@@ -31,3 +33,15 @@ def test_override_via_env(monkeypatch):
     assert s.data_dir == Path("/tmp/data")
     assert s.ha_url == "http://example"
     assert s.ha_token == "tok"
+    assert s.effective_token == "tok"
+    assert s.db_path == Path("/tmp/data/curator.db")
+    assert s.policies_path == Path("/tmp/cfg/policies.yaml")
+
+
+def test_ha_token_overrides_supervisor_when_both_set(monkeypatch):
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "supervisor")
+    monkeypatch.setenv("HA_TOKEN", "explicit")
+    s = Settings()
+    assert s.supervisor_token == "supervisor"
+    assert s.ha_token == "explicit"
+    assert s.effective_token == "explicit"

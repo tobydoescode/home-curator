@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,21 +15,21 @@ class Settings(BaseSettings):
 
     @field_validator("ha_token", mode="before")
     @classmethod
-    def _default_ha_token(cls, v, info):
+    def _default_ha_token(cls, v: str | None, info: ValidationInfo) -> str | None:
         if v:
             return v
         return info.data.get("supervisor_token")
 
     @field_validator("ha_url", mode="before")
     @classmethod
-    def _default_ha_url(cls, v, info):
+    def _default_ha_url(cls, v: str | None, info: ValidationInfo) -> str | None:
         if v:
             return v
         return "http://supervisor/core" if info.data.get("supervisor_token") else "http://localhost:8123"
 
     @field_validator("config_dir", mode="before")
     @classmethod
-    def _default_config_dir(cls, v, info):
+    def _default_config_dir(cls, v: str | Path | None, info: ValidationInfo) -> Path | None:
         if v:
             return Path(v)
         if info.data.get("supervisor_token"):
@@ -38,7 +38,7 @@ class Settings(BaseSettings):
 
     @field_validator("data_dir", mode="before")
     @classmethod
-    def _default_data_dir(cls, v, info):
+    def _default_data_dir(cls, v: str | Path | None, info: ValidationInfo) -> Path | None:
         if v:
             return Path(v)
         if info.data.get("supervisor_token"):
@@ -47,14 +47,14 @@ class Settings(BaseSettings):
 
     @property
     def effective_token(self) -> str | None:
-        return self.supervisor_token or self.ha_token
+        return self.ha_token
 
     @property
     def db_path(self) -> Path:
-        assert self.data_dir is not None
+        assert self.data_dir is not None, "data_dir must be set before accessing db_path"
         return self.data_dir / "curator.db"
 
     @property
     def policies_path(self) -> Path:
-        assert self.config_dir is not None
+        assert self.config_dir is not None, "config_dir must be set before accessing policies_path"
         return self.config_dir / "policies.yaml"
