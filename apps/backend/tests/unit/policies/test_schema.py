@@ -68,6 +68,48 @@ def test_custom_policy():
     assert p.when_ == 'device.manufacturer == "Aqara"'
 
 
+def test_non_custom_preset_rejects_pattern():
+    with pytest.raises(ValidationError):
+        NamingConventionPolicy.model_validate(
+            {
+                "id": "nc",
+                "type": "naming_convention",
+                "enabled": True,
+                "severity": "warning",
+                "global": {"preset": "snake_case", "pattern": "^.*$"},
+                "rooms": [],
+            }
+        )
+
+
+def test_empty_id_rejected():
+    with pytest.raises(ValidationError):
+        NamingConventionPolicy.model_validate(
+            {
+                "id": "",
+                "type": "naming_convention",
+                "enabled": True,
+                "severity": "warning",
+                "global": {"preset": "snake_case"},
+                "rooms": [],
+            }
+        )
+
+
+def test_whitespace_only_custom_pattern_rejected():
+    with pytest.raises(ValidationError):
+        NamingConventionPolicy.model_validate(
+            {
+                "id": "nc",
+                "type": "naming_convention",
+                "enabled": True,
+                "severity": "warning",
+                "global": {"preset": "custom", "pattern": "   "},
+                "rooms": [],
+            }
+        )
+
+
 def test_file_with_mixed_policies():
     raw = {
         "version": 1,

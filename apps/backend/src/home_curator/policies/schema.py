@@ -9,7 +9,7 @@ NamingPreset = Literal["snake_case", "kebab-case", "title-case", "prefix-type-n"
 class _PolicyBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: str
+    id: str = Field(min_length=1)
     enabled: bool = True
     severity: Severity
 
@@ -30,14 +30,19 @@ class NamingPatternConfig(BaseModel):
 
     @model_validator(mode="after")
     def _custom_needs_pattern(self):
-        if self.preset == "custom" and not self.pattern:
-            raise ValueError("preset='custom' requires a 'pattern'")
-        if self.preset != "custom" and self.pattern:
+        has_pattern = bool((self.pattern or "").strip())
+        if self.preset == "custom" and not has_pattern:
+            raise ValueError("preset='custom' requires a non-empty 'pattern'")
+        if self.preset != "custom" and has_pattern:
             raise ValueError("'pattern' is only valid when preset='custom'")
         return self
 
 
 class RoomOverride(NamingPatternConfig):
+    # Restate extra="forbid" explicitly so future config changes don't silently
+    # replace the inherited value.
+    model_config = ConfigDict(extra="forbid")
+
     room: str | None = None
     area_id: str | None = None
 
@@ -58,6 +63,8 @@ class NamingConventionPolicy(_PolicyBase):
 
 class CustomPolicy(_PolicyBase):
     type: Literal["custom"]
+    # Default "true" is a CEL literal meaning "always applicable". The rule
+    # engine compiles and evaluates this expression via cel-python.
     when_: str = Field(alias="when", default="true")
     assert_: str = Field(alias="assert")
     message: str
