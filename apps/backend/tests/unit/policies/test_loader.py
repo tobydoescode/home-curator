@@ -1,13 +1,11 @@
 from pathlib import Path
 
-import pytest
-
 from home_curator.policies.loader import LoadResult, load_policies_file
 
 FIXTURE = Path(__file__).parents[2] / "fixtures" / "sample_policies.yaml"
 
 
-def test_loads_valid_file(tmp_path):
+def test_loads_valid_file():
     r = load_policies_file(FIXTURE)
     assert isinstance(r, LoadResult)
     assert r.file is not None
