@@ -1,7 +1,7 @@
 {
-  "include": ["apps/backend/src", "apps/backend/tests"],
+  "include": ["apps/backend/src", "apps/backend/tests", "apps/backend/alembic"],
   "extraPaths": ["apps/backend/src"],
-  "venvPath": "apps/backend",
-  "venv": ".venv",
-  "pythonVersion": "3.12"
+  "pythonPath": "apps/backend/.venv/bin/python",
+  "pythonVersion": "3.12",
+  "reportMissingImports": "error"
 }
