@@ -1,0 +1,26 @@
+version: 1
+policies:
+  - id: naming-convention
+    type: naming_convention
+    enabled: true
+    severity: warning
+    global:
+      preset: snake_case
+    rooms:
+      - room: Garage
+        preset: prefix-type-n
+  - id: missing-room
+    type: missing_area
+    enabled: true
+    severity: warning
+  - id: reappeared
+    type: reappeared_after_delete
+    enabled: true
+    severity: info
+  - id: aqara-needs-room
+    type: custom
+    enabled: true
+    severity: info
+    when: 'device.manufacturer == "Aqara"'
+    assert: 'device.area_id != null'
+    message: "Aqara device without a room"
