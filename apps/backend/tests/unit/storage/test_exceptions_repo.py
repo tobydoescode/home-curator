@@ -49,3 +49,49 @@ def test_is_acknowledged(session):
     repo.acknowledge("dev1", "pol1")
     session.commit()
     assert repo.is_acknowledged("dev1", "pol1")
+
+
+def test_acknowledged_by_is_stored_and_updated(session):
+    repo = ExceptionsRepo(session)
+    repo.acknowledge("dev1", "pol1", note="first", acknowledged_by="alice")
+    session.commit()
+    row = repo.for_device("dev1")[0]
+    assert row.acknowledged_by == "alice"
+
+    repo.acknowledge("dev1", "pol1", note="second", acknowledged_by="bob")
+    session.commit()
+    row = repo.for_device("dev1")[0]
+    assert row.acknowledged_by == "bob"
+
+
+def test_for_device_isolates_by_device(session):
+    repo = ExceptionsRepo(session)
+    repo.acknowledge("dev1", "pol1")
+    repo.acknowledge("dev2", "pol2")
+    session.commit()
+    assert [r.policy_id for r in repo.for_device("dev1")] == ["pol1"]
+    assert [r.policy_id for r in repo.for_device("dev2")] == ["pol2"]
+
+
+def test_all_acknowledged_keys_empty(session):
+    repo = ExceptionsRepo(session)
+    assert repo.all_acknowledged_keys() == set()
+
+
+def test_all_acknowledged_keys_returns_all_pairs(session):
+    repo = ExceptionsRepo(session)
+    repo.acknowledge("d1", "p1")
+    repo.acknowledge("d1", "p2")
+    repo.acknowledge("d2", "p1")
+    session.commit()
+    assert repo.all_acknowledged_keys() == {("d1", "p1"), ("d1", "p2"), ("d2", "p1")}
+
+
+def test_all_acknowledged_keys_reflects_clear(session):
+    repo = ExceptionsRepo(session)
+    repo.acknowledge("d1", "p1")
+    repo.acknowledge("d1", "p2")
+    session.commit()
+    repo.clear("d1", "p1")
+    session.commit()
+    assert repo.all_acknowledged_keys() == {("d1", "p2")}
