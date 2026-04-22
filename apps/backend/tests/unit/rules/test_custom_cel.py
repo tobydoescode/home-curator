@@ -120,3 +120,38 @@ def test_exception_suppresses():
     )
     rule = compile_custom(p)
     assert rule.evaluate(_d(area_id=None), _ctx(exc={("d1", "c")})) is None
+
+
+def test_disabled_rule_does_not_fire():
+    p = CustomPolicy.model_validate(
+        {
+            "id": "c",
+            "type": "custom",
+            "enabled": False,
+            "severity": "info",
+            "assert": "device.area_id != null",
+            "message": "msg",
+        }
+    )
+    rule = compile_custom(p)
+    assert rule.evaluate(_d(area_id=None), _ctx()) is None
+
+
+def test_runtime_errors_capped():
+    from home_curator.rules.custom_cel import MAX_RUNTIME_ERRORS
+
+    p = CustomPolicy.model_validate(
+        {
+            "id": "c",
+            "type": "custom",
+            "enabled": True,
+            "severity": "info",
+            "assert": "device.does_not_exist == 1",
+            "message": "msg",
+        }
+    )
+    rule = compile_custom(p)
+    # Evaluate MAX + 10 times; counter should stop at MAX
+    for _ in range(MAX_RUNTIME_ERRORS + 10):
+        rule.evaluate(_d(), _ctx())
+    assert rule.runtime_errors == MAX_RUNTIME_ERRORS
