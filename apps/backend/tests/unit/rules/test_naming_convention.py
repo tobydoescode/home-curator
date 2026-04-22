@@ -241,7 +241,17 @@ def test_title_case_allows_apostrophes_and_hyphenated_words():
     assert rule.evaluate(_dev("Clara's Bedroom Light", None, None), ctx) is None
     # Hyphenated words where each segment is capitalised are allowed.
     assert rule.evaluate(_dev("En-Suite Light", None, None), ctx) is None
+    # Acronyms are allowed.
+    assert rule.evaluate(_dev("Clara's Bedroom AP", None, None), ctx) is None
+    # Initialism + lowercase tail ("ESPresense") is allowed.
+    assert rule.evaluate(_dev("Clara's Bedroom ESPresense Beacon", None, None), ctx) is None
+    # Trailing parenthesised annotation is allowed.
+    assert rule.evaluate(_dev("Clara's Bedroom Thermostat (Local)", None, None), ctx) is None
+    # MAC addresses in parens stay flagged — colons are deliberately excluded.
+    assert rule.evaluate(_dev("Bedroom Sensor (CC:8D:A2:50:E6:7E)", None, None), ctx) is not None
     # Still rejects concatenated PascalCase (no space between words).
     assert rule.evaluate(_dev("LivingRoomLamp", None, None), ctx) is not None
     # Still rejects all-lowercase.
     assert rule.evaluate(_dev("clara's bedroom", None, None), ctx) is not None
+    # Still rejects standalone digit-words — "Bedroom 2" isn't title case.
+    assert rule.evaluate(_dev("Bedroom 2 Front Plug", None, None), ctx) is not None
