@@ -1,0 +1,34 @@
+def test_acknowledge_and_clear(client):
+    # d2 has 2 issues initially
+    r = client.get("/api/devices", params={"with_issues": "true"})
+    assert r.json()["total"] == 1
+
+    # Acknowledge missing-room for d2
+    r = client.post(
+        "/api/exceptions",
+        json={"device_id": "d2", "policy_id": "missing-room", "note": "known"},
+    )
+    assert r.status_code == 201
+
+    # Now d2 only has the naming issue
+    r = client.get("/api/devices", params={"q": "BadCase"})
+    d2 = r.json()["devices"][0]
+    assert d2["issue_count"] == 1
+    assert d2["issues"][0]["policy_id"] == "naming-convention"
+
+    # Clear exception
+    r = client.delete("/api/exceptions/d2/missing-room")
+    assert r.status_code == 204
+
+    r = client.get("/api/devices", params={"q": "BadCase"})
+    assert r.json()["devices"][0]["issue_count"] == 2
+
+
+def test_list_exceptions_for_device(client):
+    client.post(
+        "/api/exceptions",
+        json={"device_id": "d2", "policy_id": "missing-room"},
+    )
+    r = client.get("/api/exceptions", params={"device_id": "d2"})
+    assert r.status_code == 200
+    assert [e["policy_id"] for e in r.json()] == ["missing-room"]
