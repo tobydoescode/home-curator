@@ -1,0 +1,83 @@
+import pytest
+
+from home_curator.ha_client.fake import FakeHAClient
+from home_curator.registry_cache.cache import RegistryCache
+
+
+@pytest.mark.asyncio
+async def test_load_populates_cache():
+    fake = FakeHAClient(
+        devices=[
+            {
+                "id": "d1",
+                "name": "lamp",
+                "name_by_user": None,
+                "manufacturer": None,
+                "model": None,
+                "area_id": "living",
+                "integration": "hue",
+                "disabled_by": None,
+                "identifiers": [["hue", "abc"]],
+                "entities": [{"id": "light.lamp", "domain": "light"}],
+            }
+        ],
+        areas=[{"id": "living", "name": "Living Room"}],
+    )
+    cache = RegistryCache(fake)
+    await cache.load()
+    devices = cache.devices()
+    assert len(devices) == 1
+    assert devices[0].area_name == "Living Room"
+    assert cache.areas()[0].name == "Living Room"
+
+
+@pytest.mark.asyncio
+async def test_apply_delta_updated():
+    fake = FakeHAClient(devices=[], areas=[])
+    cache = RegistryCache(fake)
+    await cache.load()
+    fake.set_devices(
+        [
+            {
+                "id": "d1",
+                "name": "new",
+                "name_by_user": None,
+                "manufacturer": None,
+                "model": None,
+                "area_id": None,
+                "integration": None,
+                "disabled_by": None,
+                "identifiers": [["x", "y"]],
+                "entities": [],
+            }
+        ]
+    )
+    diff = await cache.refresh()
+    assert diff.added == ["d1"]
+    assert diff.removed == []
+
+
+@pytest.mark.asyncio
+async def test_apply_delta_removed():
+    fake = FakeHAClient(
+        devices=[
+            {
+                "id": "d1",
+                "name": "x",
+                "name_by_user": None,
+                "manufacturer": None,
+                "model": None,
+                "area_id": None,
+                "integration": None,
+                "disabled_by": None,
+                "identifiers": [["a", "b"]],
+                "entities": [],
+            }
+        ],
+        areas=[],
+    )
+    cache = RegistryCache(fake)
+    await cache.load()
+    fake.set_devices([])
+    diff = await cache.refresh()
+    assert diff.removed == ["d1"]
