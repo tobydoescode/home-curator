@@ -30,3 +30,14 @@ export function useUpdatePolicies() {
     },
   });
 }
+
+export function usePoliciesFile() {
+  return useQuery({
+    queryKey: ["policies-file"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/policies/file");
+      if (error) throw new Error(String(error));
+      return data!;
+    },
+  });
+}
