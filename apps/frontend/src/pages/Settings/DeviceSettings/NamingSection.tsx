@@ -32,6 +32,16 @@ const SEVERITIES = ["info", "warning", "error"] as const;
 
 export function NamingSection({ draft, onChange }: SectionProps) {
   const idx = draft.policies.findIndex((p) => p.type === "naming_convention");
+
+  const areas = useQuery({
+    queryKey: ["areas"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/areas");
+      if (error) throw new Error(String(error));
+      return data ?? [];
+    },
+  });
+
   if (idx < 0) {
     return (
       <Stack>
@@ -47,15 +57,6 @@ export function NamingSection({ draft, onChange }: SectionProps) {
     policies[idx] = { ...nc, ...next };
     onChange({ ...draft, policies });
   }
-
-  const areas = useQuery({
-    queryKey: ["areas"],
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/areas");
-      if (error) throw new Error(String(error));
-      return data ?? [];
-    },
-  });
 
   const overrideOptions: { value: string; label: string }[] = [
     ...(Object.keys(PRESET_LABELS) as Preset[]).map((v) => ({
