@@ -1,0 +1,120 @@
+"""Pydantic response models — the API's machine-readable contract.
+
+These define the shapes returned by every endpoint. Paired with FastAPI's
+`response_model=` they drive the OpenAPI spec at `/openapi.json`, which the
+frontend uses to generate a typed client.
+"""
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+
+Severity = Literal["info", "warning", "error"]
+
+
+class HealthResponse(BaseModel):
+    ok: bool
+
+
+class EntitySummary(BaseModel):
+    """An entity owned by a device."""
+
+    id: str
+    domain: str
+
+
+class IssueOut(BaseModel):
+    """A single policy violation on a device."""
+
+    policy_id: str
+    rule_type: str
+    severity: Severity
+    message: str
+
+
+class DeviceOut(BaseModel):
+    """A device with its evaluated issues."""
+
+    id: str
+    name: str
+    manufacturer: str | None = None
+    model: str | None = None
+    area_id: str | None = None
+    area_name: str | None = None
+    integration: str | None = None
+    disabled_by: str | None = None
+    entities: list[EntitySummary] = Field(default_factory=list)
+    issue_count: int
+    highest_severity: Severity | None = None
+    issues: list[IssueOut] = Field(default_factory=list)
+
+
+class DevicesListResponse(BaseModel):
+    """Paginated device list with aggregate issue counts."""
+
+    devices: list[DeviceOut]
+    total: int
+    page: int
+    page_size: int
+    issue_counts_by_type: dict[str, int]
+
+
+class ExceptionOut(BaseModel):
+    """An acknowledged policy exception for a device."""
+
+    device_id: str
+    policy_id: str
+    acknowledged_at: str  # ISO-8601
+    acknowledged_by: str | None = None
+    note: str | None = None
+
+
+class AcknowledgeResponse(BaseModel):
+    ok: bool
+
+
+class AssignRoomResult(BaseModel):
+    device_id: str
+    ok: bool
+    error: str | None = None
+
+
+class AssignRoomResponse(BaseModel):
+    results: list[AssignRoomResult]
+
+
+class RenameResponse(BaseModel):
+    ok: bool
+
+
+class RenamePatternResult(BaseModel):
+    device_id: str
+    matched: bool
+    new_name: str | None = None
+    ok: bool | None = None
+    dry_run: bool | None = None
+    reason: str | None = None
+    error: str | None = None
+
+
+class RenamePatternResponse(BaseModel):
+    results: list[RenamePatternResult]
+    error: str | None = None
+
+
+class PolicyOut(BaseModel):
+    """A policy as currently loaded by the engine."""
+
+    id: str
+    type: str
+    enabled: bool
+    severity: Severity
+    compile_error: str | None = None
+
+
+class PoliciesListResponse(BaseModel):
+    """Policies currently loaded. `error` is non-null if the YAML file
+    is invalid; in that case the last-good policies remain loaded."""
+
+    error: str | None = None
+    policies: list[PolicyOut]

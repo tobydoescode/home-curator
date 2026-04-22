@@ -5,6 +5,12 @@ from collections import Counter
 from fastapi import APIRouter, Depends, Query
 
 from home_curator.api.deps import AppState, app_state
+from home_curator.api.schemas import (
+    DeviceOut,
+    DevicesListResponse,
+    EntitySummary,
+    IssueOut,
+)
 from home_curator.rules.base import Device, EvaluationContext, Issue
 from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
@@ -33,7 +39,7 @@ def _highest_severity(issues: list[Issue]) -> str | None:
     return _RANK_TO_SEVERITY[highest]
 
 
-@router.get("/devices")
+@router.get("/devices", response_model=DevicesListResponse)
 def list_devices(
     q: str = "",
     regex: bool = False,
@@ -43,7 +49,13 @@ def list_devices(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=500),
     state: AppState = Depends(app_state),
-):
+) -> DevicesListResponse:
+    """List devices with evaluated policy issues.
+
+    Supports filtering by name (`q`, optionally `regex`), room, issue type,
+    and whether to show only devices with issues (`with_issues`). Results are
+    paginated via `page` and `page_size`.
+    """
     all_devices = state.cache.devices()
     tracker_state = state.tracker.all_state()
     hydrated = [
@@ -92,34 +104,34 @@ def list_devices(
     end = start + page_size
     page_rows = rows[start:end]
 
-    def _render(d: Device, issues: list[Issue]) -> dict:
-        return {
-            "id": d.id,
-            "name": d.name_by_user or d.name,
-            "manufacturer": d.manufacturer,
-            "model": d.model,
-            "area_id": d.area_id,
-            "area_name": d.area_name,
-            "integration": d.integration,
-            "disabled_by": d.disabled_by,
-            "entities": d.entities,
-            "issue_count": len(issues),
-            "highest_severity": _highest_severity(issues),
-            "issues": [
-                {
-                    "policy_id": i.policy_id,
-                    "rule_type": i.rule_type,
-                    "severity": i.severity,
-                    "message": i.message,
-                }
+    def _render(d: Device, issues: list[Issue]) -> DeviceOut:
+        return DeviceOut(
+            id=d.id,
+            name=d.name_by_user or d.name,
+            manufacturer=d.manufacturer,
+            model=d.model,
+            area_id=d.area_id,
+            area_name=d.area_name,
+            integration=d.integration,
+            disabled_by=d.disabled_by,
+            entities=[EntitySummary(id=e["id"], domain=e["domain"]) for e in d.entities],
+            issue_count=len(issues),
+            highest_severity=_highest_severity(issues),
+            issues=[
+                IssueOut(
+                    policy_id=i.policy_id,
+                    rule_type=i.rule_type,
+                    severity=i.severity,
+                    message=i.message,
+                )
                 for i in issues
             ],
-        }
+        )
 
-    return {
-        "devices": [_render(d, issues) for d, issues in page_rows],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "issue_counts_by_type": dict(counts),
-    }
+    return DevicesListResponse(
+        devices=[_render(d, issues) for d, issues in page_rows],
+        total=total,
+        page=page,
+        page_size=page_size,
+        issue_counts_by_type=dict(counts),
+    )

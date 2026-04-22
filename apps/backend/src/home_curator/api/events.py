@@ -11,6 +11,11 @@ router = APIRouter(prefix="/api", tags=["events"])
 
 @router.get("/events")
 async def events(request: Request, state: AppState = Depends(app_state)):
+    """Server-Sent Events stream of registry change notifications.
+
+    Each `message` event carries JSON `{kind}` where kind is
+    `devices_changed` or `policies_changed`.
+    """
     queue = state.broker.subscribe()
 
     async def event_source():

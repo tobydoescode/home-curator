@@ -7,6 +7,7 @@ from fastapi import FastAPI
 
 from home_curator.api import devices as devices_api, exceptions as exceptions_api, actions as actions_api, policies as policies_api, events as events_api
 from home_curator.api.deps import AppState
+from home_curator.api.schemas import HealthResponse
 from home_curator.config import Settings
 from home_curator.deletion_tracker import DeletionTracker
 from home_curator.events.broker import EventBroker
@@ -162,9 +163,10 @@ def create_app(
 
     app = FastAPI(lifespan=lifespan, title="Home Curator")
 
-    @app.get("/api/health")
-    async def health():
-        return {"ok": True}
+    @app.get("/api/health", response_model=HealthResponse, tags=["health"])
+    async def health() -> HealthResponse:
+        """Liveness probe. Returns 200 OK when the app is running."""
+        return HealthResponse(ok=True)
 
     app.include_router(devices_api.router)
     app.include_router(exceptions_api.router)
