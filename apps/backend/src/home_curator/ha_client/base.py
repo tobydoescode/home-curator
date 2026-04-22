@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Any, Protocol, TypedDict
+from typing import Any, Protocol, TypedDict, runtime_checkable
 
 
 class HADeviceDict(TypedDict, total=False):
@@ -21,9 +21,12 @@ class HAAreaDict(TypedDict):
 
 
 RegistryEvent = dict[str, Any]
+# Synchronous on purpose — handlers that need async work should schedule
+# their own asyncio task rather than blocking the dispatcher.
 EventHandler = Callable[[RegistryEvent], None]
 
 
+@runtime_checkable
 class HAClient(Protocol):
     async def start(self) -> None: ...
     async def stop(self) -> None: ...

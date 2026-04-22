@@ -43,3 +43,18 @@ async def test_fake_emits_subscribed_events():
     fake.subscribe(lambda event: received.append(event))
     await fake.emit({"kind": "device_updated", "device_id": "d1"})
     assert received == [{"kind": "device_updated", "device_id": "d1"}]
+
+
+@pytest.mark.asyncio
+async def test_unsubscribe_stops_delivery_and_is_idempotent():
+    fake = FakeHAClient(devices=[], areas=[])
+    received = []
+    unsub = fake.subscribe(lambda event: received.append(event))
+    await fake.emit({"kind": "x"})
+    assert len(received) == 1
+
+    unsub()
+    await fake.emit({"kind": "y"})
+    assert len(received) == 1
+
+    unsub()  # second call must not raise
