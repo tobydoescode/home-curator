@@ -197,3 +197,11 @@ def test_name_starts_with_room_policy_removed():
                 "severity": "warning", "source": "area_id",
             }],
         })
+
+
+def test_naming_convention_starts_with_room_true_accepted():
+    p = NamingConventionPolicy.model_validate({
+        "id": "nc", "type": "naming_convention", "severity": "warning",
+        "global": {"preset": "snake_case"}, "starts_with_room": True,
+    })
+    assert p.starts_with_room is True

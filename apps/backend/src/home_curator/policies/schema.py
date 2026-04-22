@@ -59,9 +59,16 @@ class RoomOverride(BaseModel):
     def _enabled_requires_preset(self):
         if self.enabled and self.preset is None:
             raise ValueError("enabled override must specify 'preset'")
-        if self.enabled and self.preset == "custom" and not (self.pattern or "").strip():
+        return self
+
+    @model_validator(mode="after")
+    def _pattern_valid_for_preset(self):
+        if not self.enabled or self.preset is None:
+            return self
+        has_pattern = bool((self.pattern or "").strip())
+        if self.preset == "custom" and not has_pattern:
             raise ValueError("preset='custom' requires a non-empty 'pattern'")
-        if self.enabled and self.preset != "custom" and (self.pattern or "").strip():
+        if self.preset != "custom" and has_pattern:
             raise ValueError("'pattern' is only valid when preset='custom'")
         return self
 
