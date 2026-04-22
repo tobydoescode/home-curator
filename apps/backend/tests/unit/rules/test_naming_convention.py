@@ -182,6 +182,31 @@ def test_starts_with_room_skipped_when_no_room():
     assert rule.evaluate(_dev("kitchen_lamp", None, None), ctx) is None
 
 
+def test_starts_with_room_snake_case_multi_word_area():
+    p = NamingConventionPolicy.model_validate({
+        "id": "nc", "type": "naming_convention", "severity": "warning",
+        "global": {"preset": "snake_case"}, "starts_with_room": True, "rooms": [],
+    })
+    # area_id doesn't encode the full room name; the prefix must come from area_name.
+    ctx = _ctx(area_id_to_name={"lr": "Living Room"})
+    rule = compile_naming_convention(p, ctx)
+    assert rule.evaluate(_dev("living_room_lamp", "lr", "Living Room"), ctx) is None
+    issue = rule.evaluate(_dev("lr_lamp", "lr", "Living Room"), ctx)
+    assert issue is not None
+
+
+def test_starts_with_room_title_case_skipped_when_no_area_name():
+    p = NamingConventionPolicy.model_validate({
+        "id": "nc", "type": "naming_convention", "severity": "warning",
+        "global": {"preset": "title-case"}, "starts_with_room": True, "rooms": [],
+    })
+    # Area assigned but name missing (race during registry load): starts_with_room
+    # check is skipped; name just needs to satisfy the pattern.
+    ctx = _ctx()
+    rule = compile_naming_convention(p, ctx)
+    assert rule.evaluate(_dev("Kitchen Lamp", "k", None), ctx) is None
+
+
 def _dev(name: str, area_id: str | None, area_name: str | None) -> Device:
     return Device(
         id="d1", name=name, name_by_user=None, manufacturer=None, model=None,

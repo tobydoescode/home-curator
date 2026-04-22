@@ -33,7 +33,9 @@ def _room_prefix(preset: NamingPreset, area_id: str, area_name: str | None) -> s
     owns prefixing explicitly).
     """
     if preset == "snake_case":
-        return area_id.lower()
+        if area_name:
+            return area_name.lower().replace(" ", "_")
+        return area_id.lower().replace("-", "_")
     if preset == "kebab-case":
         # Prefer area_name → lower + spaces-to-hyphens for readable prefixes;
         # fall back to area_id with underscores swapped for hyphens.
@@ -41,7 +43,7 @@ def _room_prefix(preset: NamingPreset, area_id: str, area_name: str | None) -> s
             return area_name.lower().replace(" ", "-")
         return area_id.lower().replace("_", "-")
     if preset == "title-case":
-        return area_name or ""
+        return area_name
     if preset == "prefix-type-n":
         return area_id.lower()
     return None
