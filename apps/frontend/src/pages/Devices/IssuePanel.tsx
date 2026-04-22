@@ -54,9 +54,10 @@ export function IssuePanel({
             <Textarea
               placeholder="Optional Note"
               value={notes[issue.policy_id] ?? ""}
-              onChange={(e) =>
-                setNotes((n) => ({ ...n, [issue.policy_id]: e.currentTarget.value }))
-              }
+              onChange={(e) => {
+                const value = e.currentTarget.value;
+                setNotes((n) => ({ ...n, [issue.policy_id]: value }));
+              }}
             />
             <Group gap="xs">
               <Button
