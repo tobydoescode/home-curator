@@ -13,10 +13,15 @@ def test_loads_valid_file():
     assert len(r.file.policies) == 4
 
 
-def test_missing_file_returns_error(tmp_path):
+def test_missing_file_returns_empty_policies(tmp_path):
+    # First-run of the addon: no policies.yaml on disk yet. The loader
+    # returns a valid-but-empty file so the UI works from an empty state
+    # and /api/policies/file doesn't 503.
     r = load_policies_file(tmp_path / "missing.yaml")
-    assert r.file is None
-    assert "does not exist" in r.error
+    assert r.error is None
+    assert r.file is not None
+    assert r.file.version == 1
+    assert r.file.policies == []
 
 
 def test_invalid_yaml_syntax(tmp_path):

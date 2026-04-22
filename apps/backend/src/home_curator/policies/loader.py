@@ -20,9 +20,14 @@ def load_policies_file(path: Path) -> LoadResult:
     Returns a LoadResult where exactly one of (file, error) is populated.
     A fresh YAML parser instance is used per call so that concurrent callers
     (hot-reload + startup) cannot corrupt shared parser state.
+
+    A missing file is treated as an empty policy set rather than an error —
+    first-run of the addon must work without a pre-seeded config, and the
+    user creates their first policy through the UI which writes the file.
+    Invalid on-disk content is still surfaced as an error.
     """
     if not path.exists():
-        return LoadResult(file=None, error=f"policies file does not exist: {path}")
+        return LoadResult(file=PoliciesFile(version=1, policies=[]), error=None)
     yaml = YAML(typ="safe")
     try:
         text = path.read_text()
