@@ -24,7 +24,13 @@ class WebSocketHAClient:
         self._entity_index: dict[str, list[dict[str, str]]] = {}
 
     async def start(self) -> None:
-        ws = await connect(self._url)
+        # HA's registry list responses can exceed the default 1 MiB websocket
+        # frame limit on instances with many entities. HA doesn't offer
+        # pagination on these endpoints, so we enable permessage-deflate to
+        # shrink the wire payload (typically 5-10×) and lift the max frame
+        # cap to guard against very large registries. Peak memory is bounded
+        # by the registry cache anyway.
+        ws = await connect(self._url, max_size=None, compression="deflate")
         self._ws = ws
         # auth handshake
         first = json.loads(await ws.recv())
