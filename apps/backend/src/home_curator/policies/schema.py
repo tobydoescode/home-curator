@@ -22,6 +22,18 @@ class ReappearedAfterDeletePolicy(_PolicyBase):
     type: Literal["reappeared_after_delete"]
 
 
+class NameStartsWithRoomPolicy(_PolicyBase):
+    """Device name must begin with its area's slug + a separator.
+
+    Matches against `device.area_id` (HA's auto-generated snake_case slug),
+    not the display name, so rooms with spaces/punctuation work unchanged.
+    Devices without an area are skipped.
+    """
+
+    type: Literal["name_starts_with_room"]
+    separator: str = "_"
+
+
 class NamingPatternConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -73,7 +85,11 @@ class CustomPolicy(_PolicyBase):
 
 
 Policy = Annotated[
-    MissingAreaPolicy | ReappearedAfterDeletePolicy | NamingConventionPolicy | CustomPolicy,
+    MissingAreaPolicy
+    | ReappearedAfterDeletePolicy
+    | NameStartsWithRoomPolicy
+    | NamingConventionPolicy
+    | CustomPolicy,
     Field(discriminator="type"),
 ]
 
