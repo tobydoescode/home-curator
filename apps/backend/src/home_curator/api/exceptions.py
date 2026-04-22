@@ -12,12 +12,18 @@ class AcknowledgeBody(BaseModel):
     device_id: str
     policy_id: str
     note: str | None = None
+    acknowledged_by: str | None = None
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def acknowledge(body: AcknowledgeBody, state: AppState = Depends(app_state)):
     with session_scope(state.session_factory) as s:
-        ExceptionsRepo(s).acknowledge(body.device_id, body.policy_id, body.note)
+        ExceptionsRepo(s).acknowledge(
+            body.device_id,
+            body.policy_id,
+            note=body.note,
+            acknowledged_by=body.acknowledged_by,
+        )
     return {"ok": True}
 
 
@@ -37,6 +43,7 @@ def list_for_device(device_id: str, state: AppState = Depends(app_state)):
                 "device_id": r.device_id,
                 "policy_id": r.policy_id,
                 "acknowledged_at": r.acknowledged_at.isoformat(),
+                "acknowledged_by": r.acknowledged_by,
                 "note": r.note,
             }
             for r in rows

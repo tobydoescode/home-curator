@@ -32,3 +32,19 @@ def test_list_exceptions_for_device(client):
     r = client.get("/api/exceptions", params={"device_id": "d2"})
     assert r.status_code == 200
     assert [e["policy_id"] for e in r.json()] == ["missing-room"]
+
+
+def test_acknowledged_by_stored(client):
+    client.post(
+        "/api/exceptions",
+        json={
+            "device_id": "d2",
+            "policy_id": "missing-room",
+            "acknowledged_by": "alice",
+            "note": "verified",
+        },
+    )
+    r = client.get("/api/exceptions", params={"device_id": "d2"})
+    body = r.json()
+    assert body[0]["acknowledged_by"] == "alice"
+    assert body[0]["note"] == "verified"
