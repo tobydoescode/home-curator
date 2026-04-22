@@ -124,6 +124,8 @@ export function DevicesPage() {
         filters={filters}
         rooms={rooms}
         issueTypes={issueTypes}
+        roomCounts={data.area_counts}
+        issueTypeCounts={data.issue_counts_by_type}
         onChange={(f) => setParams(paramsFromFiltersAndPagination(f, 1, pageSize))}
       />
       <ActionRow

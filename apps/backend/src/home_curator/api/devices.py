@@ -102,9 +102,12 @@ def list_devices(
 
     total = len(rows)
     counts: Counter[str] = Counter()
-    for _, issues in rows:
+    area_counts: Counter[str] = Counter()
+    for d, issues in rows:
         for i in issues:
             counts[i.rule_type] += 1
+        if d.area_name:
+            area_counts[d.area_name] += 1
     start = (page - 1) * page_size
     end = start + page_size
     page_rows = rows[start:end]
@@ -135,13 +138,18 @@ def list_devices(
 
     all_areas = [AreaOut(id=a.id, name=a.name) for a in state.cache.areas()]
     all_issue_types = sorted({r.rule_type for r in state.engine.compiled})
+    # Ensure every known option appears with a 0 where missing, so the
+    # frontend can render dim zero-count entries without a second pass.
+    full_area_counts = {a.name: area_counts.get(a.name, 0) for a in state.cache.areas()}
+    full_issue_counts = {t: counts.get(t, 0) for t in all_issue_types}
 
     return DevicesListResponse(
         devices=[_render(d, issues) for d, issues in page_rows],
         total=total,
         page=page,
         page_size=page_size,
-        issue_counts_by_type=dict(counts),
+        issue_counts_by_type=full_issue_counts,
+        area_counts=full_area_counts,
         all_areas=all_areas,
         all_issue_types=all_issue_types,
     )

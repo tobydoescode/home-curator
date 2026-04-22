@@ -15,6 +15,8 @@ interface Props {
   filters: Filters;
   rooms: string[];
   issueTypes: string[];
+  roomCounts?: Record<string, number>;
+  issueTypeCounts?: Record<string, number>;
   onChange: (filters: Filters) => void;
 }
 
@@ -26,7 +28,14 @@ export const emptyFilters: Filters = {
   with_issues: false,
 };
 
-export function FilterBar({ filters, rooms, issueTypes, onChange }: Props) {
+export function FilterBar({
+  filters,
+  rooms,
+  issueTypes,
+  roomCounts,
+  issueTypeCounts,
+  onChange,
+}: Props) {
   const patch = (p: Partial<Filters>) => onChange({ ...filters, ...p });
   return (
     <Group gap="xs" wrap="wrap" align="flex-start">
@@ -46,12 +55,14 @@ export function FilterBar({ filters, rooms, issueTypes, onChange }: Props) {
         placeholder="Room: All"
         data={rooms}
         value={filters.rooms}
+        counts={roomCounts}
         onChange={(v) => patch({ rooms: v })}
       />
       <MultiPillSelect
         placeholder="Issue Type: All"
         data={issueTypes}
         value={filters.issue_types}
+        counts={issueTypeCounts}
         onChange={(v) => patch({ issue_types: v })}
       />
       <Checkbox

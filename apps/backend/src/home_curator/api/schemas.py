@@ -68,7 +68,11 @@ class DevicesListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+    # Issue counts across the filtered result, keyed by rule_type.
     issue_counts_by_type: dict[str, int]
+    # Device counts across the filtered result, keyed by area_name.
+    # Areas with zero matches in the current filter appear here as 0.
+    area_counts: dict[str, int] = Field(default_factory=dict)
     all_areas: list[AreaOut] = Field(default_factory=list)
     all_issue_types: list[str] = Field(default_factory=list)
 

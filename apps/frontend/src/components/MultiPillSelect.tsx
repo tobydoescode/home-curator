@@ -16,6 +16,9 @@ interface Props {
   placeholder?: string;
   label?: string;
   width?: number | string;
+  /** Optional per-option count shown next to the label; zero-count options
+   *  render dimmed so users see which picks would return no results. */
+  counts?: Record<string, number>;
 }
 
 /**
@@ -30,6 +33,7 @@ export function MultiPillSelect({
   placeholder,
   label,
   width = 260,
+  counts,
 }: Props) {
   const combobox = useCombobox({
     onDropdownClose: () => combobox.resetSelectedOption(),
@@ -51,11 +55,18 @@ export function MultiPillSelect({
     .filter((item) => item.toLowerCase().includes(search.toLowerCase().trim()))
     .map((item) => {
       const selected = value.includes(item);
+      const count = counts?.[item];
+      const zero = count === 0;
       return (
         <Combobox.Option value={item} key={item} active={selected}>
-          <Group gap="xs" wrap="nowrap">
+          <Group gap="xs" wrap="nowrap" c={zero && !selected ? "dimmed" : undefined}>
             {selected && <CheckIcon size={12} />}
-            <span>{item}</span>
+            <span style={{ flex: 1 }}>{item}</span>
+            {count !== undefined && (
+              <span style={{ fontVariantNumeric: "tabular-nums", opacity: 0.7 }}>
+                {count}
+              </span>
+            )}
           </Group>
         </Combobox.Option>
       );
