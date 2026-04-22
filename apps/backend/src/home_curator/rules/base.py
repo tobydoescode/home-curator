@@ -31,6 +31,12 @@ class Device:
     entities: list[EntitySummary]
     state: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def display_name(self) -> str:
+        """What the HA user sees — their override (`name_by_user`) if set,
+        otherwise the integration's default (`name`)."""
+        return self.name_by_user or self.name
+
     def to_cel_context(self) -> dict[str, Any]:
         """Dict form consumed by `custom_cel` policies.
 

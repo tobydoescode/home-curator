@@ -24,7 +24,7 @@ class CompiledNameStartsWithRoom:
             # the no-area case separately.
             return None
         prefix = device.area_id + self.separator
-        if device.name.startswith(prefix):
+        if device.display_name.startswith(prefix):
             return None
         return Issue(
             policy_id=self.id,

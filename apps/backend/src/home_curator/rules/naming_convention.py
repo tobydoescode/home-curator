@@ -63,7 +63,7 @@ class CompiledNamingConvention:
         pattern = self.global_pattern
         if device.area_id and device.area_id in self.overrides_by_area_id:
             pattern = self.overrides_by_area_id[device.area_id]
-        if pattern.match(device.name):
+        if pattern.match(device.display_name):
             return None
         return Issue(
             policy_id=self.id,
