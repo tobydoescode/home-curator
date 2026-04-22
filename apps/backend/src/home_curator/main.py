@@ -138,6 +138,9 @@ def create_app(
     async def health():
         return {"ok": True}
 
+    from home_curator.api import devices as devices_module
+    app.include_router(devices_module.router)
+
     return app
 
 
