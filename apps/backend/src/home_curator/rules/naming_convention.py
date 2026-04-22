@@ -13,7 +13,11 @@ from home_curator.rules.base import Device, EvaluationContext, Issue, Severity
 PRESET_TO_PATTERN: dict[str, str] = {
     "snake_case": r"^[a-z0-9]+(_[a-z0-9]+)*$",
     "kebab-case": r"^[a-z0-9]+(-[a-z0-9]+)*$",
-    "title-case": r"^([A-Z][a-z0-9]+)(\s[A-Z][a-z0-9]+)*$",
+    # Title Case tolerates natural English punctuation: apostrophes inside
+    # words ("Clara's"), and hyphenated words where each segment is
+    # capitalised ("En-Suite"). Snake / kebab stay strict — those formats
+    # are machine-facing and punctuation doesn't belong.
+    "title-case": r"^([A-Z][a-z0-9']*(-[A-Z][a-z0-9']*)*)(\s[A-Z][a-z0-9']*(-[A-Z][a-z0-9']*)*)*$",
     "prefix-type-n": r"^[a-z]+_[a-z]+_[0-9]+$",
 }
 

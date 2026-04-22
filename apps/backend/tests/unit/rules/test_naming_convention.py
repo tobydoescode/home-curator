@@ -228,3 +228,20 @@ def _dev(name: str, area_id: str | None, area_name: str | None) -> Device:
         area_id=area_id, area_name=area_name, integration=None, disabled_by=None,
         entities=[], state={},
     )
+
+
+def test_title_case_allows_apostrophes_and_hyphenated_words():
+    p = NamingConventionPolicy.model_validate({
+        "id": "nc", "type": "naming_convention", "severity": "warning",
+        "global": {"preset": "title-case"}, "starts_with_room": False, "rooms": [],
+    })
+    ctx = _ctx()
+    rule = compile_naming_convention(p, ctx)
+    # Apostrophes inside words (possessive form) are allowed.
+    assert rule.evaluate(_dev("Clara's Bedroom Light", None, None), ctx) is None
+    # Hyphenated words where each segment is capitalised are allowed.
+    assert rule.evaluate(_dev("En-Suite Light", None, None), ctx) is None
+    # Still rejects concatenated PascalCase (no space between words).
+    assert rule.evaluate(_dev("LivingRoomLamp", None, None), ctx) is not None
+    # Still rejects all-lowercase.
+    assert rule.evaluate(_dev("clara's bedroom", None, None), ctx) is not None
