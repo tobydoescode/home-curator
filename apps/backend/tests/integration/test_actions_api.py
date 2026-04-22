@@ -39,3 +39,5 @@ def test_rename_pattern_applies_to_multiple(client, fake_ha):
     assert results["d1"]["new_name"] == "lr_room_lamp"
     assert results["d1"]["ok"] is True
     assert results["d2"]["matched"] is False
+    # Only d1 matched, so only one write call recorded
+    assert fake_ha.update_calls == [("d1", {"name_by_user": "lr_room_lamp"})]
