@@ -2,7 +2,7 @@ name: Home Curator
 version: "0.1.0"
 slug: home-curator
 description: Keep your Home Assistant instance tidy — misconfiguration detection and mass updates.
-url: "https://github.com/<your-org>/ha-app-home-curator"
+url: "https://github.com/tobydoescode/ha-app-home-curator"
 arch:
   - amd64
   - aarch64
@@ -18,4 +18,4 @@ ingress: true
 ingress_port: 8099
 panel_icon: mdi:broom
 panel_title: Home Curator
-image: "ghcr.io/<your-org>/home-curator-{arch}"
+image: "ghcr.io/tobydoescode/home-curator-{arch}"
