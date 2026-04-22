@@ -1,10 +1,10 @@
+"""Real Home Assistant websocket client."""
 import asyncio
 import json
 import logging
 from collections.abc import Callable
 from typing import Any
 
-import websockets
 from websockets.asyncio.client import ClientConnection, connect
 
 from home_curator.ha_client.base import EventHandler, HAAreaDict, HADeviceDict, RegistryEvent
@@ -24,13 +24,14 @@ class WebSocketHAClient:
         self._entity_index: dict[str, list[dict[str, str]]] = {}
 
     async def start(self) -> None:
-        self._ws = await connect(self._url)
+        ws = await connect(self._url)
+        self._ws = ws
         # auth handshake
-        first = json.loads(await self._ws.recv())
+        first = json.loads(await ws.recv())
         if first.get("type") != "auth_required":
             raise RuntimeError(f"unexpected first message: {first}")
-        await self._ws.send(json.dumps({"type": "auth", "access_token": self._token}))
-        result = json.loads(await self._ws.recv())
+        await ws.send(json.dumps({"type": "auth", "access_token": self._token}))
+        result = json.loads(await ws.recv())
         if result.get("type") != "auth_ok":
             raise RuntimeError(f"auth failed: {result}")
         self._reader_task = asyncio.create_task(self._read_loop())
@@ -48,12 +49,12 @@ class WebSocketHAClient:
         if self._ws:
             await self._ws.close()
 
-    async def _send_cmd(self, payload: dict[str, Any]) -> dict[str, Any]:
-        assert self._ws
+    async def _send_cmd(self, payload: dict[str, Any]) -> Any:
+        assert self._ws is not None
         self._msg_id += 1
         mid = self._msg_id
         payload = {"id": mid, **payload}
-        fut: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
+        fut: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
         self._pending[mid] = fut
         await self._ws.send(json.dumps(payload))
         return await fut
@@ -89,17 +90,24 @@ class WebSocketHAClient:
                 log.exception("subscriber raised")
 
     async def get_devices(self) -> list[HADeviceDict]:
-        devs = await self._send_cmd({"type": "config/device_registry/list"})
-        # Attach entities by calling entity registry
-        ents = await self._send_cmd({"type": "config/entity_registry/list"})
+        devs: list[dict[str, Any]] = await self._send_cmd(
+            {"type": "config/device_registry/list"}
+        ) or []
+        ents: list[dict[str, Any]] = await self._send_cmd(
+            {"type": "config/entity_registry/list"}
+        ) or []
         index: dict[str, list[dict[str, str]]] = {}
-        for e in ents or []:
-            index.setdefault(e["device_id"], []).append({"id": e["entity_id"], "domain": e["entity_id"].split(".")[0]})
+        for e in ents:
+            entity_id: str = e["entity_id"]
+            index.setdefault(e["device_id"], []).append(
+                {"id": entity_id, "domain": entity_id.split(".")[0]}
+            )
         out: list[HADeviceDict] = []
-        for d in devs or []:
+        for d in devs:
+            did: str = d["id"]
             out.append({
-                "id": d["id"],
-                "name": d.get("name_by_user") or d.get("name") or d["id"],
+                "id": did,
+                "name": d.get("name_by_user") or d.get("name") or did,
                 "name_by_user": d.get("name_by_user"),
                 "manufacturer": d.get("manufacturer"),
                 "model": d.get("model"),
@@ -107,13 +115,15 @@ class WebSocketHAClient:
                 "integration": (d.get("config_entries") or [None])[0],
                 "disabled_by": d.get("disabled_by"),
                 "identifiers": [list(i) for i in d.get("identifiers", [])],
-                "entities": index.get(d["id"], []),
+                "entities": index.get(did, []),
             })
         return out
 
     async def get_areas(self) -> list[HAAreaDict]:
-        res = await self._send_cmd({"type": "config/area_registry/list"})
-        return [{"id": a["area_id"], "name": a["name"]} for a in (res or [])]
+        res: list[dict[str, Any]] = await self._send_cmd(
+            {"type": "config/area_registry/list"}
+        ) or []
+        return [{"id": a["area_id"], "name": a["name"]} for a in res]
 
     async def update_device(self, device_id: str, changes: dict[str, Any]) -> None:
         await self._send_cmd({"type": "config/device_registry/update", "device_id": device_id, **changes})
