@@ -78,6 +78,8 @@ export function MultiPillSelect({
         <PillsInput
           label={label}
           w={width}
+          mah={36}
+          style={{ overflow: "hidden" }}
           onClick={() => combobox.openDropdown()}
           rightSection={
             value.length > 0 ? (
@@ -90,7 +92,14 @@ export function MultiPillSelect({
             ) : null
           }
         >
-          <Pill.Group>
+          <Pill.Group
+            style={{
+              flexWrap: "nowrap",
+              overflowX: "auto",
+              minWidth: 0,
+              scrollbarWidth: "none",
+            }}
+          >
             {pills}
             <Combobox.EventsTarget>
               <PillsInput.Field
