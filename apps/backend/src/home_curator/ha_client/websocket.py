@@ -89,16 +89,23 @@ class WebSocketHAClient:
             raise RuntimeError(f"auth failed: {result}")
 
         # Re-subscribe to registry change events on every (re)connection.
+        # Read until we see the matching result id — HA may interleave events
+        # or other server-initiated messages with command responses.
         for event_type in ("device_registry_updated", "area_registry_updated"):
             self._msg_id += 1
             mid = self._msg_id
             await ws.send(
                 json.dumps({"id": mid, "type": "subscribe_events", "event_type": event_type})
             )
-            resp = json.loads(await ws.recv())
-            if not (resp.get("type") == "result" and resp.get("success")):
-                await ws.close()
-                raise RuntimeError(f"subscribe_events failed: {resp}")
+            while True:
+                msg = json.loads(await ws.recv())
+                if msg.get("id") == mid and msg.get("type") == "result":
+                    if not msg.get("success"):
+                        await ws.close()
+                        raise RuntimeError(f"subscribe_events failed: {msg}")
+                    break
+                # Any other message (event, different id) is discarded here;
+                # the reader loop will pick up subsequent ones cleanly.
 
         self._ready.set()
 
