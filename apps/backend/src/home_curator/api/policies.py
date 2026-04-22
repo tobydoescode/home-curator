@@ -1,6 +1,6 @@
 """GET / PUT /api/policies."""
 import celpy
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from home_curator.api.deps import AppState, app_state
 from home_curator.api.schemas import (
@@ -58,7 +58,6 @@ def get_policies_file(state: AppState = Depends(app_state)) -> PoliciesFile:
     is expecting edit-ready data.
     """
     if state.policies_file is None:
-        from fastapi import HTTPException
         raise HTTPException(status_code=503, detail=state.policies_error or "Policies file invalid")
     return state.policies_file
 
