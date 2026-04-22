@@ -42,3 +42,9 @@ def test_exception_suppresses():
     rule = compile_missing_area(p)
     ctx = _ctx(exc={("d1", "ma")})
     assert rule.evaluate(_device(area_id=None), ctx) is None
+
+
+def test_disabled_rule_does_not_fire():
+    p = MissingAreaPolicy(id="ma", type="missing_area", enabled=False, severity="warning")
+    rule = compile_missing_area(p)
+    assert rule.evaluate(_device(area_id=None), _ctx()) is None
