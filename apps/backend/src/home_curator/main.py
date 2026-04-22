@@ -16,7 +16,7 @@ from home_curator.policies.loader import load_policies_file
 from home_curator.registry_cache.cache import RegistryCache
 from home_curator.rules.base import EvaluationContext
 from home_curator.rules.engine import RuleEngine
-from home_curator.storage.db import make_engine, make_session_factory
+from home_curator.storage.db import make_engine, make_session_factory, session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
 
 log = logging.getLogger(__name__)
@@ -71,6 +71,7 @@ def create_app(
         # From here on, failures must stop the client before re-raising.
         session = None
         task = None
+        watcher_task = None
         unsub = None
         try:
             cache = RegistryCache(client)
@@ -112,11 +113,35 @@ def create_app(
                 session_factory=session_factory,
                 broker=broker,
             )
+
+            async def reload_policies():
+                load_ = load_policies_file(effective_settings.policies_path)
+                app.state.store.policies_error = load_.error
+                # Keep last-good rules loaded on invalid reloads.
+                if load_.file is None:
+                    await broker.publish({"kind": "policies_changed"})
+                    return
+                with session_scope(session_factory) as s:
+                    ctx_ = EvaluationContext(
+                        area_name_to_id=cache.area_name_to_id(),
+                        area_id_to_name=cache.area_id_to_name(),
+                        exceptions=ExceptionsRepo(s).all_acknowledged_keys(),
+                    )
+                app.state.store.engine = RuleEngine.compile(load_.file, ctx_)
+                app.state.store.policies_file = load_.file
+                await broker.publish({"kind": "policies_changed"})
+
+            from home_curator.policies.watcher import watch_policies
+            watcher_task = asyncio.create_task(
+                watch_policies(effective_settings.policies_path, reload_policies)
+            )
         except BaseException:
             if unsub is not None:
                 unsub()
             if task is not None:
                 task.cancel()
+            if watcher_task is not None:
+                watcher_task.cancel()
             if session is not None:
                 session.close()
             await client.stop()
@@ -129,6 +154,8 @@ def create_app(
                 unsub()
             if task is not None:
                 task.cancel()
+            if watcher_task is not None:
+                watcher_task.cancel()
             await client.stop()
             if session is not None:
                 session.close()
