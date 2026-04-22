@@ -1,5 +1,7 @@
-import { AppShell, NavLink, Title } from "@mantine/core";
+import { AppShell, Group, NavLink, Title } from "@mantine/core";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+
+import { LiveIndicator } from "./LiveIndicator";
 
 const NAV = [
   { label: "Devices", to: "/devices" },
@@ -13,11 +15,18 @@ export function Layout() {
   const loc = useLocation();
   const navigate = useNavigate();
   return (
-    <AppShell navbar={{ width: 200, breakpoint: "sm" }} padding="md">
+    <AppShell
+      header={{ height: 44 }}
+      navbar={{ width: 200, breakpoint: "sm" }}
+      padding="md"
+    >
+      <AppShell.Header>
+        <Group h="100%" px="md" justify="space-between">
+          <Title order={5}>Home Curator</Title>
+          <LiveIndicator />
+        </Group>
+      </AppShell.Header>
       <AppShell.Navbar p="sm">
-        <Title order={5} mb="sm">
-          Home Curator
-        </Title>
         {NAV.map((item) => (
           <NavLink
             key={item.to}
