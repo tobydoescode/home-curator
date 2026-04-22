@@ -16,8 +16,8 @@ function filtersFromParams(p: URLSearchParams): Filters {
   return {
     q: p.get("q") ?? "",
     regex: p.get("regex") === "true",
-    room: p.get("room"),
-    issue_type: p.get("issue_type"),
+    rooms: p.getAll("room"),
+    issue_types: p.getAll("issue_type"),
     with_issues: p.get("with_issues") === "true",
   };
 }
@@ -26,15 +26,15 @@ function paramsFromFiltersAndPagination(
   f: Filters,
   page: number,
   pageSize: number,
-): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (f.q) out.q = f.q;
-  if (f.regex) out.regex = "true";
-  if (f.room) out.room = f.room;
-  if (f.issue_type) out.issue_type = f.issue_type;
-  if (f.with_issues) out.with_issues = "true";
-  if (page !== 1) out.page = String(page);
-  if (pageSize !== 50) out.page_size = String(pageSize);
+): URLSearchParams {
+  const out = new URLSearchParams();
+  if (f.q) out.set("q", f.q);
+  if (f.regex) out.set("regex", "true");
+  for (const r of f.rooms) out.append("room", r);
+  for (const t of f.issue_types) out.append("issue_type", t);
+  if (f.with_issues) out.set("with_issues", "true");
+  if (page !== 1) out.set("page", String(page));
+  if (pageSize !== 50) out.set("page_size", String(pageSize));
   return out;
 }
 
@@ -54,8 +54,8 @@ export function DevicesPage() {
   const { data, isLoading, error } = useDevices({
     q: debouncedQ || undefined,
     regex: filters.regex || undefined,
-    room: filters.room ?? undefined,
-    issue_type: filters.issue_type ?? undefined,
+    room: filters.rooms.length ? filters.rooms : undefined,
+    issue_type: filters.issue_types.length ? filters.issue_types : undefined,
     with_issues: filters.with_issues || undefined,
     page,
     page_size: pageSize,

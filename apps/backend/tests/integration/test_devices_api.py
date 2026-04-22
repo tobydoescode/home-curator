@@ -7,14 +7,36 @@ def test_lists_all_devices(client):
     assert ids == ["d1", "d2"]
 
 
-def test_filters_by_room(client):
+def test_filters_by_single_room(client):
     r = client.get("/api/devices", params={"room": "Living Room"})
     data = r.json()
     assert [d["id"] for d in data["devices"]] == ["d1"]
 
 
-def test_filters_by_issue_type(client):
+def test_filters_by_multiple_rooms_ors_them(client):
+    # Fixture has d1 in Living Room and d2 with no area; filtering to both
+    # [Living Room, Kitchen] returns only d1 (matches) and excludes d2 (no area).
+    r = client.get(
+        "/api/devices",
+        params=[("room", "Living Room"), ("room", "Kitchen")],
+    )
+    data = r.json()
+    assert [d["id"] for d in data["devices"]] == ["d1"]
+
+
+def test_filters_by_single_issue_type(client):
     r = client.get("/api/devices", params={"issue_type": "missing_area"})
+    data = r.json()
+    assert [d["id"] for d in data["devices"]] == ["d2"]
+
+
+def test_filters_by_multiple_issue_types_ors_them(client):
+    # d2 has both missing_area and naming_convention issues; filtering by
+    # either individually or both together returns just d2.
+    r = client.get(
+        "/api/devices",
+        params=[("issue_type", "missing_area"), ("issue_type", "naming_convention")],
+    )
     data = r.json()
     assert [d["id"] for d in data["devices"]] == ["d2"]
 

@@ -1,11 +1,11 @@
-import { Button, Checkbox, Group, Select, TextInput } from "@mantine/core";
+import { Button, Checkbox, Group, MultiSelect, TextInput } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 
 export interface Filters {
   q: string;
   regex: boolean;
-  room: string | null;
-  issue_type: string | null;
+  rooms: string[];
+  issue_types: string[];
   with_issues: boolean;
 }
 
@@ -19,8 +19,8 @@ interface Props {
 export const emptyFilters: Filters = {
   q: "",
   regex: false,
-  room: null,
-  issue_type: null,
+  rooms: [],
+  issue_types: [],
   with_issues: false,
 };
 
@@ -40,19 +40,24 @@ export function FilterBar({ filters, rooms, issueTypes, onChange }: Props) {
         checked={filters.regex}
         onChange={(e) => patch({ regex: e.currentTarget.checked })}
       />
-      <Select
-        placeholder="Room: All"
-        clearable
+      <MultiSelect
+        placeholder={filters.rooms.length === 0 ? "Room: All" : undefined}
         data={rooms}
-        value={filters.room}
-        onChange={(v) => patch({ room: v })}
-      />
-      <Select
-        placeholder="Issue Type: All"
+        value={filters.rooms}
+        onChange={(v) => patch({ rooms: v })}
         clearable
+        searchable
+        hidePickedOptions
+        w={260}
+      />
+      <MultiSelect
+        placeholder={filters.issue_types.length === 0 ? "Issue Type: All" : undefined}
         data={issueTypes}
-        value={filters.issue_type}
-        onChange={(v) => patch({ issue_type: v })}
+        value={filters.issue_types}
+        onChange={(v) => patch({ issue_types: v })}
+        clearable
+        hidePickedOptions
+        w={260}
       />
       <Checkbox
         label="With Issues Only"

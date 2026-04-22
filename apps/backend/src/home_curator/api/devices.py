@@ -43,8 +43,8 @@ def _highest_severity(issues: list[Issue]) -> str | None:
 def list_devices(
     q: str = "",
     regex: bool = False,
-    room: str | None = None,
-    issue_type: str | None = None,
+    room: list[str] = Query(default_factory=list),
+    issue_type: list[str] = Query(default_factory=list),
     with_issues: bool = False,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=500),
@@ -52,9 +52,10 @@ def list_devices(
 ) -> DevicesListResponse:
     """List devices with evaluated policy issues.
 
-    Supports filtering by name (`q`, optionally `regex`), room, issue type,
-    and whether to show only devices with issues (`with_issues`). Results are
-    paginated via `page` and `page_size`.
+    Filters: `q` (optionally `regex`), `room` (repeat to OR; matches area
+    display name, case-insensitive), `issue_type` (repeat to OR; matches
+    rule type), `with_issues` (only devices that have one or more issues).
+    Results are paginated via `page` and `page_size`.
     """
     all_devices = state.cache.devices()
     tracker_state = state.tracker.all_state()
@@ -82,14 +83,17 @@ def list_devices(
         exceptions=exceptions,
     )
 
+    rooms_lower = {r.lower() for r in room}
+    issue_types_set = set(issue_type)
+
     rows: list[tuple[Device, list[Issue]]] = []
     for d in hydrated:
         if not _matches_query(d.name, q, regex):
             continue
-        if room is not None and (d.area_name or "").lower() != room.lower():
+        if rooms_lower and (d.area_name or "").lower() not in rooms_lower:
             continue
         issues = state.engine.evaluate(d, ctx)
-        if issue_type is not None and not any(i.rule_type == issue_type for i in issues):
+        if issue_types_set and not any(i.rule_type in issue_types_set for i in issues):
             continue
         if with_issues and not issues:
             continue

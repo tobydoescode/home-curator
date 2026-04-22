@@ -4,8 +4,8 @@ import { api } from "@/api/client";
 export interface DevicesQuery {
   q?: string;
   regex?: boolean;
-  room?: string;
-  issue_type?: string;
+  room?: string[];
+  issue_type?: string[];
   with_issues?: boolean;
   page?: number;
   page_size?: number;
