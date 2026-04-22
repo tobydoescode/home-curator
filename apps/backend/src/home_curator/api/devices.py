@@ -1,6 +1,7 @@
 """GET /api/devices — filtered, paginated, issue-enriched device listing."""
 import re
 from collections import Counter
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 
@@ -49,6 +50,8 @@ def list_devices(
     with_issues: bool = False,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=500),
+    sort_by: Literal["name", "room", "severity"] | None = None,
+    sort_dir: Literal["asc", "desc"] = "asc",
     state: AppState = Depends(app_state),
 ) -> DevicesListResponse:
     """List devices with evaluated policy issues.
@@ -108,6 +111,31 @@ def list_devices(
             counts[i.rule_type] += 1
         if d.area_name:
             area_counts[d.area_name] += 1
+
+    if sort_by is not None:
+        reverse = sort_dir == "desc"
+        if sort_by == "name":
+            rows.sort(key=lambda r: r[0].display_name.lower(), reverse=reverse)
+        elif sort_by == "room":
+            # Empty room sorts last on asc, first on desc — mirrors "no data"
+            # convention where unassigned values drop to the bottom when sorting
+            # naturally.
+            rows.sort(
+                key=lambda r: (r[0].area_name is None, (r[0].area_name or "").lower()),
+                reverse=reverse,
+            )
+        elif sort_by == "severity":
+            # Highest severity first on desc; tiebreak on issue count then name
+            # so rows with the same severity don't shuffle.
+            rows.sort(
+                key=lambda r: (
+                    max((_SEVERITY_RANK[i.severity] for i in r[1]), default=0),
+                    len(r[1]),
+                    r[0].display_name.lower(),
+                ),
+                reverse=reverse,
+            )
+
     start = (page - 1) * page_size
     end = start + page_size
     page_rows = rows[start:end]

@@ -1,6 +1,9 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 
+export type DevicesSortBy = "name" | "room" | "severity";
+export type DevicesSortDir = "asc" | "desc";
+
 export interface DevicesQuery {
   q?: string;
   regex?: boolean;
@@ -9,6 +12,8 @@ export interface DevicesQuery {
   with_issues?: boolean;
   page?: number;
   page_size?: number;
+  sort_by?: DevicesSortBy;
+  sort_dir?: DevicesSortDir;
 }
 
 export function useDevices(params: DevicesQuery) {

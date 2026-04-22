@@ -1,4 +1,5 @@
-import { Checkbox, Table } from "@mantine/core";
+import { Checkbox, Group, Table, UnstyledButton } from "@mantine/core";
+import { IconChevronDown, IconChevronUp, IconSelector } from "@tabler/icons-react";
 import {
   type ColumnDef,
   type OnChangeFn,
@@ -9,6 +10,7 @@ import {
 } from "@tanstack/react-table";
 
 import { SeverityBadge } from "@/components/SeverityBadge";
+import type { DevicesSortBy, DevicesSortDir } from "@/hooks/useDevices";
 
 export interface DeviceRow {
   id: string;
@@ -23,6 +25,38 @@ interface Props {
   selection: RowSelectionState;
   onSelectionChange: OnChangeFn<RowSelectionState>;
   onRowClick?: (deviceId: string) => void;
+  sortBy: DevicesSortBy | null;
+  sortDir: DevicesSortDir;
+  onSort: (column: DevicesSortBy) => void;
+}
+
+function SortHeader({
+  label,
+  column,
+  sortBy,
+  sortDir,
+  onSort,
+}: {
+  label: string;
+  column: DevicesSortBy;
+  sortBy: DevicesSortBy | null;
+  sortDir: DevicesSortDir;
+  onSort: (c: DevicesSortBy) => void;
+}) {
+  const active = sortBy === column;
+  const Icon = !active ? IconSelector : sortDir === "asc" ? IconChevronUp : IconChevronDown;
+  return (
+    <UnstyledButton
+      onClick={() => onSort(column)}
+      style={{ fontWeight: "inherit", fontSize: "inherit" }}
+      aria-label={`Sort by ${label}`}
+    >
+      <Group gap={4} wrap="nowrap">
+        <span>{label}</span>
+        <Icon size={14} color={active ? undefined : "var(--mantine-color-dimmed)"} />
+      </Group>
+    </UnstyledButton>
+  );
 }
 
 export function DevicesTable({
@@ -30,6 +64,9 @@ export function DevicesTable({
   selection,
   onSelectionChange,
   onRowClick,
+  sortBy,
+  sortDir,
+  onSort,
 }: Props) {
   const columns: ColumnDef<DeviceRow>[] = [
     {
@@ -52,7 +89,9 @@ export function DevicesTable({
     },
     {
       id: "severity",
-      header: "!",
+      header: () => (
+        <SortHeader label="!" column="severity" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+      ),
       cell: ({ row }) =>
         row.original.highest_severity ? (
           <SeverityBadge
@@ -61,10 +100,18 @@ export function DevicesTable({
           />
         ) : null,
     },
-    { id: "name", header: "Device Name", accessorKey: "name" },
+    {
+      id: "name",
+      header: () => (
+        <SortHeader label="Device Name" column="name" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+      ),
+      accessorKey: "name",
+    },
     {
       id: "room",
-      header: "Room",
+      header: () => (
+        <SortHeader label="Room" column="room" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+      ),
       cell: ({ row }) => row.original.area_name ?? "—",
     },
   ];
