@@ -1,4 +1,5 @@
 """GET / PUT /api/policies."""
+import celpy
 from fastapi import APIRouter, Depends
 
 from home_curator.api.deps import AppState, app_state
@@ -6,12 +7,19 @@ from home_curator.api.schemas import (
     PoliciesListResponse,
     PolicyCompileResponse,
     PolicyOut,
+    SimulateCounts,
+    SimulateRequest,
+    SimulateResponse,
+    SimulateTargetRow,
     UpdatePoliciesResponse,
 )
 from home_curator.config import Settings
-from home_curator.policies.schema import PoliciesFile, Policy
+from home_curator.policies.schema import CustomPolicy, PoliciesFile, Policy
 from home_curator.policies.writer import write_policies_file
+from home_curator.rules.base import Device, EvaluationContext
 from home_curator.rules.custom_cel import compile_custom
+from home_curator.storage.db import session_scope
+from home_curator.storage.exceptions_repo import ExceptionsRepo
 
 router = APIRouter(prefix="/api/policies", tags=["policies"])
 
@@ -84,3 +92,89 @@ def compile_policy(body: Policy) -> PolicyCompileResponse:
         if rule.compile_error:
             return PolicyCompileResponse(ok=False, error=rule.compile_error)
     return PolicyCompileResponse(ok=True)
+
+
+@router.post("/simulate", response_model=SimulateResponse)
+def simulate_policy(
+    body: SimulateRequest, state: AppState = Depends(app_state)
+) -> SimulateResponse:
+    """Run a custom rule against the full device set without persisting it.
+
+    Non-custom rule types return ok=True with zero counts; simulation only
+    makes sense for user-authored CEL.
+    """
+    policy = body.policy
+    if policy is None:
+        if state.policies_file is None:
+            return SimulateResponse(ok=False, error="Policies file invalid")
+        policy = next(
+            (p for p in state.policies_file.policies if p.id == body.policy_id), None,
+        )
+        if policy is None:
+            return SimulateResponse(ok=False, error=f"No policy with id {body.policy_id!r}")
+
+    if not isinstance(policy, CustomPolicy):
+        return SimulateResponse(
+            ok=True,
+            counts=SimulateCounts(matched_when=0, passes_assert=0, fails_assert=0, errored=0),
+        )
+
+    rule = compile_custom(policy)
+    if rule.compile_error:
+        return SimulateResponse(ok=False, error=rule.compile_error)
+
+    all_devices = state.cache.devices()
+    tracker_state = state.tracker.all_state()
+    with session_scope(state.session_factory) as s:
+        exceptions = ExceptionsRepo(s).all_acknowledged_keys()
+    ctx = EvaluationContext(
+        area_name_to_id=state.cache.area_name_to_id(),
+        area_id_to_name=state.cache.area_id_to_name(),
+        exceptions=exceptions,
+    )
+    hydrated = [
+        Device(
+            id=d.id, name=d.name, name_by_user=d.name_by_user,
+            manufacturer=d.manufacturer, model=d.model,
+            area_id=d.area_id, area_name=d.area_name,
+            integration=d.integration, disabled_by=d.disabled_by,
+            entities=d.entities, state=tracker_state.get(d.id, {}),
+        )
+        for d in all_devices
+    ]
+
+    matched_when = 0
+    failing: list[SimulateTargetRow] = []
+    errored: list[SimulateTargetRow] = []
+    passing: list[SimulateTargetRow] = []
+    for d in hydrated:
+        cel_ctx = {"device": celpy.json_to_cel(d.to_cel_context())}
+        try:
+            if rule._when is not None and not bool(rule._when.evaluate(cel_ctx)):
+                continue
+            matched_when += 1
+            ok = bool(rule._assert.evaluate(cel_ctx))
+        except Exception as e:  # noqa: BLE001 — simulator surfaces per-device errors intentionally
+            errored.append(SimulateTargetRow(
+                id=d.id, name=d.display_name, room=d.area_name, error=str(e),
+            ))
+            continue
+        row = SimulateTargetRow(id=d.id, name=d.display_name, room=d.area_name)
+        if ok:
+            passing.append(row)
+        else:
+            row.message = rule.message
+            failing.append(row)
+
+    return SimulateResponse(
+        ok=True,
+        counts=SimulateCounts(
+            matched_when=matched_when,
+            passes_assert=len(passing),
+            fails_assert=len(failing),
+            errored=len(errored),
+        ),
+        failing=failing,
+        errored=errored,
+        passing=passing,
+    )

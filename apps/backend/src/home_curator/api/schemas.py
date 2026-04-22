@@ -6,7 +6,9 @@ frontend uses to generate a typed client.
 """
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from home_curator.policies.schema import Policy
 
 
 Severity = Literal["info", "warning", "error"]
@@ -149,3 +151,39 @@ class PolicyCompileResponse(BaseModel):
     # When present, a (line, column) position into the expression. celpy
     # does not always provide one; None means "no positional info available".
     position: dict[str, int] | None = None
+
+
+class SimulateCounts(BaseModel):
+    matched_when: int
+    passes_assert: int
+    fails_assert: int
+    errored: int
+
+
+class SimulateTargetRow(BaseModel):
+    id: str
+    name: str
+    room: str | None = None
+    message: str | None = None
+    error: str | None = None
+
+
+class SimulateResponse(BaseModel):
+    ok: bool
+    error: str | None = None
+    counts: SimulateCounts | None = None
+    failing: list[SimulateTargetRow] = Field(default_factory=list)
+    errored: list[SimulateTargetRow] = Field(default_factory=list)
+    passing: list[SimulateTargetRow] = Field(default_factory=list)
+
+
+class SimulateRequest(BaseModel):
+    """Either a draft policy or a policy_id from the loaded file."""
+    policy: Policy | None = None
+    policy_id: str | None = None
+
+    @model_validator(mode="after")
+    def _one_of(self):
+        if (self.policy is None) == (self.policy_id is None):
+            raise ValueError("Provide exactly one of 'policy' or 'policy_id'")
+        return self
