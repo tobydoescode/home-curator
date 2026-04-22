@@ -2,6 +2,7 @@ import { ActionIcon, Alert, Button, Group, Select, Stack, Switch, Table, TextInp
 import { IconTrash } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 
+import { api } from "@/api/client";
 import type { PoliciesFileShape } from "@/hooks/usePolicies";
 
 export interface SectionProps {
@@ -50,10 +51,9 @@ export function NamingSection({ draft, onChange }: SectionProps) {
   const areas = useQuery({
     queryKey: ["areas"],
     queryFn: async () => {
-      const res = await globalThis.fetch("/api/areas");
-      if (!res.ok) throw new Error(`Failed to fetch areas: ${res.status}`);
-      const data = await res.json();
-      return (data ?? []) as { id: string; name: string }[];
+      const { data, error } = await api.GET("/api/areas");
+      if (error) throw new Error(String(error));
+      return data ?? [];
     },
   });
 
