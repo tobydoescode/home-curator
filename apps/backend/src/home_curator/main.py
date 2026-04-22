@@ -1,9 +1,11 @@
 """FastAPI app factory and lifespan — wires every component together."""
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from home_curator.api import devices as devices_api, exceptions as exceptions_api, actions as actions_api, policies as policies_api, events as events_api
 from home_curator.api.deps import AppState
@@ -173,6 +175,12 @@ def create_app(
     app.include_router(actions_api.router)
     app.include_router(policies_api.router)
     app.include_router(events_api.router)
+
+    # Serve the built frontend if present (production image bundles it at
+    # /app/static). Mount last so /api routes take precedence.
+    static_dir = os.environ.get("STATIC_DIR", "/app/static")
+    if os.path.isdir(static_dir):
+        app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
     return app
 
