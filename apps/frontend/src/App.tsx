@@ -9,6 +9,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { Layout } from "@/components/Layout";
 import { DevicesPage } from "@/pages/Devices/DevicesPage";
+import { NamingConventionsPage } from "@/pages/Settings/NamingConventionsPage";
 import { theme } from "@/theme";
 
 const queryClient = new QueryClient({
@@ -28,7 +29,7 @@ export default function App() {
                 <Route path="/devices" element={<DevicesPage />} />
                 <Route
                   path="/settings/naming-conventions"
-                  element={<div>Settings (stub)</div>}
+                  element={<NamingConventionsPage />}
                 />
                 <Route path="*" element={<div>Not Found</div>} />
               </Route>
