@@ -207,6 +207,21 @@ def test_starts_with_room_title_case_skipped_when_no_area_name():
     assert rule.evaluate(_dev("Kitchen Lamp", "k", None), ctx) is None
 
 
+def test_disabled_override_opts_room_out():
+    p = NamingConventionPolicy.model_validate({
+        "id": "nc", "type": "naming_convention", "severity": "warning",
+        "global": {"preset": "snake_case"},
+        "rooms": [{"area_id": "mgmt", "enabled": False}],
+    })
+    ctx = _ctx(area_id_to_name={"mgmt": "Management", "lr": "Living Room"})
+    rule = compile_naming_convention(p, ctx)
+    # A name that violates snake_case is OK in mgmt (override disabled).
+    assert rule.evaluate(_dev("WeirdName!", "mgmt", "Management"), ctx) is None
+    # But still fails in a non-overridden room.
+    issue = rule.evaluate(_dev("WeirdName!", "lr", "Living Room"), ctx)
+    assert issue is not None
+
+
 def _dev(name: str, area_id: str | None, area_name: str | None) -> Device:
     return Device(
         id="d1", name=name, name_by_user=None, manufacturer=None, model=None,
