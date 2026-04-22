@@ -1,6 +1,12 @@
 import { Card, Group, Select, Stack, Switch, Text, Title } from "@mantine/core";
 
+import type { components } from "@/api/generated";
 import type { SectionProps } from "./NamingSection";
+
+type Severity = components["schemas"]["MissingAreaPolicy"]["severity"];
+// Every canned built-in rule shares the same `id / type / enabled / severity`
+// surface — pick any as the shape we need for rendering.
+type BuiltInLike = components["schemas"]["MissingAreaPolicy"];
 
 const BUILT_INS: Record<string, { title: string; explanation: string }> = {
   missing_area: {
@@ -16,7 +22,7 @@ const BUILT_INS: Record<string, { title: string; explanation: string }> = {
 const SEVERITIES = ["info", "warning", "error"] as const;
 
 export function BuiltInRulesSection({ draft, onChange }: SectionProps) {
-  function patch(i: number, next: Record<string, unknown>) {
+  function patch(i: number, next: Partial<BuiltInLike>) {
     const policies = [...draft.policies];
     policies[i] = { ...policies[i], ...next } as typeof policies[number];
     onChange({ ...draft, policies });
@@ -24,14 +30,14 @@ export function BuiltInRulesSection({ draft, onChange }: SectionProps) {
 
   const rows = draft.policies
     .map((p, i) => ({ p, i }))
-    .filter(({ p }) => p.type in BUILT_INS);
+    .filter(({ p }) => p.type in BUILT_INS) as { p: BuiltInLike; i: number }[];
 
   return (
     <Stack>
       <Title order={4}>Built-In Rules</Title>
       {rows.length === 0 && <Text c="dimmed">No built-in rules configured.</Text>}
       {rows.map(({ p, i }) => {
-        const meta = BUILT_INS[(p as any).type];
+        const meta = BUILT_INS[p.type];
         return (
           <Card key={p.id} withBorder padding="sm">
             <Group justify="space-between" align="flex-start">
@@ -43,8 +49,8 @@ export function BuiltInRulesSection({ draft, onChange }: SectionProps) {
                 <Select
                   aria-label={`Severity for ${meta.title}`}
                   data={SEVERITIES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
-                  value={(p as any).severity}
-                  onChange={(v) => v && patch(i, { severity: v })}
+                  value={p.severity}
+                  onChange={(v) => v && patch(i, { severity: v as Severity })}
                   w={120}
                 />
                 <Switch

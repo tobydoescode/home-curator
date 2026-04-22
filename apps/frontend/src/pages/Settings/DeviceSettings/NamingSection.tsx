@@ -3,7 +3,11 @@ import { IconTrash } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { api } from "@/api/client";
+import type { components } from "@/api/generated";
 import type { PoliciesFileShape } from "@/hooks/usePolicies";
+
+type NamingPolicy = components["schemas"]["NamingConventionPolicy"];
+type RoomOverride = components["schemas"]["RoomOverride"];
 
 export interface SectionProps {
   draft: PoliciesFileShape;
@@ -50,9 +54,12 @@ export function NamingSection({ draft, onChange }: SectionProps) {
       </Stack>
     );
   }
-  const nc = draft.policies[idx] as any;
+  const nc = draft.policies[idx] as NamingPolicy;
+  // The generated schema types `rooms` as optional; normalise to an array
+  // at the top so every downstream access can assume present.
+  const rooms: RoomOverride[] = nc.rooms ?? [];
 
-  function patch(next: Record<string, unknown>) {
+  function patch(next: Partial<NamingPolicy>) {
     const policies = [...draft.policies];
     policies[idx] = { ...nc, ...next };
     onChange({ ...draft, policies });
@@ -65,25 +72,24 @@ export function NamingSection({ draft, onChange }: SectionProps) {
     { value: "__disabled", label: "Disabled" },
   ];
 
-  function updateOverride(i: number, patchObj: Record<string, unknown>) {
-    const rooms = [...nc.rooms];
-    rooms[i] = { ...rooms[i], ...patchObj };
-    patch({ rooms });
+  function updateOverride(i: number, patchObj: Partial<RoomOverride>) {
+    const next = [...rooms];
+    next[i] = { ...next[i], ...patchObj };
+    patch({ rooms: next });
   }
 
   function removeOverride(i: number) {
-    const rooms = nc.rooms.filter((_: unknown, j: number) => j !== i);
-    patch({ rooms });
+    patch({ rooms: rooms.filter((_, j) => j !== i) });
   }
 
   function addOverride() {
-    patch({ rooms: [...nc.rooms, { area_id: null, enabled: true, preset: "snake_case" }] });
+    patch({ rooms: [...rooms, { area_id: null, enabled: true, preset: "snake_case" }] });
   }
 
   return (
     <Stack>
       <Title order={4}>Naming</Title>
-      <Group align="flex-end">
+      <Group align="flex-start">
         <Select
           label="Preset"
           aria-label="Preset"
@@ -95,12 +101,13 @@ export function NamingSection({ draft, onChange }: SectionProps) {
             if (!v) return;
             patch({
               global: {
-                preset: v,
+                preset: v as Preset,
                 pattern: v === "custom" ? "" : undefined,
               },
             });
           }}
           description={`e.g. ${PRESET_EXAMPLE[nc.global.preset as Preset]}`}
+          inputWrapperOrder={["label", "input", "description", "error"]}
         />
         {nc.global.preset === "custom" && (
           <TextInput
@@ -116,12 +123,13 @@ export function NamingSection({ draft, onChange }: SectionProps) {
           aria-label="Severity"
           data={SEVERITIES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
           value={nc.severity}
-          onChange={(v) => v && patch({ severity: v })}
+          onChange={(v) => v && patch({ severity: v as NamingPolicy["severity"] })}
         />
         <Switch
           label="Enabled"
           checked={nc.enabled}
           onChange={(e) => patch({ enabled: e.currentTarget.checked })}
+          mt={28}
         />
       </Group>
       <Switch
@@ -135,10 +143,10 @@ export function NamingSection({ draft, onChange }: SectionProps) {
         <Title order={5}>Per-Room Overrides</Title>
         <Button size="xs" onClick={addOverride}>+ Add Override</Button>
       </Group>
-      {nc.rooms.length === 0 && (
+      {rooms.length === 0 && (
         <Alert color="gray" variant="light">No room overrides yet.</Alert>
       )}
-      {nc.rooms.length > 0 && (
+      {rooms.length > 0 && (
         <Table withTableBorder>
           <Table.Thead>
             <Table.Tr>
@@ -150,7 +158,7 @@ export function NamingSection({ draft, onChange }: SectionProps) {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {nc.rooms.map((r: any, i: number) => {
+            {rooms.map((r, i) => {
               const presetValue = r.enabled ? (r.preset ?? "snake_case") : "__disabled";
               const areaOptions = (areas.data ?? []).map((a) => ({ value: a.id, label: a.name }));
               const orphanValue = r.area_id && !areaOptions.find((o) => o.value === r.area_id)
@@ -177,7 +185,7 @@ export function NamingSection({ draft, onChange }: SectionProps) {
                         } else if (v === "custom") {
                           updateOverride(i, { enabled: true, preset: "custom", pattern: r.pattern ?? "" });
                         } else if (v) {
-                          updateOverride(i, { enabled: true, preset: v, pattern: null });
+                          updateOverride(i, { enabled: true, preset: v as Preset, pattern: null });
                         }
                       }}
                     />

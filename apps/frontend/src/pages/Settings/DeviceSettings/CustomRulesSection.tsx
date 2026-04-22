@@ -3,8 +3,8 @@ import { IconEdit, IconFlask, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { CustomRuleEditor } from "@/pages/Settings/CustomRuleEditor";
-import type { CustomRule } from "@/pages/Settings/CustomRuleEditor";
+import { applyCustomRuleEdit } from "@/pages/Settings/applyCustomRuleEdit";
+import { CustomRuleEditor, type CustomRule } from "@/pages/Settings/CustomRuleEditor";
 import type { SectionProps } from "./NamingSection";
 
 export function CustomRulesSection({ draft, onChange }: SectionProps) {
@@ -24,11 +24,8 @@ export function CustomRulesSection({ draft, onChange }: SectionProps) {
     setEditing("new");
   }
 
-  function handleSaved(rule: CustomRule, original: number | "new") {
-    const policies = [...draft.policies];
-    if (original === "new") policies.push(rule);
-    else policies[original] = rule;
-    onChange({ ...draft, policies });
+  function handleSaved(rule: CustomRule, slot: number | "new") {
+    onChange(applyCustomRuleEdit(draft, rule, slot));
     setEditing(null);
   }
 
