@@ -49,14 +49,28 @@ class DeviceOut(BaseModel):
     issues: list[IssueOut] = Field(default_factory=list)
 
 
+class AreaOut(BaseModel):
+    """A Home Assistant area (room)."""
+
+    id: str
+    name: str
+
+
 class DevicesListResponse(BaseModel):
-    """Paginated device list with aggregate issue counts."""
+    """Paginated device list with aggregate issue counts.
+
+    `all_areas` and `all_issue_types` enumerate the full universe of filter
+    options (not just what's in the current filtered result), so UI dropdowns
+    stay populated with every option regardless of active filters.
+    """
 
     devices: list[DeviceOut]
     total: int
     page: int
     page_size: int
     issue_counts_by_type: dict[str, int]
+    all_areas: list[AreaOut] = Field(default_factory=list)
+    all_issue_types: list[str] = Field(default_factory=list)
 
 
 class ExceptionOut(BaseModel):

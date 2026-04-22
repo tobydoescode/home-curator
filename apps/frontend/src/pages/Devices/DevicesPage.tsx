@@ -61,32 +61,19 @@ export function DevicesPage() {
     page_size: pageSize,
   });
 
+  // Dropdown options come from the full universe (all_areas / all_issue_types)
+  // so filters don't shrink their own option lists as you select values.
   const rooms = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          (data?.devices.map((d) => d.area_name).filter(Boolean) as string[]) ??
-            [],
-        ),
-      ),
+    () => (data?.all_areas ?? []).map((a) => a.name),
     [data],
   );
 
-  // Derive the rooms-by-id for the AssignRoomModal's Select.
-  const roomsForAssign = useMemo(() => {
-    if (!data) return [];
-    const seen = new Map<string, string>();
-    for (const d of data.devices) {
-      if (d.area_id && d.area_name && !seen.has(d.area_id))
-        seen.set(d.area_id, d.area_name);
-    }
-    return Array.from(seen, ([id, name]) => ({ id, name }));
-  }, [data]);
-
-  const issueTypes = useMemo(
-    () => Object.keys(data?.issue_counts_by_type ?? {}),
+  const roomsForAssign = useMemo(
+    () => (data?.all_areas ?? []).map((a) => ({ id: a.id, name: a.name })),
     [data],
   );
+
+  const issueTypes = useMemo(() => data?.all_issue_types ?? [], [data]);
 
   const deviceRows: DeviceRow[] = useMemo(
     () =>

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query
 
 from home_curator.api.deps import AppState, app_state
 from home_curator.api.schemas import (
+    AreaOut,
     DeviceOut,
     DevicesListResponse,
     EntitySummary,
@@ -132,10 +133,15 @@ def list_devices(
             ],
         )
 
+    all_areas = [AreaOut(id=a.id, name=a.name) for a in state.cache.areas()]
+    all_issue_types = sorted({r.rule_type for r in state.engine.compiled})
+
     return DevicesListResponse(
         devices=[_render(d, issues) for d, issues in page_rows],
         total=total,
         page=page,
         page_size=page_size,
         issue_counts_by_type=dict(counts),
+        all_areas=all_areas,
+        all_issue_types=all_issue_types,
     )
