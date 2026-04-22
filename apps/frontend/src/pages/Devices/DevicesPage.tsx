@@ -1,8 +1,10 @@
 import { Alert, Stack, Text, Title } from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { RowSelectionState } from "@tanstack/react-table";
 
+import { SEARCH_DEBOUNCE_MS } from "@/constants";
 import { useDevices } from "@/hooks/useDevices";
 import { ActionRow } from "./ActionRow";
 import { DevicesTable, type DeviceRow } from "./DevicesTable";
@@ -45,8 +47,12 @@ export function DevicesPage() {
   const page = Number(params.get("page") ?? 1);
   const pageSize = Number(params.get("page_size") ?? 50);
 
+  // Debounce only the free-text search — dropdowns/toggles fire immediately
+  // because they're already discrete clicks.
+  const [debouncedQ] = useDebouncedValue(filters.q, SEARCH_DEBOUNCE_MS);
+
   const { data, isLoading, error } = useDevices({
-    q: filters.q || undefined,
+    q: debouncedQ || undefined,
     regex: filters.regex || undefined,
     room: filters.room ?? undefined,
     issue_type: filters.issue_type ?? undefined,
