@@ -1,11 +1,10 @@
 """GET / PUT /api/policies."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from home_curator.api.deps import AppState, app_state
 from home_curator.api.schemas import (
     PoliciesListResponse,
     PolicyOut,
-    UpdatePoliciesBody,
     UpdatePoliciesResponse,
 )
 from home_curator.config import Settings
@@ -41,17 +40,15 @@ def list_policies(state: AppState = Depends(app_state)) -> PoliciesListResponse:
 
 
 @router.put("", response_model=UpdatePoliciesResponse)
-def update_policies(body: UpdatePoliciesBody) -> UpdatePoliciesResponse:
+def update_policies(body: PoliciesFile) -> UpdatePoliciesResponse:
     """Replace policies.yaml.
 
-    Schema-validates first; the hot-reload watcher picks up the change and
-    recompiles the engine.
+    The request body matches the YAML file's shape exactly — a tagged union
+    keyed by `type`. Invalid bodies are rejected with 422 before the file is
+    touched; the hot-reload watcher picks up the write and recompiles the
+    engine.
     """
-    data = body.model_dump(mode="json")
-    try:
-        PoliciesFile.model_validate(data)
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=str(e)) from e
+    data = body.model_dump(mode="json", by_alias=True)
     settings = Settings()
     write_policies_file(settings.policies_path, data)
     return UpdatePoliciesResponse(ok=True)
