@@ -87,3 +87,45 @@ class ExceptionsRepo:
         else:
             result = self.session.execute(delete(Exemption))
         return result.rowcount or 0
+
+    def list_paginated(
+        self,
+        *,
+        search: str | None = None,
+        policy_ids: set[str] | None = None,
+        device_ids: set[str] | None = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[list[Exemption], int]:
+        """Paginated exception list, newest-first.
+
+        Filters are ANDed. `search` matches substring against note OR device_id
+        (case-insensitive). device_name / area filtering happens in the API
+        layer because the registry is out-of-process.
+        """
+        stmt = select(Exemption)
+        if policy_ids:
+            stmt = stmt.where(Exemption.policy_id.in_(policy_ids))
+        if device_ids:
+            stmt = stmt.where(Exemption.device_id.in_(device_ids))
+        if search:
+            like = f"%{search.lower()}%"
+            stmt = stmt.where(
+                (Exemption.note.is_not(None) & (Exemption.note.ilike(like)))
+                | Exemption.device_id.ilike(like)
+            )
+        from sqlalchemy import func
+        total = self.session.execute(
+            select(func.count()).select_from(stmt.subquery())
+        ).scalar_one()
+        stmt = stmt.order_by(Exemption.acknowledged_at.desc()).limit(page_size).offset(
+            (page - 1) * page_size
+        )
+        rows = list(self.session.execute(stmt).scalars())
+        return rows, int(total)
+
+    def bulk_delete(self, ids: set[int]) -> int:
+        if not ids:
+            return 0
+        result = self.session.execute(delete(Exemption).where(Exemption.id.in_(ids)))
+        return result.rowcount or 0

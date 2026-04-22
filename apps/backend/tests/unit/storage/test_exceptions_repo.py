@@ -95,3 +95,44 @@ def test_all_acknowledged_keys_reflects_clear(session):
     repo.clear("d1", "p1")
     session.commit()
     assert repo.all_acknowledged_keys() == {("d1", "p2")}
+
+
+from datetime import UTC, datetime
+
+from home_curator.storage.db import session_scope
+from home_curator.storage.models import Exemption
+
+
+def test_list_paginated_orders_newest_first(session_factory):
+    with session_scope(session_factory) as s:
+        s.add(Exemption(device_id="d1", policy_id="p1", acknowledged_at=datetime(2026, 1, 1, tzinfo=UTC)))
+        s.add(Exemption(device_id="d2", policy_id="p1", acknowledged_at=datetime(2026, 2, 1, tzinfo=UTC)))
+        s.add(Exemption(device_id="d3", policy_id="p2", acknowledged_at=datetime(2026, 3, 1, tzinfo=UTC)))
+    with session_scope(session_factory) as s:
+        rows, total = ExceptionsRepo(s).list_paginated(page=1, page_size=2)
+    assert total == 3
+    assert [r.device_id for r in rows] == ["d3", "d2"]
+
+
+def test_list_paginated_filters_by_policy_and_device(session_factory):
+    with session_scope(session_factory) as s:
+        s.add(Exemption(device_id="d1", policy_id="p1"))
+        s.add(Exemption(device_id="d2", policy_id="p2"))
+    with session_scope(session_factory) as s:
+        rows, _ = ExceptionsRepo(s).list_paginated(policy_ids={"p1"})
+    assert [r.device_id for r in rows] == ["d1"]
+
+
+def test_bulk_delete_returns_deleted_count(session_factory):
+    with session_scope(session_factory) as s:
+        s.add_all([
+            Exemption(id=1, device_id="d1", policy_id="p1"),
+            Exemption(id=2, device_id="d2", policy_id="p1"),
+            Exemption(id=3, device_id="d3", policy_id="p1"),
+        ])
+    with session_scope(session_factory) as s:
+        deleted = ExceptionsRepo(s).bulk_delete({1, 3})
+    assert deleted == 2
+    with session_scope(session_factory) as s:
+        rows, total = ExceptionsRepo(s).list_paginated()
+        assert total == 1 and rows[0].id == 2
