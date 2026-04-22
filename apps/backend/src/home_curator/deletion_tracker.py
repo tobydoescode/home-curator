@@ -61,11 +61,18 @@ class DeletionTracker:
                 self._repo.mark_reappeared(h)
                 self._state[did] = {STATE_KEY_REAPPEARED: True}
 
-        # Snapshot for next round
+        # Snapshot for next round, pruned to current devices so deleted
+        # entries don't accumulate indefinitely across long process lifetimes.
         self._last_known_identifiers = {
             d.id: self._cache.identifiers(d.id) or () for d in self._cache.devices()
         }
-        self._last_known_first_seen.update({
+        self._last_known_first_seen = {
             d.id: self._last_known_first_seen.get(d.id, datetime.now(UTC))
             for d in self._cache.devices()
-        })
+        }
+        # The "reappeared" flag persists until either the user acknowledges an
+        # exception (handled by the rule engine) or the device is deleted
+        # again. Prune state for devices that are no longer in the cache.
+        self._state = {
+            did: s for did, s in self._state.items() if did in current_ids
+        }

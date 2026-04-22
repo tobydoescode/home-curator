@@ -69,3 +69,34 @@ async def test_reappearance_marked_and_state_flag_set():
 
     # Reappearance should be tracked and the flag should be set in state
     assert tracker.state_for("d2").get("reappeared_after_delete") is True
+
+
+@pytest.mark.asyncio
+async def test_state_and_snapshots_pruned_on_delete():
+    """Reappeared device that's later deleted doesn't leak state."""
+    fake = FakeHAClient(devices=[_dev("d1", [["hue", "abc"]])], areas=[])
+    cache = RegistryCache(fake)
+    await cache.load()
+    session = _session()
+    tracker = DeletionTracker(cache=cache, session=session)
+
+    # Delete + re-add to set reappeared flag on d2
+    fake.set_devices([])
+    await cache.refresh()
+    tracker.handle_diff_from_cache()
+    session.commit()
+
+    fake.set_devices([_dev("d2", [["hue", "abc"]])])
+    await cache.refresh()
+    tracker.handle_diff_from_cache()
+    session.commit()
+    assert "d2" in tracker.all_state()
+
+    # Delete d2; state and snapshots prune out
+    fake.set_devices([])
+    await cache.refresh()
+    tracker.handle_diff_from_cache()
+    session.commit()
+    assert "d2" not in tracker.all_state()
+    assert tracker._last_known_identifiers == {}
+    assert tracker._last_known_first_seen == {}
