@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from home_curator.api import devices as devices_api, exceptions as exceptions_api, actions as actions_api, policies as policies_api, events as events_api
+from home_curator.api import devices as devices_api, exceptions as exceptions_api, actions as actions_api, policies as policies_api, events as events_api, areas as areas_api
 from home_curator.api.deps import AppState
 from home_curator.api.schemas import HealthResponse
 from home_curator.config import Settings
@@ -94,12 +94,21 @@ def create_app(
                 else RuleEngine(compiled=[])
             )
 
+            async def _refresh_and_publish():
+                # Pull fresh device/area data from HA, update deletion tracker,
+                # then tell the UI to refetch. Without the cache.refresh() the
+                # /api/devices handler would keep serving stale data from the
+                # in-memory cache until the 5-minute safety resync runs.
+                try:
+                    await cache.refresh()
+                    tracker.handle_diff_from_cache()
+                    session.commit()
+                except Exception:
+                    log.exception("registry refresh on HA event failed")
+                await broker.publish({"kind": "devices_changed"})
+
             def on_event(_e):
-                # broker.publish only enqueues; scheduling it as a task just
-                # so we can call publish from a sync callback.
-                asyncio.get_running_loop().create_task(
-                    broker.publish({"kind": "devices_changed"})
-                )
+                asyncio.get_running_loop().create_task(_refresh_and_publish())
 
             unsub = client.subscribe(on_event)
             task = asyncio.create_task(
@@ -175,6 +184,7 @@ def create_app(
     app.include_router(actions_api.router)
     app.include_router(policies_api.router)
     app.include_router(events_api.router)
+    app.include_router(areas_api.router)
 
     # Serve the built frontend if present (production image bundles it at
     # /app/static). Mount last so /api routes take precedence.

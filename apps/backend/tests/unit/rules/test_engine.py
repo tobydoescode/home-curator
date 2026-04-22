@@ -73,6 +73,7 @@ def test_errored_custom_policy_does_not_crash():
                     "type": "custom",
                     "enabled": True,
                     "severity": "info",
+                    "scope": "devices",
                     "assert": "bad syntax.",
                     "message": "x",
                 },

@@ -21,6 +21,7 @@ policies:
     type: custom
     enabled: true
     severity: info
+    scope: devices
     when: 'device.manufacturer == "Aqara"'
     assert: 'device.area_id != null'
     message: "Aqara device without a room"

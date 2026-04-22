@@ -48,3 +48,40 @@ def test_acknowledged_by_stored(client):
     body = r.json()
     assert body[0]["acknowledged_by"] == "alice"
     assert body[0]["note"] == "verified"
+
+
+def test_list_paginated_shape(client):
+    client.post("/api/exceptions", json={"device_id": "d1", "policy_id": "missing-room"})
+    client.post("/api/exceptions", json={"device_id": "d2", "policy_id": "missing-room"})
+    r = client.get("/api/exceptions/list", params={"page": 1, "page_size": 10})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] >= 2
+    assert body["page"] == 1
+    assert body["page_size"] == 10
+    assert "exceptions" in body
+    row = body["exceptions"][0]
+    for key in ("id", "device_id", "device_name", "policy_id", "policy_name", "acknowledged_at"):
+        assert key in row
+
+
+def test_list_filters_by_policy_id(client):
+    client.post("/api/exceptions", json={"device_id": "d1", "policy_id": "missing-room"})
+    client.post("/api/exceptions", json={"device_id": "d1", "policy_id": "some-other"})
+    r = client.get("/api/exceptions/list", params={"policy_id": "missing-room"})
+    assert r.status_code == 200
+    rows = r.json()["exceptions"]
+    assert all(row["policy_id"] == "missing-room" for row in rows)
+
+
+def test_bulk_delete_exceptions(client):
+    client.post("/api/exceptions", json={"device_id": "d1", "policy_id": "missing-room"})
+    client.post("/api/exceptions", json={"device_id": "d2", "policy_id": "missing-room"})
+    rows = client.get("/api/exceptions/list").json()["exceptions"]
+    to_delete = [r["id"] for r in rows[:2]]
+    r = client.post("/api/exceptions/bulk-delete", json={"ids": to_delete})
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body["deleted"]) == set(to_delete)
+    rows_after = client.get("/api/exceptions/list").json()["exceptions"]
+    assert all(row["id"] not in to_delete for row in rows_after)

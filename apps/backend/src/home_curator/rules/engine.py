@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from home_curator.policies.schema import (
     CustomPolicy,
     MissingAreaPolicy,
-    NameStartsWithRoomPolicy,
     NamingConventionPolicy,
     PoliciesFile,
     ReappearedAfterDeletePolicy,
@@ -11,7 +10,6 @@ from home_curator.policies.schema import (
 from home_curator.rules.base import CompiledPolicy, Device, EvaluationContext, Issue
 from home_curator.rules.custom_cel import compile_custom
 from home_curator.rules.missing_area import compile_missing_area
-from home_curator.rules.name_starts_with_room import compile_name_starts_with_room
 from home_curator.rules.naming_convention import compile_naming_convention
 from home_curator.rules.reappeared_after_delete import compile_reappeared
 
@@ -30,13 +28,9 @@ class RuleEngine:
                 rules.append(compile_naming_convention(p, ctx))
             elif isinstance(p, ReappearedAfterDeletePolicy):
                 rules.append(compile_reappeared(p))
-            elif isinstance(p, NameStartsWithRoomPolicy):
-                rules.append(compile_name_starts_with_room(p))
             elif isinstance(p, CustomPolicy):
                 rules.append(compile_custom(p))
             else:
-                # Reached only if a new Policy variant is added to the schema
-                # without being handled here. Fail loudly at startup.
                 raise TypeError(f"Unhandled policy type: {type(p).__name__}")
         return cls(compiled=rules)
 

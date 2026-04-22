@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from home_curator.policies.schema import NamingConventionPolicy, PoliciesFile, CustomPolicy
+from home_curator.policies.schema import NamingConventionPolicy, PoliciesFile, CustomPolicy, RoomOverride
 
 
 def test_minimal_file():
@@ -60,6 +60,7 @@ def test_custom_policy():
             "type": "custom",
             "enabled": True,
             "severity": "info",
+            "scope": "devices",
             "when": 'device.manufacturer == "Aqara"',
             "assert": "device.area_id != null",
             "message": "msg",
@@ -134,6 +135,7 @@ def test_file_with_mixed_policies():
                 "type": "custom",
                 "enabled": True,
                 "severity": "info",
+                "scope": "devices",
                 "when": "true",
                 "assert": "device.area_id != null",
                 "message": "x",
@@ -148,3 +150,58 @@ def test_file_with_mixed_policies():
         "ReappearedAfterDeletePolicy",
         "CustomPolicy",
     ]
+
+
+def test_naming_convention_has_starts_with_room_default_false():
+    p = NamingConventionPolicy.model_validate({
+        "id": "nc", "type": "naming_convention", "severity": "warning",
+        "global": {"preset": "snake_case"}, "rooms": [],
+    })
+    assert p.starts_with_room is False
+
+
+def test_room_override_can_be_disabled():
+    o = RoomOverride.model_validate({"area_id": "mgmt", "enabled": False})
+    assert o.enabled is False
+    # Disabled override doesn't require preset/pattern
+    assert o.preset is None
+
+
+def test_room_override_enabled_requires_preset():
+    with pytest.raises(ValidationError):
+        RoomOverride.model_validate({"area_id": "mgmt", "enabled": True})
+
+
+def test_custom_policy_requires_scope():
+    with pytest.raises(ValidationError):
+        CustomPolicy.model_validate({
+            "id": "c", "type": "custom", "severity": "info",
+            "assert": "true", "message": "m",
+        })
+
+
+def test_custom_policy_scope_devices_ok():
+    p = CustomPolicy.model_validate({
+        "id": "c", "type": "custom", "severity": "info", "scope": "devices",
+        "assert": "true", "message": "m",
+    })
+    assert p.scope == "devices"
+
+
+def test_name_starts_with_room_policy_removed():
+    with pytest.raises(ValidationError):
+        PoliciesFile.model_validate({
+            "version": 1,
+            "policies": [{
+                "id": "r", "type": "name_starts_with_room",
+                "severity": "warning", "source": "area_id",
+            }],
+        })
+
+
+def test_naming_convention_starts_with_room_true_accepted():
+    p = NamingConventionPolicy.model_validate({
+        "id": "nc", "type": "naming_convention", "severity": "warning",
+        "global": {"preset": "snake_case"}, "starts_with_room": True,
+    })
+    assert p.starts_with_room is True

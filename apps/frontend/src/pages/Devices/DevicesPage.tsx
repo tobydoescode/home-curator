@@ -5,7 +5,7 @@ import { useSearchParams } from "react-router-dom";
 import type { RowSelectionState } from "@tanstack/react-table";
 
 import { SEARCH_DEBOUNCE_MS } from "@/constants";
-import { useDevices } from "@/hooks/useDevices";
+import { useDevices, type DevicesSortBy, type DevicesSortDir } from "@/hooks/useDevices";
 import { ActionRow } from "./ActionRow";
 import { DevicesTable, type DeviceRow } from "./DevicesTable";
 import { FilterBar, type Filters } from "./FilterBar";
@@ -46,6 +46,26 @@ export function DevicesPage() {
   const filters = useMemo(() => filtersFromParams(params), [params]);
   const page = Number(params.get("page") ?? 1);
   const pageSize = Number(params.get("page_size") ?? 50);
+  const sortBy = (params.get("sort_by") as DevicesSortBy | null) || null;
+  const sortDir: DevicesSortDir = params.get("sort_dir") === "desc" ? "desc" : "asc";
+
+  function cycleSort(column: DevicesSortBy) {
+    const next = new URLSearchParams(params);
+    if (sortBy !== column) {
+      // First click on a new column → ascending.
+      next.set("sort_by", column);
+      next.set("sort_dir", "asc");
+    } else if (sortDir === "asc") {
+      // Second click → flip to descending.
+      next.set("sort_dir", "desc");
+    } else {
+      // Third click → clear the sort.
+      next.delete("sort_by");
+      next.delete("sort_dir");
+    }
+    next.set("page", "1");  // any sort change resets to page 1
+    setParams(next);
+  }
 
   // Debounce only the free-text search — dropdowns/toggles fire immediately
   // because they're already discrete clicks.
@@ -59,6 +79,8 @@ export function DevicesPage() {
     with_issues: filters.with_issues || undefined,
     page,
     page_size: pageSize,
+    sort_by: sortBy ?? undefined,
+    sort_dir: sortBy ? sortDir : undefined,
   });
 
   // Dropdown options come from the full universe (all_areas / all_issue_types)
@@ -118,7 +140,7 @@ export function DevicesPage() {
       <Text c="dimmed" size="sm">
         {data.total} devices ·{" "}
         {Object.values(data.issue_counts_by_type).reduce((a, b) => a + b, 0)}{" "}
-        with issues
+        issues
       </Text>
       <FilterBar
         filters={filters}
@@ -138,6 +160,9 @@ export function DevicesPage() {
         selection={selection}
         onSelectionChange={setSelection}
         onRowClick={setDrawerId}
+        sortBy={sortBy}
+        sortDir={sortDir}
+        onSort={cycleSort}
       />
       <PaginationFooter
         total={data.total}

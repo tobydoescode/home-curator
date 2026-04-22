@@ -31,6 +31,7 @@ def test_custom_fires_when_assert_false():
             "type": "custom",
             "enabled": True,
             "severity": "info",
+            "scope": "devices",
             "when": 'device.manufacturer == "Aqara"',
             "assert": "device.area_id != null",
             "message": "Aqara needs room",
@@ -49,6 +50,7 @@ def test_when_gates_evaluation():
             "type": "custom",
             "enabled": True,
             "severity": "info",
+            "scope": "devices",
             "when": 'device.manufacturer == "Ikea"',
             "assert": "device.area_id != null",
             "message": "msg",
@@ -65,6 +67,7 @@ def test_assert_true_no_issue():
             "type": "custom",
             "enabled": True,
             "severity": "info",
+            "scope": "devices",
             "assert": "device.area_id != null",
             "message": "msg",
         }
@@ -80,6 +83,7 @@ def test_compile_error_on_bad_syntax():
             "type": "custom",
             "enabled": True,
             "severity": "info",
+            "scope": "devices",
             "assert": "device.",
             "message": "msg",
         }
@@ -98,6 +102,7 @@ def test_runtime_error_counted():
             "type": "custom",
             "enabled": True,
             "severity": "info",
+            "scope": "devices",
             "assert": "device.does_not_exist == 1",
             "message": "msg",
         }
@@ -114,6 +119,7 @@ def test_exception_suppresses():
             "type": "custom",
             "enabled": True,
             "severity": "info",
+            "scope": "devices",
             "assert": "device.area_id != null",
             "message": "msg",
         }
@@ -129,6 +135,7 @@ def test_disabled_rule_does_not_fire():
             "type": "custom",
             "enabled": False,
             "severity": "info",
+            "scope": "devices",
             "assert": "device.area_id != null",
             "message": "msg",
         }
@@ -146,6 +153,7 @@ def test_runtime_errors_capped():
             "type": "custom",
             "enabled": True,
             "severity": "info",
+            "scope": "devices",
             "assert": "device.does_not_exist == 1",
             "message": "msg",
         }

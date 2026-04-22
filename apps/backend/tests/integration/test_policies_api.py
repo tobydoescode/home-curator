@@ -42,3 +42,14 @@ def test_policy_includes_compile_errors(client):
     body = r.json()
     for p in body["policies"]:
         assert "compile_error" in p
+
+
+def test_get_policies_file_returns_full_shape(client):
+    r = client.get("/api/policies/file")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["version"] == 1
+    nc = next(p for p in body["policies"] if p["type"] == "naming_convention")
+    assert "global" in nc
+    assert "starts_with_room" in nc
+    assert "rooms" in nc
