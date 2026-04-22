@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import pytest
@@ -47,6 +48,47 @@ async def test_end_to_end_get_devices():
             devs = await client.get_devices()
             assert len(devs) == 1
             assert devs[0]["id"] == "d1"
+            areas = await client.get_areas()
+            assert areas[0]["name"] == "Living Room"
+        finally:
+            await client.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconnects_and_emits_reconnected_event(monkeypatch):
+    """Force the read loop to see a broken connection, then verify the
+    supervisor reconnects against the same fake HA and emits a 'reconnected'
+    event that subscribers receive."""
+
+    # Collapse the backoff table so the test isn't slow.
+    from home_curator.ha_client import websocket as ws_mod
+
+    monkeypatch.setattr(ws_mod, "_RECONNECT_BACKOFF_SECONDS", (0,))
+
+    async with websockets.serve(_fake_ha, "localhost", 0) as server:
+        port = server.sockets[0].getsockname()[1]
+        client = WebSocketHAClient(url=f"ws://localhost:{port}", token="tok")
+        await client.start()
+
+        events: list[dict] = []
+        client.subscribe(lambda e: events.append(e))
+
+        try:
+            # Slam the WS closed from the client side — mimics keepalive
+            # timeout, network drop, etc.
+            assert client._ws is not None
+            await client._ws.close(code=1011, reason="simulated")
+
+            # Wait up to 3s for the supervisor to reconnect + emit.
+            for _ in range(30):
+                if any(e.get("kind") == "reconnected" for e in events):
+                    break
+                await asyncio.sleep(0.1)
+            assert any(e.get("kind") == "reconnected" for e in events), (
+                f"no reconnect event observed; got {events}"
+            )
+
+            # Post-reconnect the client is usable again.
             areas = await client.get_areas()
             assert areas[0]["name"] == "Living Room"
         finally:
