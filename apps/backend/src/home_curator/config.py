@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     supervisor_token: str | None = Field(default=None, alias="SUPERVISOR_TOKEN")
     ha_token: str | None = Field(default=None, alias="HA_TOKEN")
     ha_url: str | None = Field(default=None, alias="HA_URL")
+    # Optional: the user-facing HA URL used to build deep-links from the UI.
+    # Unset under ingress (frontend falls back to window.location.origin,
+    # which IS the HA host). Set in dev to point "Open in Home Assistant"
+    # at the real HA instance.
+    ha_external_url: str | None = Field(default=None, alias="HA_EXTERNAL_URL")
     config_dir: Path | None = Field(default=None, alias="CONFIG_DIR")
     data_dir: Path | None = Field(default=None, alias="DATA_DIR")
 

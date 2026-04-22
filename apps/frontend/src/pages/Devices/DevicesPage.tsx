@@ -18,6 +18,7 @@ function filtersFromParams(p: URLSearchParams): Filters {
     regex: p.get("regex") === "true",
     rooms: p.getAll("room"),
     issue_types: p.getAll("issue_type"),
+    integrations: p.getAll("integration"),
     with_issues: p.get("with_issues") === "true",
   };
 }
@@ -32,6 +33,7 @@ function paramsFromFiltersAndPagination(
   if (f.regex) out.set("regex", "true");
   for (const r of f.rooms) out.append("room", r);
   for (const t of f.issue_types) out.append("issue_type", t);
+  for (const i of f.integrations) out.append("integration", i);
   if (f.with_issues) out.set("with_issues", "true");
   if (page !== 1) out.set("page", String(page));
   if (pageSize !== 50) out.set("page_size", String(pageSize));
@@ -76,6 +78,7 @@ export function DevicesPage() {
     regex: filters.regex || undefined,
     room: filters.rooms.length ? filters.rooms : undefined,
     issue_type: filters.issue_types.length ? filters.issue_types : undefined,
+    integration: filters.integrations.length ? filters.integrations : undefined,
     with_issues: filters.with_issues || undefined,
     page,
     page_size: pageSize,
@@ -96,6 +99,8 @@ export function DevicesPage() {
   );
 
   const issueTypes = useMemo(() => data?.all_issue_types ?? [], [data]);
+
+  const integrations = useMemo(() => data?.all_integrations ?? [], [data]);
 
   const deviceRows: DeviceRow[] = useMemo(
     () =>
@@ -149,8 +154,10 @@ export function DevicesPage() {
         filters={filters}
         rooms={rooms}
         issueTypes={issueTypes}
+        integrations={integrations}
         roomCounts={data.area_counts}
         issueTypeCounts={data.issue_counts_by_type}
+        integrationCounts={data.integration_counts}
         onChange={(f) => setParams(paramsFromFiltersAndPagination(f, 1, pageSize))}
       />
       <ActionRow

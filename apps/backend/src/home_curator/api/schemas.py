@@ -18,6 +18,15 @@ class HealthResponse(BaseModel):
     ok: bool
 
 
+class ConfigResponse(BaseModel):
+    """Runtime config exposed to the frontend.
+
+    `ha_external_url` is the user-facing HA URL used to build deep links
+    (e.g. the "open in Home Assistant" button on the devices table).
+    """
+    ha_external_url: str | None = None
+
+
 class EntitySummary(BaseModel):
     """An entity owned by a device."""
 
@@ -77,8 +86,10 @@ class DevicesListResponse(BaseModel):
     # Device counts across the filtered result, keyed by area_name.
     # Areas with zero matches in the current filter appear here as 0.
     area_counts: dict[str, int] = Field(default_factory=dict)
+    integration_counts: dict[str, int] = Field(default_factory=dict)
     all_areas: list[AreaOut] = Field(default_factory=list)
     all_issue_types: list[str] = Field(default_factory=list)
+    all_integrations: list[str] = Field(default_factory=list)
 
 
 class ExceptionOut(BaseModel):

@@ -15,6 +15,7 @@ export interface DevicesQuery {
   regex?: boolean;
   room?: string[];
   issue_type?: string[];
+  integration?: string[];
   with_issues?: boolean;
   page?: number;
   page_size?: number;

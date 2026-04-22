@@ -3,7 +3,24 @@ import asyncio
 import json
 import logging
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
+
+
+def _iso_or_none(v: Any) -> str | None:
+    """Accept the shape HA emits for created_at / modified_at.
+
+    HA sends a float (unix seconds) with 0.0 meaning "never set" for
+    internal devices (e.g. the Sun entity created before tracking). A
+    bare str is treated as already-ISO. Anything else → None.
+    """
+    if isinstance(v, (int, float)):
+        if v <= 0:
+            return None
+        return datetime.fromtimestamp(v, tz=UTC).isoformat()
+    if isinstance(v, str) and v:
+        return v
+    return None
 
 from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed
@@ -199,6 +216,16 @@ class WebSocketHAClient:
         ents: list[dict[str, Any]] = await self._send_cmd(
             {"type": "config/entity_registry/list"}
         ) or []
+        # Map config_entry_id → integration domain (e.g. "hue", "aqara_ble").
+        # HA's device registry only carries config_entry ids; we want to show
+        # users the human-meaningful integration name instead.
+        entries: list[dict[str, Any]] = await self._send_cmd(
+            {"type": "config_entries/get"}
+        ) or []
+        entry_domain: dict[str, str] = {
+            e["entry_id"]: e.get("domain", "") for e in entries if e.get("entry_id")
+        }
+
         index: dict[str, list[dict[str, str]]] = {}
         for e in ents:
             entity_id: str = e["entity_id"]
@@ -208,6 +235,7 @@ class WebSocketHAClient:
         out: list[HADeviceDict] = []
         for d in devs:
             did: str = d["id"]
+            primary_entry_id = (d.get("config_entries") or [None])[0]
             out.append({
                 "id": did,
                 "name": d.get("name_by_user") or d.get("name") or did,
@@ -215,12 +243,12 @@ class WebSocketHAClient:
                 "manufacturer": d.get("manufacturer"),
                 "model": d.get("model"),
                 "area_id": d.get("area_id"),
-                "integration": (d.get("config_entries") or [None])[0],
+                "integration": entry_domain.get(primary_entry_id) if primary_entry_id else None,
                 "disabled_by": d.get("disabled_by"),
                 "identifiers": [list(i) for i in d.get("identifiers", [])],
                 "entities": index.get(did, []),
-                "created_at": d.get("created_at"),
-                "modified_at": d.get("modified_at"),
+                "created_at": _iso_or_none(d.get("created_at")),
+                "modified_at": _iso_or_none(d.get("modified_at")),
             })
         return out
 

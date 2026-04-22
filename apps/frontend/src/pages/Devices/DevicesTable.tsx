@@ -5,6 +5,9 @@ import {
   IconExternalLink,
   IconSelector,
 } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
+
+import { api } from "@/api/client";
 import {
   type ColumnDef,
   type OnChangeFn,
@@ -84,6 +87,21 @@ export function DevicesTable({
   sortDir,
   onSort,
 }: Props) {
+  // Base URL for "Open in Home Assistant" links. The backend returns the
+  // externally-configured HA URL if set (typically in dev via HA_EXTERNAL_URL);
+  // otherwise we fall back to the current origin, which under HA ingress IS
+  // the HA host so the deep link resolves correctly.
+  const { data: config } = useQuery({
+    queryKey: ["config"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/config");
+      if (error) throw new Error(String(error));
+      return data!;
+    },
+  });
+  const haOrigin =
+    config?.ha_external_url ||
+    (typeof window !== "undefined" ? window.location.origin : "");
   const columns: ColumnDef<DeviceRow>[] = [
     {
       id: "select",
@@ -166,11 +184,9 @@ export function DevicesTable({
         <Tooltip label="Open in Home Assistant">
           <ActionIcon
             component="a"
-            href={`/config/devices/device/${row.original.id}`}
-            // Break out of HA's ingress iframe so the link navigates the
-            // top-level HA window, not the embedded addon pane.
-            target="_top"
-            rel="noopener"
+            href={`${haOrigin}/config/devices/device/${row.original.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
             variant="subtle"
             size="sm"
             aria-label="Open in Home Assistant"

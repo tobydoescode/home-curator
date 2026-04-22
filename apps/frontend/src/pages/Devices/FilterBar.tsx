@@ -8,6 +8,7 @@ export interface Filters {
   regex: boolean;
   rooms: string[];
   issue_types: string[];
+  integrations: string[];
   with_issues: boolean;
 }
 
@@ -15,8 +16,10 @@ interface Props {
   filters: Filters;
   rooms: string[];
   issueTypes: string[];
+  integrations: string[];
   roomCounts?: Record<string, number>;
   issueTypeCounts?: Record<string, number>;
+  integrationCounts?: Record<string, number>;
   onChange: (filters: Filters) => void;
 }
 
@@ -25,6 +28,7 @@ export const emptyFilters: Filters = {
   regex: false,
   rooms: [],
   issue_types: [],
+  integrations: [],
   with_issues: false,
 };
 
@@ -32,8 +36,10 @@ export function FilterBar({
   filters,
   rooms,
   issueTypes,
+  integrations,
   roomCounts,
   issueTypeCounts,
+  integrationCounts,
   onChange,
 }: Props) {
   const patch = (p: Partial<Filters>) => onChange({ ...filters, ...p });
@@ -64,6 +70,13 @@ export function FilterBar({
         value={filters.issue_types}
         counts={issueTypeCounts}
         onChange={(v) => patch({ issue_types: v })}
+      />
+      <MultiPillSelect
+        placeholder="Integration: All"
+        data={integrations}
+        value={filters.integrations}
+        counts={integrationCounts}
+        onChange={(v) => patch({ integrations: v })}
       />
       <Checkbox
         label="With Issues Only"

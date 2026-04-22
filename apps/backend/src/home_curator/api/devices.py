@@ -47,6 +47,7 @@ def list_devices(
     regex: bool = False,
     room: list[str] = Query(default_factory=list),
     issue_type: list[str] = Query(default_factory=list),
+    integration: list[str] = Query(default_factory=list),
     with_issues: bool = False,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=500),
@@ -75,6 +76,8 @@ def list_devices(
             integration=d.integration,
             disabled_by=d.disabled_by,
             entities=d.entities,
+            created_at=d.created_at,
+            modified_at=d.modified_at,
             state=tracker_state.get(d.id, {}),
         )
         for d in all_devices
@@ -89,12 +92,15 @@ def list_devices(
 
     rooms_lower = {r.lower() for r in room}
     issue_types_set = set(issue_type)
+    integrations_set = set(integration)
 
     rows: list[tuple[Device, list[Issue]]] = []
     for d in hydrated:
         if not _matches_query(d.name, q, regex):
             continue
         if rooms_lower and (d.area_name or "").lower() not in rooms_lower:
+            continue
+        if integrations_set and (d.integration or "") not in integrations_set:
             continue
         issues = state.engine.evaluate(d, ctx)
         if issue_types_set and not any(i.rule_type in issue_types_set for i in issues):
@@ -106,11 +112,14 @@ def list_devices(
     total = len(rows)
     counts: Counter[str] = Counter()
     area_counts: Counter[str] = Counter()
+    integration_counts: Counter[str] = Counter()
     for d, issues in rows:
         for i in issues:
             counts[i.rule_type] += 1
         if d.area_name:
             area_counts[d.area_name] += 1
+        if d.integration:
+            integration_counts[d.integration] += 1
 
     if sort_by is not None:
         reverse = sort_dir == "desc"
@@ -184,10 +193,14 @@ def list_devices(
 
     all_areas = [AreaOut(id=a.id, name=a.name) for a in state.cache.areas()]
     all_issue_types = sorted({r.rule_type for r in state.engine.compiled})
+    # Enumerate every integration seen across the unfiltered device set so
+    # the filter dropdown lists all options regardless of current selection.
+    all_integrations = sorted({d.integration for d in hydrated if d.integration})
     # Ensure every known option appears with a 0 where missing, so the
     # frontend can render dim zero-count entries without a second pass.
     full_area_counts = {a.name: area_counts.get(a.name, 0) for a in state.cache.areas()}
     full_issue_counts = {t: counts.get(t, 0) for t in all_issue_types}
+    full_integration_counts = {i: integration_counts.get(i, 0) for i in all_integrations}
 
     return DevicesListResponse(
         devices=[_render(d, issues) for d, issues in page_rows],
@@ -196,6 +209,8 @@ def list_devices(
         page_size=page_size,
         issue_counts_by_type=full_issue_counts,
         area_counts=full_area_counts,
+        integration_counts=full_integration_counts,
         all_areas=all_areas,
         all_issue_types=all_issue_types,
+        all_integrations=all_integrations,
     )
