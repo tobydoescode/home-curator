@@ -16,10 +16,8 @@ from home_curator.api.schemas import (
 from home_curator.config import Settings
 from home_curator.policies.schema import CustomPolicy, PoliciesFile, Policy
 from home_curator.policies.writer import write_policies_file
-from home_curator.rules.base import Device, EvaluationContext
+from home_curator.rules.base import Device
 from home_curator.rules.custom_cel import compile_custom
-from home_curator.storage.db import session_scope
-from home_curator.storage.exceptions_repo import ExceptionsRepo
 
 router = APIRouter(prefix="/api/policies", tags=["policies"])
 
@@ -125,13 +123,6 @@ def simulate_policy(
 
     all_devices = state.cache.devices()
     tracker_state = state.tracker.all_state()
-    with session_scope(state.session_factory) as s:
-        exceptions = ExceptionsRepo(s).all_acknowledged_keys()
-    ctx = EvaluationContext(
-        area_name_to_id=state.cache.area_name_to_id(),
-        area_id_to_name=state.cache.area_id_to_name(),
-        exceptions=exceptions,
-    )
     hydrated = [
         Device(
             id=d.id, name=d.name, name_by_user=d.name_by_user,
@@ -147,6 +138,7 @@ def simulate_policy(
     failing: list[SimulateTargetRow] = []
     errored: list[SimulateTargetRow] = []
     passing: list[SimulateTargetRow] = []
+    # Simulator runs raw CEL — acknowledged exceptions are intentionally not applied here.
     for d in hydrated:
         cel_ctx = {"device": celpy.json_to_cel(d.to_cel_context())}
         try:
