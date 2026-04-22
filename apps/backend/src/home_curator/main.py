@@ -94,12 +94,21 @@ def create_app(
                 else RuleEngine(compiled=[])
             )
 
+            async def _refresh_and_publish():
+                # Pull fresh device/area data from HA, update deletion tracker,
+                # then tell the UI to refetch. Without the cache.refresh() the
+                # /api/devices handler would keep serving stale data from the
+                # in-memory cache until the 5-minute safety resync runs.
+                try:
+                    await cache.refresh()
+                    tracker.handle_diff_from_cache()
+                    session.commit()
+                except Exception:
+                    log.exception("registry refresh on HA event failed")
+                await broker.publish({"kind": "devices_changed"})
+
             def on_event(_e):
-                # broker.publish only enqueues; scheduling it as a task just
-                # so we can call publish from a sync callback.
-                asyncio.get_running_loop().create_task(
-                    broker.publish({"kind": "devices_changed"})
-                )
+                asyncio.get_running_loop().create_task(_refresh_and_publish())
 
             unsub = client.subscribe(on_event)
             task = asyncio.create_task(
