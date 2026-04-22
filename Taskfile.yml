@@ -1,0 +1,92 @@
+version: "3"
+
+dotenv: [".env"]
+
+vars:
+  BACKEND_DIR: apps/backend
+  FRONTEND_DIR: apps/frontend
+
+tasks:
+  default:
+    desc: List available tasks
+    silent: true
+    cmd: task --list
+
+  # --- One-time setup -----------------------------------------------------
+
+  setup:
+    desc: Install deps, seed policies.yaml, run migrations
+    cmds:
+      - task: setup:backend
+      - task: setup:frontend
+
+  setup:backend:
+    desc: Install backend deps, seed default policies, run migrations
+    dir: "{{.BACKEND_DIR}}"
+    cmds:
+      - uv sync --all-extras
+      - mkdir -p .dev-config/home-curator .dev-data
+      - |
+        if [ ! -f .dev-config/home-curator/policies.yaml ]; then
+          cp tests/fixtures/sample_policies.yaml .dev-config/home-curator/policies.yaml
+          echo "Seeded .dev-config/home-curator/policies.yaml"
+        fi
+      - uv run alembic upgrade head
+
+  setup:frontend:
+    desc: Install frontend deps
+    dir: "{{.FRONTEND_DIR}}"
+    cmd: npm install
+
+  # --- Dev servers --------------------------------------------------------
+
+  backend:
+    desc: "Run FastAPI on :8099 (reads HA_URL/HA_TOKEN from .env)"
+    dir: "{{.BACKEND_DIR}}"
+    cmd: uv run uvicorn home_curator.main:app --reload --port 8099
+
+  frontend:
+    desc: "Run Vite dev server on :5173 (proxies /api to :8099)"
+    dir: "{{.FRONTEND_DIR}}"
+    cmd: npm run dev
+
+  dev:
+    desc: Run backend + frontend together (Ctrl-C stops both)
+    deps: [backend, frontend]
+
+  # --- API client regeneration --------------------------------------------
+
+  gen-api:
+    desc: Regenerate src/api/generated.ts (backend must be running)
+    dir: "{{.FRONTEND_DIR}}"
+    cmd: npm run gen:api
+
+  # --- Verification -------------------------------------------------------
+
+  test:
+    desc: Run the full test suite (backend + frontend)
+    cmds:
+      - task: test:backend
+      - task: test:frontend
+
+  test:backend:
+    dir: "{{.BACKEND_DIR}}"
+    cmd: uv run pytest -q
+
+  test:frontend:
+    dir: "{{.FRONTEND_DIR}}"
+    cmd: npm run test:run
+
+  typecheck:
+    desc: TypeScript typecheck
+    dir: "{{.FRONTEND_DIR}}"
+    cmd: npm run typecheck
+
+  # --- Housekeeping -------------------------------------------------------
+
+  clean:
+    desc: Remove build artifacts (node_modules, .venv, .dev-data, dist)
+    cmds:
+      - rm -rf {{.FRONTEND_DIR}}/node_modules {{.FRONTEND_DIR}}/dist
+      - rm -rf {{.BACKEND_DIR}}/.venv {{.BACKEND_DIR}}/.dev-data
+      - 'echo "Kept .dev-config/home-curator/policies.yaml — delete manually if you want defaults back."'
