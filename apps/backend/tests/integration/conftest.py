@@ -3,7 +3,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 from home_curator.config import Settings
 from home_curator.ha_client.fake import FakeHAClient
@@ -14,7 +13,6 @@ from home_curator.storage.models import Base
 def _seed_db(path: Path):
     engine = create_engine(f"sqlite:///{path}")
     Base.metadata.create_all(engine)
-    sessionmaker(engine)()
 
 
 @pytest.fixture

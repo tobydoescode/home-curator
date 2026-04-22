@@ -1,3 +1,4 @@
+"""FastAPI app factory and lifespan — wires every component together."""
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -21,13 +22,17 @@ log = logging.getLogger(__name__)
 
 
 async def _safety_resync_loop(
-    cache: RegistryCache, tracker: DeletionTracker, broker: EventBroker
+    cache: RegistryCache,
+    tracker: DeletionTracker,
+    broker: EventBroker,
+    session_commit,
 ) -> None:
     while True:
         await asyncio.sleep(5 * 60)
         try:
             diff = await cache.refresh()
             tracker.handle_diff_from_cache()
+            session_commit()
             if diff.added or diff.removed or diff.updated:
                 await broker.publish({"kind": "devices_changed"})
         except Exception:
@@ -37,62 +42,95 @@ async def _safety_resync_loop(
 def create_app(
     ha_client: HAClient | None = None, settings: Settings | None = None
 ) -> FastAPI:
-    settings = settings or Settings()
-    engine_db = make_engine(settings.db_path)
-    session_factory = make_session_factory(engine_db)
-
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        # Build effective config inside lifespan so importing this module has
+        # no filesystem side-effect (make_engine creates data_dir).
+        effective_settings = settings or Settings()
+        engine_db = make_engine(effective_settings.db_path)
+        session_factory = make_session_factory(engine_db)
+
         if ha_client is not None:
             client: HAClient = ha_client
         else:
-            ha_url = settings.ha_url
-            assert ha_url is not None, "HA_URL must be set (or SUPERVISOR_TOKEN to use auto-discovery)"
-            ws_url = ha_url.replace("https://", "wss://").replace("http://", "ws://") + "/api/websocket"
+            ha_url = effective_settings.ha_url
+            assert ha_url is not None, (
+                "HA_URL must be set (or SUPERVISOR_TOKEN to use auto-discovery)"
+            )
+            ws_url = (
+                ha_url.replace("https://", "wss://").replace("http://", "ws://")
+                + "/api/websocket"
+            )
             client = WebSocketHAClient(
                 url=ws_url,
-                token=settings.effective_token or "",
+                token=effective_settings.effective_token or "",
             )
 
         await client.start()
-        cache = RegistryCache(client)
-        await cache.load()
-        session = session_factory()
-        tracker = DeletionTracker(cache=cache, session=session)
-        broker = EventBroker()
-        load = load_policies_file(settings.policies_path)
-        ctx = EvaluationContext(
-            area_name_to_id=cache.area_name_to_id(),
-            area_id_to_name=cache.area_id_to_name(),
-            exceptions=ExceptionsRepo(session).all_acknowledged_keys(),
-        )
-        engine = (
-            RuleEngine.compile(load.file, ctx) if load.file else RuleEngine(compiled=[])
-        )
+        # From here on, failures must stop the client before re-raising.
+        session = None
+        task = None
+        unsub = None
+        try:
+            cache = RegistryCache(client)
+            await cache.load()
+            session = session_factory()
+            tracker = DeletionTracker(cache=cache, session=session)
+            broker = EventBroker()
+            load = load_policies_file(effective_settings.policies_path)
+            ctx = EvaluationContext(
+                area_name_to_id=cache.area_name_to_id(),
+                area_id_to_name=cache.area_id_to_name(),
+                exceptions=ExceptionsRepo(session).all_acknowledged_keys(),
+            )
+            engine = (
+                RuleEngine.compile(load.file, ctx)
+                if load.file
+                else RuleEngine(compiled=[])
+            )
 
-        def on_event(e):
-            asyncio.create_task(broker.publish({"kind": "devices_changed"}))
+            def on_event(_e):
+                # broker.publish only enqueues; scheduling it as a task just
+                # so we can call publish from a sync callback.
+                asyncio.get_running_loop().create_task(
+                    broker.publish({"kind": "devices_changed"})
+                )
 
-        unsub = client.subscribe(on_event)
-        task = asyncio.create_task(_safety_resync_loop(cache, tracker, broker))
+            unsub = client.subscribe(on_event)
+            task = asyncio.create_task(
+                _safety_resync_loop(cache, tracker, broker, session.commit)
+            )
 
-        app.state.store = AppState(
-            ha=client,
-            cache=cache,
-            tracker=tracker,
-            engine=engine,
-            policies_file=load.file,
-            policies_error=load.error,
-            session_factory=session_factory,
-            broker=broker,
-        )
+            app.state.store = AppState(
+                ha=client,
+                cache=cache,
+                tracker=tracker,
+                engine=engine,
+                policies_file=load.file,
+                policies_error=load.error,
+                session_factory=session_factory,
+                broker=broker,
+            )
+        except BaseException:
+            if unsub is not None:
+                unsub()
+            if task is not None:
+                task.cancel()
+            if session is not None:
+                session.close()
+            await client.stop()
+            raise
+
         try:
             yield
         finally:
-            unsub()
-            task.cancel()
+            if unsub is not None:
+                unsub()
+            if task is not None:
+                task.cancel()
             await client.stop()
-            session.close()
+            if session is not None:
+                session.close()
 
     app = FastAPI(lifespan=lifespan, title="Home Curator")
 
@@ -103,5 +141,9 @@ def create_app(
     return app
 
 
-# Uvicorn entrypoint
-app = create_app()
+# Uvicorn entrypoint — created lazily so test imports don't touch the filesystem.
+def _lazy_app() -> FastAPI:
+    return create_app()
+
+
+app = _lazy_app()
