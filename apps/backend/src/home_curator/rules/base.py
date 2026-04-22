@@ -1,16 +1,24 @@
+"""Shared types for the rule engine."""
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol, TypedDict
+from typing import Any, Literal, Protocol, TypedDict, runtime_checkable
 
 Severity = Literal["info", "warning", "error"]
 
 
-class EntitySummary(TypedDict):
+class EntitySummary(TypedDict, total=True):
     id: str
     domain: str
 
 
-@dataclass(frozen=True)
+@dataclass
 class Device:
+    """One HA device, enriched with `state` for rule evaluation.
+
+    Not frozen: `entities` and `state` are mutable collections and the class
+    is never placed in a set. Prefer constructing a new Device rather than
+    mutating one in place.
+    """
+
     id: str
     name: str
     name_by_user: str | None
@@ -24,6 +32,12 @@ class Device:
     state: dict[str, Any] = field(default_factory=dict)
 
     def to_cel_context(self) -> dict[str, Any]:
+        """Dict form consumed by `custom_cel` policies.
+
+        Note: the `state` attribute is surfaced under the key `_state` so
+        that CEL expressions can distinguish computed fields (set by the
+        deletion tracker, etc.) from the device's own attributes.
+        """
         return {
             "id": self.id,
             "name": self.name,
@@ -58,6 +72,7 @@ class EvaluationContext:
         return self.area_name_to_id.get(name.lower())
 
 
+@runtime_checkable
 class CompiledPolicy(Protocol):
     id: str
     rule_type: str
