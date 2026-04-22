@@ -39,6 +39,20 @@ def list_policies(state: AppState = Depends(app_state)) -> PoliciesListResponse:
     )
 
 
+@router.get("/file", response_model=PoliciesFile)
+def get_policies_file(state: AppState = Depends(app_state)) -> PoliciesFile:
+    """Return the fully-typed policies file (all fields, not a summary).
+
+    Used by the authoring UI so it can round-trip every field without loss.
+    Invalid-file case: returns 503 rather than an empty body, since the client
+    is expecting edit-ready data.
+    """
+    if state.policies_file is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail=state.policies_error or "Policies file invalid")
+    return state.policies_file
+
+
 @router.put("", response_model=UpdatePoliciesResponse)
 def update_policies(body: PoliciesFile) -> UpdatePoliciesResponse:
     """Replace policies.yaml.
