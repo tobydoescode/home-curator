@@ -38,7 +38,7 @@ export function FilterBar({
 }: Props) {
   const patch = (p: Partial<Filters>) => onChange({ ...filters, ...p });
   return (
-    <Group gap="xs" wrap="wrap" align="flex-start">
+    <Group gap="xs" wrap="wrap" align="center">
       <TextInput
         leftSection={<IconSearch size={14} />}
         placeholder="Search By Name…"
