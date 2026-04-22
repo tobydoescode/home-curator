@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { Layout } from "@/components/Layout";
+import { DevicesPage } from "@/pages/Devices/DevicesPage";
 import { theme } from "@/theme";
 
 const queryClient = new QueryClient({
@@ -24,7 +25,7 @@ export default function App() {
             <Routes>
               <Route element={<Layout />}>
                 <Route path="/" element={<Navigate to="/devices" replace />} />
-                <Route path="/devices" element={<div>Devices (stub)</div>} />
+                <Route path="/devices" element={<DevicesPage />} />
                 <Route
                   path="/settings/naming-conventions"
                   element={<div>Settings (stub)</div>}
