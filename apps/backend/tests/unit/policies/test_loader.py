@@ -21,10 +21,24 @@ def test_missing_file_returns_error(tmp_path):
 
 def test_invalid_yaml_syntax(tmp_path):
     p = tmp_path / "bad.yaml"
-    p.write_text("version: 1\npolicies:\n  - id: x\n    type:")
+    p.write_text("key: [unclosed\n")  # genuine YAML parse error
     r = load_policies_file(p)
     assert r.file is None
-    assert r.error
+    assert r.error is not None
+    assert "YAML syntax error" in r.error
+
+
+def test_unreadable_file_returns_error(tmp_path):
+    p = tmp_path / "locked.yaml"
+    p.write_text("version: 1\npolicies: []\n")
+    p.chmod(0o000)
+    try:
+        r = load_policies_file(p)
+    finally:
+        p.chmod(0o600)  # restore so pytest can clean up
+    assert r.file is None
+    assert r.error is not None
+    assert "cannot read" in r.error
 
 
 def test_invalid_schema(tmp_path):
