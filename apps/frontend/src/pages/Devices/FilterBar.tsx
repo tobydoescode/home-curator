@@ -27,7 +27,7 @@ export const emptyFilters: Filters = {
 export function FilterBar({ filters, rooms, issueTypes, onChange }: Props) {
   const patch = (p: Partial<Filters>) => onChange({ ...filters, ...p });
   return (
-    <Group gap="xs" wrap="wrap">
+    <Group gap="xs" wrap="wrap" align="flex-start">
       <TextInput
         leftSection={<IconSearch size={14} />}
         placeholder="Search By Name…"
@@ -48,6 +48,8 @@ export function FilterBar({ filters, rooms, issueTypes, onChange }: Props) {
         clearable
         searchable
         hidePickedOptions
+        comboboxProps={{ withinPortal: true, shadow: "md" }}
+        maxDropdownHeight={240}
         w={260}
       />
       <MultiSelect
@@ -56,7 +58,10 @@ export function FilterBar({ filters, rooms, issueTypes, onChange }: Props) {
         value={filters.issue_types}
         onChange={(v) => patch({ issue_types: v })}
         clearable
+        searchable
         hidePickedOptions
+        comboboxProps={{ withinPortal: true, shadow: "md" }}
+        maxDropdownHeight={240}
         w={260}
       />
       <Checkbox
