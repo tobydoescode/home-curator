@@ -1,5 +1,7 @@
-import { Button, Checkbox, Group, MultiSelect, TextInput } from "@mantine/core";
+import { Button, Checkbox, Group, TextInput } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
+
+import { MultiPillSelect } from "@/components/MultiPillSelect";
 
 export interface Filters {
   q: string;
@@ -40,29 +42,17 @@ export function FilterBar({ filters, rooms, issueTypes, onChange }: Props) {
         checked={filters.regex}
         onChange={(e) => patch({ regex: e.currentTarget.checked })}
       />
-      <MultiSelect
-        placeholder={filters.rooms.length === 0 ? "Room: All" : undefined}
+      <MultiPillSelect
+        placeholder="Room: All"
         data={rooms}
         value={filters.rooms}
         onChange={(v) => patch({ rooms: v })}
-        clearable
-        searchable
-        hidePickedOptions
-        comboboxProps={{ withinPortal: true, shadow: "md" }}
-        maxDropdownHeight={240}
-        w={260}
       />
-      <MultiSelect
-        placeholder={filters.issue_types.length === 0 ? "Issue Type: All" : undefined}
+      <MultiPillSelect
+        placeholder="Issue Type: All"
         data={issueTypes}
         value={filters.issue_types}
         onChange={(v) => patch({ issue_types: v })}
-        clearable
-        searchable
-        hidePickedOptions
-        comboboxProps={{ withinPortal: true, shadow: "md" }}
-        maxDropdownHeight={240}
-        w={260}
       />
       <Checkbox
         label="With Issues Only"
