@@ -106,3 +106,19 @@ def test_unresolvable_room_name_falls_back_to_global_with_error_note():
     assert rule.evaluate(_d(name="snake_case_ok"), ctx) is None
     # And it records the unresolved room
     assert "Ghost" in (rule.compile_error or "")
+
+
+def test_pending_room_override_promoted_on_first_evaluate():
+    """Once a room name resolves via ctx, it joins overrides_by_area_id and the
+    compile_error clears."""
+    rooms = [RoomOverride(room="Garage", preset="prefix-type-n")]
+    rule = compile_naming_convention(_policy("snake_case", rooms=rooms))
+    assert rule.pending_room_overrides
+    assert rule.compile_error is not None
+
+    ctx = _ctx(area_name_to_id={"garage": "garage_xyz"})
+    rule.evaluate(_d(name="snake_case_ok"), ctx)
+
+    assert rule.pending_room_overrides == []
+    assert rule.compile_error is None
+    assert "garage_xyz" in rule.overrides_by_area_id

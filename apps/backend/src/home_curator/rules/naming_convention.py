@@ -15,7 +15,8 @@ PRESET_TO_PATTERN = {
 
 def _pattern_from_config(cfg: NamingPatternConfig) -> Pattern[str]:
     if cfg.preset == "custom":
-        assert cfg.pattern
+        if not cfg.pattern:
+            raise ValueError("preset='custom' requires a non-empty pattern")
         return re.compile(cfg.pattern)
     return re.compile(PRESET_TO_PATTERN[cfg.preset])
 
@@ -44,17 +45,24 @@ class CompiledNamingConvention:
             return None
         if (device.id, self.id) in ctx.exceptions:
             return None
+        # Promote any pending room-name overrides that now resolve under the given
+        # ctx, so subsequent evaluations use the fast dict path and compile_error
+        # no longer reports resolved names.
+        if self.pending_room_overrides:
+            still_pending: list[tuple[str, Pattern[str]]] = []
+            for room_name, room_pattern in self.pending_room_overrides:
+                resolved = ctx.resolve_area_id_from_name(room_name)
+                if resolved is None:
+                    still_pending.append((room_name, room_pattern))
+                else:
+                    self.overrides_by_area_id[resolved] = room_pattern
+                    if room_name in self.unresolved_room_names:
+                        self.unresolved_room_names.remove(room_name)
+            self.pending_room_overrides = still_pending
+
         pattern = self.global_pattern
-        if device.area_id:
-            if device.area_id in self.overrides_by_area_id:
-                pattern = self.overrides_by_area_id[device.area_id]
-            else:
-                # Attempt late resolution for room-name overrides compiled without ctx.
-                for room_name, room_pattern in self.pending_room_overrides:
-                    resolved = ctx.resolve_area_id_from_name(room_name)
-                    if resolved == device.area_id:
-                        pattern = room_pattern
-                        break
+        if device.area_id and device.area_id in self.overrides_by_area_id:
+            pattern = self.overrides_by_area_id[device.area_id]
         if pattern.match(device.name):
             return None
         return Issue(
