@@ -8,6 +8,41 @@ from ruamel.yaml import YAML, YAMLError
 from home_curator.policies.schema import PoliciesFile
 
 
+def _default_policies() -> PoliciesFile:
+    """Sensible starting state when no policies.yaml exists yet.
+
+    Ships the three built-in rule types enabled so the Device Settings UI
+    has something to render on first run. Severities chosen to match the
+    spec defaults. The user tweaks / removes via the UI.
+    """
+    return PoliciesFile.model_validate({
+        "version": 1,
+        "policies": [
+            {
+                "id": "naming-convention",
+                "type": "naming_convention",
+                "enabled": True,
+                "severity": "warning",
+                "global": {"preset": "snake_case"},
+                "starts_with_room": False,
+                "rooms": [],
+            },
+            {
+                "id": "missing-room",
+                "type": "missing_area",
+                "enabled": True,
+                "severity": "warning",
+            },
+            {
+                "id": "reappeared",
+                "type": "reappeared_after_delete",
+                "enabled": True,
+                "severity": "info",
+            },
+        ],
+    })
+
+
 @dataclass
 class LoadResult:
     file: PoliciesFile | None
@@ -27,7 +62,7 @@ def load_policies_file(path: Path) -> LoadResult:
     Invalid on-disk content is still surfaced as an error.
     """
     if not path.exists():
-        return LoadResult(file=PoliciesFile(version=1, policies=[]), error=None)
+        return LoadResult(file=_default_policies(), error=None)
     yaml = YAML(typ="safe")
     try:
         text = path.read_text()
