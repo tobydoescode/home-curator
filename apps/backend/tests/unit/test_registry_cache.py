@@ -32,7 +32,7 @@ async def test_load_populates_cache():
 
 
 @pytest.mark.asyncio
-async def test_apply_delta_updated():
+async def test_apply_delta_added():
     fake = FakeHAClient(devices=[], areas=[])
     cache = RegistryCache(fake)
     await cache.load()
@@ -55,6 +55,51 @@ async def test_apply_delta_updated():
     diff = await cache.refresh()
     assert diff.added == ["d1"]
     assert diff.removed == []
+
+
+@pytest.mark.asyncio
+async def test_apply_delta_updated():
+    """A device that stays but whose fields change appears in Diff.updated."""
+    fake = FakeHAClient(
+        devices=[
+            {
+                "id": "d1",
+                "name": "old_name",
+                "name_by_user": None,
+                "manufacturer": None,
+                "model": None,
+                "area_id": None,
+                "integration": None,
+                "disabled_by": None,
+                "identifiers": [["x", "y"]],
+                "entities": [],
+            }
+        ],
+        areas=[],
+    )
+    cache = RegistryCache(fake)
+    await cache.load()
+
+    fake.set_devices(
+        [
+            {
+                "id": "d1",
+                "name": "new_name",
+                "name_by_user": None,
+                "manufacturer": None,
+                "model": None,
+                "area_id": None,
+                "integration": None,
+                "disabled_by": None,
+                "identifiers": [["x", "y"]],
+                "entities": [],
+            }
+        ]
+    )
+    diff = await cache.refresh()
+    assert diff.added == []
+    assert diff.removed == []
+    assert diff.updated == ["d1"]
 
 
 @pytest.mark.asyncio

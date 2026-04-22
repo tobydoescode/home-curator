@@ -1,3 +1,6 @@
+"""In-memory cache of HA devices and areas, refreshed from an HAClient."""
+import asyncio
+import copy
 from dataclasses import dataclass, field
 
 from home_curator.ha_client.base import HAAreaDict, HAClient, HADeviceDict
@@ -38,6 +41,9 @@ class RegistryCache:
         self._devices: dict[str, Device] = {}
         self._identifiers: dict[str, tuple[tuple[str, str], ...]] = {}
         self._areas: dict[str, Area] = {}
+        # Serialise load/refresh so concurrent callers don't interleave and
+        # corrupt the (areas, devices) state transition.
+        self._lock = asyncio.Lock()
 
     def devices(self) -> list[Device]:
         return list(self._devices.values())
@@ -58,6 +64,10 @@ class RegistryCache:
         return {a.id: a.name for a in self._areas.values()}
 
     async def load(self) -> None:
+        async with self._lock:
+            await self._load_unlocked()
+
+    async def _load_unlocked(self) -> None:
         raw_areas: list[HAAreaDict] = await self._client.get_areas()
         self._areas = {a["id"]: Area(id=a["id"], name=a["name"]) for a in raw_areas}
         raw_devices = await self._client.get_devices()
@@ -69,10 +79,13 @@ class RegistryCache:
         }
 
     async def refresh(self) -> Diff:
-        before = set(self._devices)
-        before_snapshot = dict(self._devices)
-        await self.load()
-        after = set(self._devices)
+        async with self._lock:
+            before = set(self._devices)
+            # Deep-copy so a later mutation of Device.entities/state doesn't
+            # corrupt the before-snapshot (Device is non-frozen).
+            before_snapshot = {k: copy.deepcopy(v) for k, v in self._devices.items()}
+            await self._load_unlocked()
+            after = set(self._devices)
         added = sorted(after - before)
         removed = sorted(before - after)
         updated = sorted(
