@@ -207,3 +207,11 @@ class SimulateRequest(BaseModel):
         if (self.policy is None) == (self.policy_id is None):
             raise ValueError("Provide exactly one of 'policy' or 'policy_id'")
         return self
+
+
+class BulkDeleteRequest(BaseModel):
+    ids: list[int]
+
+
+class BulkDeleteResponse(BaseModel):
+    deleted: list[int]

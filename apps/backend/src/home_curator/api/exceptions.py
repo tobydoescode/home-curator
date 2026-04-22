@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel
 
 from home_curator.api.deps import AppState, app_state
-from home_curator.api.schemas import AcknowledgeResponse, ExceptionOut, ExceptionRow, ExceptionsListResponse
+from home_curator.api.schemas import AcknowledgeResponse, BulkDeleteRequest, BulkDeleteResponse, ExceptionOut, ExceptionRow, ExceptionsListResponse
 from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
 
@@ -109,3 +109,14 @@ def list_paginated(
     return ExceptionsListResponse(
         exceptions=out, total=total, page=page, page_size=page_size,
     )
+
+
+@router.post("/bulk-delete", response_model=BulkDeleteResponse)
+async def bulk_delete(body: BulkDeleteRequest, state: AppState = Depends(app_state)) -> BulkDeleteResponse:
+    """Delete multiple exceptions in one transaction and notify SSE subscribers."""
+    ids = set(body.ids)
+    with session_scope(state.session_factory) as s:
+        deleted = ExceptionsRepo(s).bulk_delete(ids)
+    if deleted > 0:
+        await state.broker.publish({"kind": "exceptions_changed"})
+    return BulkDeleteResponse(deleted=sorted(ids))

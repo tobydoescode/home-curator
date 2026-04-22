@@ -72,3 +72,16 @@ def test_list_filters_by_policy_id(client):
     assert r.status_code == 200
     rows = r.json()["exceptions"]
     assert all(row["policy_id"] == "missing-room" for row in rows)
+
+
+def test_bulk_delete_exceptions(client):
+    client.post("/api/exceptions", json={"device_id": "d1", "policy_id": "missing-room"})
+    client.post("/api/exceptions", json={"device_id": "d2", "policy_id": "missing-room"})
+    rows = client.get("/api/exceptions/list").json()["exceptions"]
+    to_delete = [r["id"] for r in rows[:2]]
+    r = client.post("/api/exceptions/bulk-delete", json={"ids": to_delete})
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body["deleted"]) == set(to_delete)
+    rows_after = client.get("/api/exceptions/list").json()["exceptions"]
+    assert all(row["id"] not in to_delete for row in rows_after)
