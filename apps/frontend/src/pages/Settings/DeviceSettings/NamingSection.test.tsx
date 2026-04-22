@@ -69,3 +69,48 @@ describe("NamingSection — global", () => {
     expect((nc as any).starts_with_room).toBe(true);
   });
 });
+
+describe("NamingSection — overrides", () => {
+  beforeEach(() => {
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    vi.stubGlobal("fetch", vi.fn(async (req: Request) => {
+      const url = typeof req === "string" ? req : req.url;
+      if (url.includes("/api/areas")) {
+        return new Response(JSON.stringify([
+          { id: "lr", name: "Living Room" },
+          { id: "mgmt", name: "Management" },
+        ]), { status: 200 });
+      }
+      return new Response("[]", { status: 200 });
+    }));
+  });
+
+  it("adds an override with a real-area room picker", async () => {
+    const user = userEvent.setup();
+    const { onChange } = wrap();
+    await user.click(await screen.findByRole("button", { name: /add override/i }));
+    // The new row's Room select — pick Management by name.
+    const rooms = screen.getAllByLabelText(/^Room 0$/);
+    await user.click(rooms[0]);
+    await user.click(await screen.findByText("Management"));
+    const last = onChange.mock.calls.at(-1)![0];
+    const nc = last.policies.find((p: any) => p.type === "naming_convention");
+    expect(nc.rooms[0].area_id).toBe("mgmt");
+    expect(nc.rooms[0].enabled).toBe(true);
+    expect(nc.rooms[0].preset).toBeTruthy();
+  });
+
+  it("selecting Disabled preset flips enabled=false and hides pattern/starts-with", async () => {
+    const user = userEvent.setup();
+    const initial = structuredClone(draft);
+    (initial.policies[0] as any).rooms = [{ area_id: "mgmt", enabled: true, preset: "snake_case" }];
+    const { onChange } = wrap(initial);
+    const presetSelects = screen.getAllByLabelText(/Preset for room 0/i);
+    await user.click(presetSelects[0]);
+    await user.click(await screen.findByText("Disabled"));
+    const last = onChange.mock.calls.at(-1)![0];
+    const override = (last.policies[0] as any).rooms[0];
+    expect(override.enabled).toBe(false);
+    expect(override.preset).toBeNull();
+  });
+});
