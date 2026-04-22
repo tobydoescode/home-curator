@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { CustomRuleEditor } from "@/pages/Settings/CustomRuleEditor";
+import type { CustomRule } from "@/pages/Settings/CustomRuleEditor";
 import type { SectionProps } from "./NamingSection";
 
 export function CustomRulesSection({ draft, onChange }: SectionProps) {
@@ -23,7 +24,7 @@ export function CustomRulesSection({ draft, onChange }: SectionProps) {
     setEditing("new");
   }
 
-  function handleSaved(rule: any, original: number | "new") {
+  function handleSaved(rule: CustomRule, original: number | "new") {
     const policies = [...draft.policies];
     if (original === "new") policies.push(rule);
     else policies[original] = rule;

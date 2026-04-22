@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { useCompile } from "@/hooks/useCompile";
 import { useSimulate } from "@/hooks/useSimulate";
+import { type SimulateResponse } from "@/pages/Settings/Simulator";
 
 export interface CustomRule {
   id: string;
@@ -37,7 +38,7 @@ export function CustomRuleEditor({ initial, onClose, onSaved }: CustomRuleEditor
   const [compileErr, setCompileErr] = useState<string | null>(null);
   const compile = useCompile();
   const simulate = useSimulate();
-  const [simResult, setSimResult] = useState<any | null>(null);
+  const [simResult, setSimResult] = useState<SimulateResponse | null>(null);
 
   useEffect(() => {
     const h = setTimeout(async () => {

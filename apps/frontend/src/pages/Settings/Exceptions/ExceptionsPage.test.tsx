@@ -49,6 +49,14 @@ describe("ExceptionsPage", () => {
     const cbs = screen.getAllByRole("checkbox");
     await user.click(cbs[0]);
     await user.click(screen.getByRole("button", { name: /remove selected/i }));
+    await waitFor(() => {
+      const calls = (globalThis.fetch as any).mock.calls;
+      const bulkCall = calls.find((c: any[]) => {
+        const url = typeof c[0] === "string" ? c[0] : c[0].url;
+        return url.includes("/api/exceptions/bulk-delete");
+      });
+      expect(bulkCall).toBeDefined();
+    });
   });
 
   it("shows an empty state when total is 0", async () => {

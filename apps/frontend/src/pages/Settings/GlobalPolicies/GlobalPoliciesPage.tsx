@@ -5,7 +5,7 @@ import { useSearchParams } from "react-router-dom";
 
 import { useSimulate } from "@/hooks/useSimulate";
 import { usePoliciesFile, useUpdatePolicies, type PoliciesFileShape } from "@/hooks/usePolicies";
-import { CustomRuleEditor } from "@/pages/Settings/CustomRuleEditor";
+import { CustomRuleEditor, type CustomRule } from "@/pages/Settings/CustomRuleEditor";
 import { Simulator, type SimulateResponse } from "@/pages/Settings/Simulator";
 import { CustomRulesList } from "./CustomRulesList";
 
@@ -50,7 +50,7 @@ export function GlobalPoliciesPage() {
     setSimResult(res);
   }
 
-  function handleSaved(rule: any, original: number | "new") {
+  function handleSaved(rule: CustomRule, original: number | "new") {
     const policies = [...draft!.policies];
     if (original === "new") policies.push(rule);
     else policies[original] = rule;
