@@ -65,18 +65,18 @@ export function FilterBar({
         onChange={(v) => patch({ rooms: v })}
       />
       <MultiPillSelect
-        placeholder="Issue Type: All"
-        data={issueTypes}
-        value={filters.issue_types}
-        counts={issueTypeCounts}
-        onChange={(v) => patch({ issue_types: v })}
-      />
-      <MultiPillSelect
         placeholder="Integration: All"
         data={integrations}
         value={filters.integrations}
         counts={integrationCounts}
         onChange={(v) => patch({ integrations: v })}
+      />
+      <MultiPillSelect
+        placeholder="Issue Type: All"
+        data={issueTypes}
+        value={filters.issue_types}
+        counts={issueTypeCounts}
+        onChange={(v) => patch({ issue_types: v })}
       />
       <Checkbox
         label="With Issues Only"
