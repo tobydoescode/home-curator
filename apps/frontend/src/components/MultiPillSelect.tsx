@@ -64,7 +64,13 @@ export function MultiPillSelect({
   return (
     <Combobox
       store={combobox}
-      onOptionSubmit={(v) => toggle(v)}
+      onOptionSubmit={(v) => {
+        toggle(v);
+        // Clear the search filter so the full list is available for the
+        // next pick, and re-open the dropdown (Combobox closes by default).
+        setSearch("");
+        combobox.openDropdown();
+      }}
       withinPortal
       shadow="md"
     >
