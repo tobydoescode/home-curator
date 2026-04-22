@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 
 export interface DevicesQuery {
@@ -21,5 +21,9 @@ export function useDevices(params: DevicesQuery) {
       if (error) throw new Error(String(error));
       return data!;
     },
+    // Keep the previous page rendered while refetching on filter/search
+    // changes — otherwise the FilterBar unmounts on every keystroke,
+    // stealing focus and flashing the UI.
+    placeholderData: keepPreviousData,
   });
 }
