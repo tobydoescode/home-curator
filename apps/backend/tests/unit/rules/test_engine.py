@@ -20,6 +20,10 @@ def _device(**kw):
     return Device(**d)
 
 
+def _empty_ctx():
+    return EvaluationContext(area_name_to_id={}, area_id_to_name={}, exceptions=set())
+
+
 def test_engine_evaluates_all_policies():
     file_ = PoliciesFile.model_validate(
         {
@@ -37,10 +41,9 @@ def test_engine_evaluates_all_policies():
             ],
         }
     )
-    engine = RuleEngine.compile(
-        file_, EvaluationContext(area_name_to_id={}, area_id_to_name={}, exceptions=set())
-    )
-    issues = engine.evaluate(_device())
+    ctx = _empty_ctx()
+    engine = RuleEngine.compile(file_, ctx)
+    issues = engine.evaluate(_device(), ctx)
     ids = sorted(i.policy_id for i in issues)
     assert ids == ["a", "n"]
 
@@ -54,10 +57,9 @@ def test_disabled_policy_skipped():
             ],
         }
     )
-    engine = RuleEngine.compile(
-        file_, EvaluationContext(area_name_to_id={}, area_id_to_name={}, exceptions=set())
-    )
-    assert engine.evaluate(_device()) == []
+    ctx = _empty_ctx()
+    engine = RuleEngine.compile(file_, ctx)
+    assert engine.evaluate(_device(), ctx) == []
 
 
 def test_errored_custom_policy_does_not_crash():
@@ -77,12 +79,29 @@ def test_errored_custom_policy_does_not_crash():
             ],
         }
     )
-    engine = RuleEngine.compile(
-        file_, EvaluationContext(area_name_to_id={}, area_id_to_name={}, exceptions=set())
-    )
-    issues = engine.evaluate(_device())
+    ctx = _empty_ctx()
+    engine = RuleEngine.compile(file_, ctx)
+    issues = engine.evaluate(_device(), ctx)
     # missing_area still fires, custom is skipped due to compile error
     assert [i.policy_id for i in issues] == ["a"]
     errs = engine.compile_errors()
     assert "c" in errs
     assert "CEL" in errs["c"]
+
+
+def test_exception_suppresses_issue_end_to_end():
+    """Without ctx.exceptions the default ctx wouldn't have filtered this.
+    Exercises the real-ctx code path after dropping the evaluate() default."""
+    file_ = PoliciesFile.model_validate(
+        {
+            "version": 1,
+            "policies": [
+                {"id": "a", "type": "missing_area", "enabled": True, "severity": "warning"},
+            ],
+        }
+    )
+    ctx = EvaluationContext(
+        area_name_to_id={}, area_id_to_name={}, exceptions={("d", "a")}
+    )
+    engine = RuleEngine.compile(file_, ctx)
+    assert engine.evaluate(_device(), ctx) == []

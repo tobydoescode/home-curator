@@ -30,10 +30,13 @@ class RuleEngine:
                 rules.append(compile_reappeared(p))
             elif isinstance(p, CustomPolicy):
                 rules.append(compile_custom(p))
+            else:
+                # Reached only if a new Policy variant is added to the schema
+                # without being handled here. Fail loudly at startup.
+                raise TypeError(f"Unhandled policy type: {type(p).__name__}")
         return cls(compiled=rules)
 
-    def evaluate(self, device: Device, ctx: EvaluationContext | None = None) -> list[Issue]:
-        ctx = ctx or EvaluationContext(area_name_to_id={}, area_id_to_name={}, exceptions=set())
+    def evaluate(self, device: Device, ctx: EvaluationContext) -> list[Issue]:
         out: list[Issue] = []
         for r in self.compiled:
             if r.compile_error:
@@ -44,4 +47,8 @@ class RuleEngine:
         return out
 
     def compile_errors(self) -> dict[str, str]:
-        return {r.id: r.compile_error for r in self.compiled if r.compile_error}
+        return {
+            r.id: r.compile_error
+            for r in self.compiled
+            if r.compile_error is not None
+        }
