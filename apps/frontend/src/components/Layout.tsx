@@ -8,7 +8,7 @@ const NAV = [
   { label: "Entities", to: "/entities", disabled: true },
   { label: "Automations", to: "/automations", disabled: true },
   { label: "Areas", to: "/areas", disabled: true },
-  { label: "Settings", to: "/settings/naming-conventions" },
+  { label: "Settings", to: "/settings" },
 ];
 
 export function Layout() {
