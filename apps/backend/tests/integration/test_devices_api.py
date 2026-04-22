@@ -46,6 +46,17 @@ def test_pagination(client):
     assert len(data["devices"]) == 1
 
 
+def test_invalid_regex_returns_empty_list(client):
+    r = client.get("/api/devices", params={"q": "][invalid", "regex": "true"})
+    assert r.status_code == 200
+    assert r.json()["devices"] == []
+
+
+def test_page_size_too_large_returns_422(client):
+    r = client.get("/api/devices", params={"page_size": 501})
+    assert r.status_code == 422
+
+
 def test_issue_summary(client):
     r = client.get("/api/devices")
     data = r.json()

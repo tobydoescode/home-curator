@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from home_curator.api import devices as devices_api
 from home_curator.api.deps import AppState
 from home_curator.config import Settings
 from home_curator.deletion_tracker import DeletionTracker
@@ -138,8 +139,7 @@ def create_app(
     async def health():
         return {"ok": True}
 
-    from home_curator.api import devices as devices_module
-    app.include_router(devices_module.router)
+    app.include_router(devices_api.router)
 
     return app
 

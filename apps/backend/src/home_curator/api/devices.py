@@ -1,14 +1,18 @@
+"""GET /api/devices — filtered, paginated, issue-enriched device listing."""
 import re
 from collections import Counter
 
 from fastapi import APIRouter, Depends, Query
 
 from home_curator.api.deps import AppState, app_state
-from home_curator.rules.base import Device, EvaluationContext
+from home_curator.rules.base import Device, EvaluationContext, Issue
 from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
 
 router = APIRouter(prefix="/api", tags=["devices"])
+
+_SEVERITY_RANK = {"info": 1, "warning": 2, "error": 3}
+_RANK_TO_SEVERITY = {v: k for k, v in _SEVERITY_RANK.items()}
 
 
 def _matches_query(name: str, q: str, regex: bool) -> bool:
@@ -22,8 +26,11 @@ def _matches_query(name: str, q: str, regex: bool) -> bool:
     return q.lower() in name.lower()
 
 
-def _evaluate(state: AppState, device: Device, ctx: EvaluationContext):
-    return state.engine.evaluate(device, ctx)
+def _highest_severity(issues: list[Issue]) -> str | None:
+    if not issues:
+        return None
+    highest = max(_SEVERITY_RANK[i.severity] for i in issues)
+    return _RANK_TO_SEVERITY[highest]
 
 
 @router.get("/devices")
@@ -39,7 +46,6 @@ def list_devices(
 ):
     all_devices = state.cache.devices()
     tracker_state = state.tracker.all_state()
-    # Inject state into devices
     hydrated = [
         Device(
             id=d.id,
@@ -64,13 +70,13 @@ def list_devices(
         exceptions=exceptions,
     )
 
-    rows = []
+    rows: list[tuple[Device, list[Issue]]] = []
     for d in hydrated:
         if not _matches_query(d.name, q, regex):
             continue
         if room is not None and (d.area_name or "").lower() != room.lower():
             continue
-        issues = _evaluate(state, d, ctx)
+        issues = state.engine.evaluate(d, ctx)
         if issue_type is not None and not any(i.rule_type == issue_type for i in issues):
             continue
         if with_issues and not issues:
@@ -86,10 +92,7 @@ def list_devices(
     end = start + page_size
     page_rows = rows[start:end]
 
-    def _render(d: Device, issues):
-        severity_rank = {"info": 1, "warning": 2, "error": 3}
-        highest = max((severity_rank[i.severity] for i in issues), default=0)
-        highest_name = {v: k for k, v in severity_rank.items()}.get(highest)
+    def _render(d: Device, issues: list[Issue]) -> dict:
         return {
             "id": d.id,
             "name": d.name_by_user or d.name,
@@ -101,7 +104,7 @@ def list_devices(
             "disabled_by": d.disabled_by,
             "entities": d.entities,
             "issue_count": len(issues),
-            "highest_severity": highest_name,
+            "highest_severity": _highest_severity(issues),
             "issues": [
                 {
                     "policy_id": i.policy_id,
