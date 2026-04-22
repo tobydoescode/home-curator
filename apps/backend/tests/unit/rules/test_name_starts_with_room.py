@@ -65,6 +65,27 @@ def test_custom_separator():
     assert rule.evaluate(_d(name="living_room_lamp"), _ctx()) is not None
 
 
+def test_source_area_name_defaults_to_space_separator():
+    rule = compile_name_starts_with_room(_policy(source="area_name"))
+    # area_name = "Living Room", separator defaults to " "
+    assert rule.evaluate(_d(name="Living Room Sonos"), _ctx()) is None
+    assert rule.evaluate(_d(name="living_room_sonos"), _ctx()) is not None
+
+
+def test_source_area_name_skips_when_area_name_missing():
+    rule = compile_name_starts_with_room(_policy(source="area_name"))
+    assert rule.evaluate(_d(area_name=None, name="anything"), _ctx()) is None
+
+
+def test_uses_name_by_user_when_set():
+    """A device renamed in HA (name_by_user) should be evaluated against
+    the renamed value, not the integration's raw name."""
+    rule = compile_name_starts_with_room(_policy(source="area_name"))
+    # Raw name would fail; name_by_user overrides it and passes.
+    d = _d(name="stuck_zigbee_device", name_by_user="Living Room Sonos")
+    assert rule.evaluate(d, _ctx()) is None
+
+
 def test_exception_suppresses():
     rule = compile_name_starts_with_room(_policy())
     ctx = _ctx(exc={("d1", "nsr")})

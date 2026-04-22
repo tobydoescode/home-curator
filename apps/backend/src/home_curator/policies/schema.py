@@ -23,15 +23,29 @@ class ReappearedAfterDeletePolicy(_PolicyBase):
 
 
 class NameStartsWithRoomPolicy(_PolicyBase):
-    """Device name must begin with its area's slug + a separator.
+    """Device display name must begin with its room + a separator.
 
-    Matches against `device.area_id` (HA's auto-generated snake_case slug),
-    not the display name, so rooms with spaces/punctuation work unchanged.
-    Devices without an area are skipped.
+    The `source` knob picks which room field to compare against:
+      - `area_id`   — HA's snake_case slug (default). Pairs with `_`.
+      - `area_name` — the user-facing display name. Pairs with a space.
+
+    `separator` defaults to `"_"` when source is `area_id` and `" "` when
+    source is `area_name`; override it explicitly to change.
+
+    Devices without an area are skipped (the `missing_area` rule covers them).
     """
 
     type: Literal["name_starts_with_room"]
-    separator: str = "_"
+    source: Literal["area_id", "area_name"] = "area_id"
+    separator: str | None = None
+
+    @model_validator(mode="after")
+    def _default_separator(self):
+        if self.separator is None:
+            object.__setattr__(
+                self, "separator", "_" if self.source == "area_id" else " ",
+            )
+        return self
 
 
 class NamingPatternConfig(BaseModel):

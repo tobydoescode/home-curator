@@ -1,5 +1,6 @@
-"""Rule: device name must start with its room's area_id + a separator."""
+"""Rule: device display name must start with its room + a separator."""
 from dataclasses import dataclass
+from typing import Literal
 
 from home_curator.policies.schema import NameStartsWithRoomPolicy
 from home_curator.rules.base import Device, EvaluationContext, Issue, Severity
@@ -10,6 +11,7 @@ class CompiledNameStartsWithRoom:
     id: str
     enabled: bool
     severity: Severity
+    source: Literal["area_id", "area_name"]
     separator: str
     rule_type: str = "name_starts_with_room"
     compile_error: str | None = None
@@ -20,10 +22,13 @@ class CompiledNameStartsWithRoom:
         if (device.id, self.id) in ctx.exceptions:
             return None
         if device.area_id is None:
-            # Scope: only devices with an area. The missing_area rule covers
-            # the no-area case separately.
             return None
-        prefix = device.area_id + self.separator
+        room = device.area_id if self.source == "area_id" else device.area_name
+        if not room:
+            # area_name can still be None even with area_id set if registry
+            # load is racing; skip rather than false-fire.
+            return None
+        prefix = room + self.separator
         if device.display_name.startswith(prefix):
             return None
         return Issue(
@@ -36,9 +41,12 @@ class CompiledNameStartsWithRoom:
 
 
 def compile_name_starts_with_room(p: NameStartsWithRoomPolicy) -> CompiledNameStartsWithRoom:
+    # Separator default is resolved by the schema validator; never None here.
+    assert p.separator is not None
     return CompiledNameStartsWithRoom(
         id=p.id,
         enabled=p.enabled,
         severity=p.severity,
+        source=p.source,
         separator=p.separator,
     )
