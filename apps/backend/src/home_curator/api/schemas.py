@@ -118,3 +118,18 @@ class PoliciesListResponse(BaseModel):
 
     error: str | None = None
     policies: list[PolicyOut]
+
+
+class UpdatePoliciesBody(BaseModel):
+    """Raw policies.yaml contents keyed `version` + `policies`.
+
+    Validated against `PoliciesFile` on the server before writing.
+    """
+
+    version: Literal[1]
+    policies: list[dict]
+
+
+class UpdatePoliciesResponse(BaseModel):
+    ok: bool
+    error: str | None = None

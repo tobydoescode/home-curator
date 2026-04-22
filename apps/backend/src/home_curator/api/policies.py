@@ -1,7 +1,16 @@
-from fastapi import APIRouter, Depends
+"""GET / PUT /api/policies."""
+from fastapi import APIRouter, Depends, HTTPException
 
 from home_curator.api.deps import AppState, app_state
-from home_curator.api.schemas import PoliciesListResponse, PolicyOut
+from home_curator.api.schemas import (
+    PoliciesListResponse,
+    PolicyOut,
+    UpdatePoliciesBody,
+    UpdatePoliciesResponse,
+)
+from home_curator.config import Settings
+from home_curator.policies.schema import PoliciesFile
+from home_curator.policies.writer import write_policies_file
 
 router = APIRouter(prefix="/api/policies", tags=["policies"])
 
@@ -29,3 +38,20 @@ def list_policies(state: AppState = Depends(app_state)) -> PoliciesListResponse:
             for p in state.policies_file.policies
         ],
     )
+
+
+@router.put("", response_model=UpdatePoliciesResponse)
+def update_policies(body: UpdatePoliciesBody) -> UpdatePoliciesResponse:
+    """Replace policies.yaml.
+
+    Schema-validates first; the hot-reload watcher picks up the change and
+    recompiles the engine.
+    """
+    data = body.model_dump(mode="json")
+    try:
+        PoliciesFile.model_validate(data)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    settings = Settings()
+    write_policies_file(settings.policies_path, data)
+    return UpdatePoliciesResponse(ok=True)
