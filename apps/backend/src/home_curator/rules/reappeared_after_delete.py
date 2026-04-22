@@ -3,6 +3,9 @@ from dataclasses import dataclass
 from home_curator.policies.schema import ReappearedAfterDeletePolicy
 from home_curator.rules.base import Device, EvaluationContext, Issue, Severity
 
+# Shared contract between deletion tracker (writer) and this rule (reader).
+STATE_KEY_REAPPEARED = "reappeared_after_delete"
+
 
 @dataclass
 class CompiledReappeared:
@@ -17,7 +20,7 @@ class CompiledReappeared:
             return None
         if (device.id, self.id) in ctx.exceptions:
             return None
-        if device.state.get("reappeared_after_delete"):
+        if device.state.get(STATE_KEY_REAPPEARED):
             return Issue(
                 policy_id=self.id,
                 rule_type=self.rule_type,
