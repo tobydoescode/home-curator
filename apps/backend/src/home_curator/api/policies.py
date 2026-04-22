@@ -4,12 +4,14 @@ from fastapi import APIRouter, Depends
 from home_curator.api.deps import AppState, app_state
 from home_curator.api.schemas import (
     PoliciesListResponse,
+    PolicyCompileResponse,
     PolicyOut,
     UpdatePoliciesResponse,
 )
 from home_curator.config import Settings
-from home_curator.policies.schema import PoliciesFile
+from home_curator.policies.schema import PoliciesFile, Policy
 from home_curator.policies.writer import write_policies_file
+from home_curator.rules.custom_cel import compile_custom
 
 router = APIRouter(prefix="/api/policies", tags=["policies"])
 
@@ -66,3 +68,19 @@ def update_policies(body: PoliciesFile) -> UpdatePoliciesResponse:
     settings = Settings()
     write_policies_file(settings.policies_path, data)
     return UpdatePoliciesResponse(ok=True)
+
+
+@router.post("/compile", response_model=PolicyCompileResponse)
+def compile_policy(body: Policy) -> PolicyCompileResponse:
+    """Compile a draft policy without persisting it.
+
+    Returns ok=True if the compiled rule has no compile_error, otherwise
+    ok=False with the error string. Non-custom types currently have no
+    compile step beyond schema validation; they always return ok=True
+    once the body parses.
+    """
+    if body.type == "custom":
+        rule = compile_custom(body)
+        if rule.compile_error:
+            return PolicyCompileResponse(ok=False, error=rule.compile_error)
+    return PolicyCompileResponse(ok=True)

@@ -141,3 +141,11 @@ class PoliciesListResponse(BaseModel):
 class UpdatePoliciesResponse(BaseModel):
     ok: bool
     error: str | None = None
+
+
+class PolicyCompileResponse(BaseModel):
+    ok: bool
+    error: str | None = None
+    # When present, a (line, column) position into the expression. celpy
+    # does not always provide one; None means "no positional info available".
+    position: dict[str, int] | None = None
