@@ -4,8 +4,10 @@ import { useSearchParams } from "react-router-dom";
 import type { RowSelectionState } from "@tanstack/react-table";
 
 import { useDevices } from "@/hooks/useDevices";
-import { DevicesTable } from "./DevicesTable";
+import { ActionRow } from "./ActionRow";
+import { DevicesTable, type DeviceRow } from "./DevicesTable";
 import { FilterBar, type Filters } from "./FilterBar";
+import { IssuePanel, type IssueItem } from "./IssuePanel";
 import { PaginationFooter } from "./PaginationFooter";
 
 function filtersFromParams(p: URLSearchParams): Filters {
@@ -36,6 +38,7 @@ function paramsFromFiltersAndPagination(
 
 export function DevicesPage() {
   const [selection, setSelection] = useState<RowSelectionState>({});
+  const [drawerId, setDrawerId] = useState<string | null>(null);
   const [params, setParams] = useSearchParams();
 
   const filters = useMemo(() => filtersFromParams(params), [params]);
@@ -62,9 +65,49 @@ export function DevicesPage() {
       ),
     [data],
   );
+
+  // Derive the rooms-by-id for the AssignRoomModal's Select.
+  const roomsForAssign = useMemo(() => {
+    if (!data) return [];
+    const seen = new Map<string, string>();
+    for (const d of data.devices) {
+      if (d.area_id && d.area_name && !seen.has(d.area_id))
+        seen.set(d.area_id, d.area_name);
+    }
+    return Array.from(seen, ([id, name]) => ({ id, name }));
+  }, [data]);
+
   const issueTypes = useMemo(
     () => Object.keys(data?.issue_counts_by_type ?? {}),
     [data],
+  );
+
+  const deviceRows: DeviceRow[] = useMemo(
+    () =>
+      data?.devices.map((d) => ({
+        id: d.id,
+        name: d.name,
+        area_name: d.area_name ?? null,
+        issue_count: d.issue_count,
+        highest_severity: d.highest_severity ?? null,
+      })) ?? [],
+    [data],
+  );
+
+  const deviceLookup = useMemo(() => {
+    const m: Record<string, DeviceRow> = {};
+    for (const r of deviceRows) m[r.id] = r;
+    return m;
+  }, [deviceRows]);
+
+  const selectedIds = useMemo(
+    () => Object.keys(selection).filter((k) => selection[k]),
+    [selection],
+  );
+
+  const active = useMemo(
+    () => data?.devices.find((d) => d.id === drawerId) ?? null,
+    [data, drawerId],
   );
 
   if (isLoading) return <Text>Loading…</Text>;
@@ -90,16 +133,16 @@ export function DevicesPage() {
         issueTypes={issueTypes}
         onChange={(f) => setParams(paramsFromFiltersAndPagination(f, 1, pageSize))}
       />
+      <ActionRow
+        selectedIds={selectedIds}
+        rooms={roomsForAssign}
+        deviceLookup={deviceLookup}
+      />
       <DevicesTable
-        rows={data.devices.map((d) => ({
-          id: d.id,
-          name: d.name,
-          area_name: d.area_name ?? null,
-          issue_count: d.issue_count,
-          highest_severity: d.highest_severity ?? null,
-        }))}
+        rows={deviceRows}
         selection={selection}
         onSelectionChange={setSelection}
+        onRowClick={setDrawerId}
       />
       <PaginationFooter
         total={data.total}
@@ -111,6 +154,13 @@ export function DevicesPage() {
         onPageSizeChange={(s) =>
           setParams(paramsFromFiltersAndPagination(filters, 1, s))
         }
+      />
+      <IssuePanel
+        opened={drawerId !== null}
+        onClose={() => setDrawerId(null)}
+        deviceId={drawerId}
+        deviceName={active?.name}
+        issues={(active?.issues ?? []) as IssueItem[]}
       />
     </Stack>
   );
