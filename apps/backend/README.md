@@ -2,9 +2,11 @@
 
 FastAPI service that powers the Home Curator HA addon.
 
+The common workflow is driven by the **root Taskfile** — most users don't need to call any of the commands below directly. See `../../README.md` for `task setup` / `task dev` / `task test`.
+
 ## Environment variables
 
-Create `.env` in `apps/backend/` (gitignored) or export:
+All of these can go in `.env` at the repo root (loaded by the Taskfile) or be exported directly:
 
 - `SUPERVISOR_TOKEN` — used in production. In dev, use `HA_TOKEN` instead.
 - `HA_TOKEN` — long-lived access token for dev (create in HA: **Profile → Security → Long-Lived Access Tokens**).
@@ -14,97 +16,81 @@ Create `.env` in `apps/backend/` (gitignored) or export:
 
 ## Automated tests (no HA required)
 
-Uses `FakeHAClient`; nothing external.
+Uses `FakeHAClient`; nothing external. From the repo root:
+
+```bash
+task test:backend               # fast path via Taskfile
+```
+
+Or directly:
 
 ```bash
 cd apps/backend
-uv sync --all-extras
-uv run pytest                              # 107 tests
-uv run pytest --cov=home_curator           # with coverage
-uv run pytest tests/unit/                  # unit only
-uv run pytest tests/integration/           # integration only
+uv run pytest                   # 112 tests
+uv run pytest --cov=home_curator
+uv run pytest tests/unit/
+uv run pytest tests/integration/
 ```
 
 ## Manual smoke test against a real HA
 
-1. **Get a long-lived token** in HA: Profile → Security → Long-Lived Access Tokens → **Create Token**.
+With `HA_URL` / `HA_TOKEN` set in `.env`:
 
-2. **Seed config and data directories** (one-time):
+```bash
+task setup:backend              # one-time: seed policies.yaml + migrate
+task backend                    # start the API on :8099
+```
 
-   ```bash
-   cd apps/backend
-   mkdir -p .dev-config/home-curator .dev-data
-   cp tests/fixtures/sample_policies.yaml .dev-config/home-curator/policies.yaml
-   ```
+In another terminal:
 
-3. **Run migrations**:
+```bash
+curl http://localhost:8099/api/health
+curl http://localhost:8099/api/devices | jq .
+curl 'http://localhost:8099/api/devices?with_issues=true' | jq .
+curl 'http://localhost:8099/api/devices?q=^kitchen_&regex=true' | jq .
+curl http://localhost:8099/api/policies | jq .
 
-   ```bash
-   uv run alembic upgrade head
-   ```
+# SSE stream (-N disables buffering). Edits in HA produce
+# `data: {"kind":"devices_changed"}` lines.
+curl -N http://localhost:8099/api/events
+```
 
-4. **Start the server**, pointed at your HA instance:
+Interactive OpenAPI UI: <http://localhost:8099/docs>.
 
-   ```bash
-   export HA_URL=http://YOUR-HA-IP:8123
-   export HA_TOKEN=<paste-long-lived-token>
-   uv run uvicorn home_curator.main:app --reload --port 8099
-   ```
+### Actions (writes to HA — be deliberate)
 
-5. **Exercise the API** (in another terminal):
+```bash
+# Acknowledge an exception
+curl -X POST http://localhost:8099/api/exceptions \
+  -H 'Content-Type: application/json' \
+  -d '{"device_id":"<id>","policy_id":"missing-room","acknowledged_by":"me"}'
 
-   ```bash
-   curl http://localhost:8099/api/health
-   curl http://localhost:8099/api/devices | jq .
-   curl http://localhost:8099/api/devices?with_issues=true | jq .
-   curl 'http://localhost:8099/api/devices?q=^kitchen_&regex=true' | jq .
-   curl http://localhost:8099/api/policies | jq .
+# Bulk assign a room
+curl -X POST http://localhost:8099/api/actions/assign-room \
+  -H 'Content-Type: application/json' \
+  -d '{"device_ids":["<id>"],"area_id":"<area-id>"}'
 
-   # SSE stream (-N disables buffering). Leave this open; edits in HA should
-   # produce a `data: {"kind":"devices_changed"}` line.
-   curl -N http://localhost:8099/api/events
-   ```
+# Pattern rename — use dry_run:true first to preview
+curl -X POST http://localhost:8099/api/actions/rename-pattern \
+  -H 'Content-Type: application/json' \
+  -d '{"device_ids":["<id1>","<id2>"],"pattern":"^old_","replacement":"new_","dry_run":true}'
+```
 
-   Interactive OpenAPI UI: <http://localhost:8099/docs>.
+### Hot reload
 
-6. **Actions (writes to HA — be deliberate)**:
-
-   ```bash
-   # Acknowledge an exception
-   curl -X POST http://localhost:8099/api/exceptions \
-     -H 'Content-Type: application/json' \
-     -d '{"device_id":"<id>","policy_id":"missing-room","acknowledged_by":"me"}'
-
-   # Bulk assign a room
-   curl -X POST http://localhost:8099/api/actions/assign-room \
-     -H 'Content-Type: application/json' \
-     -d '{"device_ids":["<id>"],"area_id":"<area-id>"}'
-
-   # Pattern rename — start with dry_run:true to preview
-   curl -X POST http://localhost:8099/api/actions/rename-pattern \
-     -H 'Content-Type: application/json' \
-     -d '{"device_ids":["<id1>","<id2>"],"pattern":"^old_","replacement":"new_","dry_run":true}'
-   ```
-
-7. **Hot reload** — edit `.dev-config/home-curator/policies.yaml` while the server runs. Within ~1s `/api/policies` reflects the change. Invalid YAML keeps the last-good rules loaded and surfaces the error under `error`.
+Edit `apps/backend/.dev-config/home-curator/policies.yaml` while the server runs. Within ~1s `/api/policies` reflects the change. Invalid YAML keeps the last-good rules loaded and surfaces the error under `error`.
 
 ## Troubleshooting
 
-- **`assert ha_url is not None` on startup** — `HA_URL` / `HA_TOKEN` not set.
+- **`assert ha_url is not None` on startup** — `HA_URL` / `HA_TOKEN` not set. Check `.env` at the repo root.
 - **WS auth failure** — token expired or wrong; regenerate in HA profile.
-- **Migration errors** — `rm -f .dev-data/curator.db && uv run alembic upgrade head`.
+- **Migration errors** — `rm -f apps/backend/.dev-data/curator.db && task setup:backend`.
 - **Stale policies** — the watcher watches `CONFIG_DIR`; make sure you're editing the file it loaded (printed in the logs at startup).
 
-## Dev quick-loop
+## Lint + type-check
 
-```
+```bash
 cd apps/backend
-uv run uvicorn home_curator.main:app --reload --port 8099
-```
-
-Ruff and mypy:
-
-```
 uv run ruff check src tests
 uv run mypy src
 ```
