@@ -18,6 +18,8 @@ from home_curator.policies.schema import CustomPolicy, PoliciesFile, Policy
 from home_curator.policies.writer import write_policies_file
 from home_curator.rules.base import Device
 from home_curator.rules.custom_cel import compile_custom
+from home_curator.storage.db import session_scope
+from home_curator.storage.exceptions_repo import ExceptionsRepo
 
 router = APIRouter(prefix="/api/policies", tags=["policies"])
 
@@ -62,17 +64,22 @@ def get_policies_file(state: AppState = Depends(app_state)) -> PoliciesFile:
 
 
 @router.put("", response_model=UpdatePoliciesResponse)
-def update_policies(body: PoliciesFile) -> UpdatePoliciesResponse:
+async def update_policies(body: PoliciesFile, state: AppState = Depends(app_state)) -> UpdatePoliciesResponse:
     """Replace policies.yaml.
 
-    The request body matches the YAML file's shape exactly — a tagged union
-    keyed by `type`. Invalid bodies are rejected with 422 before the file is
-    touched; the hot-reload watcher picks up the write and recompiles the
-    engine.
+    After writing, cascade-delete any exceptions that reference a policy_id
+    no longer present in the file. Emits one `exceptions_changed` SSE event
+    so open Exceptions pages refresh.
     """
     data = body.model_dump(mode="json", by_alias=True)
     settings = Settings()
     write_policies_file(settings.policies_path, data)
+
+    kept_ids = {p.id for p in body.policies}
+    with session_scope(state.session_factory) as s:
+        deleted = ExceptionsRepo(s).delete_not_in(kept_ids)
+    if deleted > 0:
+        await state.broker.publish({"kind": "exceptions_changed"})
     return UpdatePoliciesResponse(ok=True)
 
 

@@ -74,3 +74,16 @@ class ExceptionsRepo:
         """
         rows = self.session.execute(select(Exemption.device_id, Exemption.policy_id)).all()
         return {(r.device_id, r.policy_id) for r in rows}
+
+    def delete_not_in(self, policy_ids: set[str]) -> int:
+        """Delete every exception whose policy_id is NOT in policy_ids.
+
+        Returns the count deleted. Used for cascade-on-policy-removal.
+        """
+        if policy_ids:
+            result = self.session.execute(
+                delete(Exemption).where(Exemption.policy_id.notin_(policy_ids))
+            )
+        else:
+            result = self.session.execute(delete(Exemption))
+        return result.rowcount or 0
