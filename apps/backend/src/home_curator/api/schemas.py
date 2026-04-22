@@ -82,11 +82,31 @@ class DevicesListResponse(BaseModel):
 class ExceptionOut(BaseModel):
     """An acknowledged policy exception for a device."""
 
+    id: int | None = None
     device_id: str
     policy_id: str
     acknowledged_at: str  # ISO-8601
     acknowledged_by: str | None = None
     note: str | None = None
+
+
+class ExceptionRow(BaseModel):
+    id: int
+    device_id: str
+    device_name: str | None = None
+    device_area_name: str | None = None
+    policy_id: str
+    policy_name: str | None = None
+    acknowledged_at: str
+    acknowledged_by: str | None = None
+    note: str | None = None
+
+
+class ExceptionsListResponse(BaseModel):
+    exceptions: list[ExceptionRow]
+    total: int
+    page: int
+    page_size: int
 
 
 class AcknowledgeResponse(BaseModel):
