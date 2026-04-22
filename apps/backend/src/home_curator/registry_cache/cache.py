@@ -32,6 +32,8 @@ def _to_device(d: HADeviceDict, area_lookup: dict[str, str]) -> Device:
         integration=d.get("integration"),
         disabled_by=d.get("disabled_by"),
         entities=list(d.get("entities", [])),
+        created_at=d.get("created_at"),
+        modified_at=d.get("modified_at"),
     )
 
 

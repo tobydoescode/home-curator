@@ -219,6 +219,8 @@ class WebSocketHAClient:
                 "disabled_by": d.get("disabled_by"),
                 "identifiers": [list(i) for i in d.get("identifiers", [])],
                 "entities": index.get(did, []),
+                "created_at": d.get("created_at"),
+                "modified_at": d.get("modified_at"),
             })
         return out
 

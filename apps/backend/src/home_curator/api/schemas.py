@@ -46,6 +46,8 @@ class DeviceOut(BaseModel):
     integration: str | None = None
     disabled_by: str | None = None
     entities: list[EntitySummary] = Field(default_factory=list)
+    created_at: str | None = None
+    modified_at: str | None = None
     issue_count: int
     highest_severity: Severity | None = None
     issues: list[IssueOut] = Field(default_factory=list)

@@ -50,7 +50,7 @@ def list_devices(
     with_issues: bool = False,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=500),
-    sort_by: Literal["name", "room", "severity"] | None = None,
+    sort_by: Literal["name", "room", "severity", "integration", "created", "modified"] | None = None,
     sort_dir: Literal["asc", "desc"] = "asc",
     state: AppState = Depends(app_state),
 ) -> DevicesListResponse:
@@ -135,6 +135,22 @@ def list_devices(
                 ),
                 reverse=reverse,
             )
+        elif sort_by == "integration":
+            rows.sort(
+                key=lambda r: (r[0].integration is None, (r[0].integration or "").lower()),
+                reverse=reverse,
+            )
+        elif sort_by == "created":
+            # Missing timestamps sort last on asc to mirror "no data at bottom".
+            rows.sort(
+                key=lambda r: (r[0].created_at is None, r[0].created_at or ""),
+                reverse=reverse,
+            )
+        elif sort_by == "modified":
+            rows.sort(
+                key=lambda r: (r[0].modified_at is None, r[0].modified_at or ""),
+                reverse=reverse,
+            )
 
     start = (page - 1) * page_size
     end = start + page_size
@@ -151,6 +167,8 @@ def list_devices(
             integration=d.integration,
             disabled_by=d.disabled_by,
             entities=[EntitySummary(id=e["id"], domain=e["domain"]) for e in d.entities],
+            created_at=d.created_at,
+            modified_at=d.modified_at,
             issue_count=len(issues),
             highest_severity=_highest_severity(issues),
             issues=[

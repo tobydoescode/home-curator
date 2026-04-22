@@ -29,6 +29,10 @@ class Device:
     integration: str | None
     disabled_by: str | None
     entities: list[EntitySummary]
+    # HA registry timestamps (ISO-8601 strings). Optional because older HA
+    # versions don't emit them; surfaced through the API for display only.
+    created_at: str | None = None
+    modified_at: str | None = None
     state: dict[str, Any] = field(default_factory=dict)
 
     @property

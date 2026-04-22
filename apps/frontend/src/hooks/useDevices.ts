@@ -1,7 +1,13 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 
-export type DevicesSortBy = "name" | "room" | "severity";
+export type DevicesSortBy =
+  | "name"
+  | "room"
+  | "severity"
+  | "integration"
+  | "created"
+  | "modified";
 export type DevicesSortDir = "asc" | "desc";
 
 export interface DevicesQuery {

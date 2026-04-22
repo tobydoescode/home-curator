@@ -13,6 +13,10 @@ class HADeviceDict(TypedDict, total=False):
     disabled_by: str | None
     identifiers: list[list[str]]
     entities: list[dict[str, str]]
+    # HA registry timestamps — ISO-8601 strings on recent HA versions.
+    # Absent on older versions; downstream code must tolerate missing.
+    created_at: str | None
+    modified_at: str | None
 
 
 class HAAreaDict(TypedDict):

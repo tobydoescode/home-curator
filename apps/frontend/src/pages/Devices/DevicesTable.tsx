@@ -1,5 +1,10 @@
-import { Checkbox, Group, Table, UnstyledButton } from "@mantine/core";
-import { IconChevronDown, IconChevronUp, IconSelector } from "@tabler/icons-react";
+import { ActionIcon, Checkbox, Group, Table, Tooltip, UnstyledButton } from "@mantine/core";
+import {
+  IconChevronDown,
+  IconChevronUp,
+  IconExternalLink,
+  IconSelector,
+} from "@tabler/icons-react";
 import {
   type ColumnDef,
   type OnChangeFn,
@@ -16,8 +21,19 @@ export interface DeviceRow {
   id: string;
   name: string;
   area_name: string | null;
+  integration: string | null;
+  created_at: string | null;
+  modified_at: string | null;
   issue_count: number;
   highest_severity: "info" | "warning" | "error" | null;
+}
+
+/** Render an ISO-8601 timestamp as a short "YYYY-MM-DD" for dense tables. */
+function fmtDate(iso: string | null): string {
+  if (!iso) return "—";
+  // Trust the backend-provided ISO string; slice to the date portion to keep
+  // the table narrow. Full timestamp lives in the row tooltip.
+  return iso.slice(0, 10);
 }
 
 interface Props {
@@ -113,6 +129,57 @@ export function DevicesTable({
         <SortHeader label="Room" column="room" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
       ),
       cell: ({ row }) => row.original.area_name ?? "—",
+    },
+    {
+      id: "integration",
+      header: () => (
+        <SortHeader label="Integration" column="integration" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+      ),
+      cell: ({ row }) => row.original.integration ?? "—",
+    },
+    {
+      id: "created",
+      header: () => (
+        <SortHeader label="Created" column="created" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+      ),
+      cell: ({ row }) => (
+        <Tooltip label={row.original.created_at ?? "—"} disabled={!row.original.created_at}>
+          <span>{fmtDate(row.original.created_at)}</span>
+        </Tooltip>
+      ),
+    },
+    {
+      id: "modified",
+      header: () => (
+        <SortHeader label="Modified" column="modified" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+      ),
+      cell: ({ row }) => (
+        <Tooltip label={row.original.modified_at ?? "—"} disabled={!row.original.modified_at}>
+          <span>{fmtDate(row.original.modified_at)}</span>
+        </Tooltip>
+      ),
+    },
+    {
+      id: "link",
+      header: "",
+      cell: ({ row }) => (
+        <Tooltip label="Open in Home Assistant">
+          <ActionIcon
+            component="a"
+            href={`/config/devices/device/${row.original.id}`}
+            // Break out of HA's ingress iframe so the link navigates the
+            // top-level HA window, not the embedded addon pane.
+            target="_top"
+            rel="noopener"
+            variant="subtle"
+            size="sm"
+            aria-label="Open in Home Assistant"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <IconExternalLink size={14} />
+          </ActionIcon>
+        </Tooltip>
+      ),
     },
   ];
 
