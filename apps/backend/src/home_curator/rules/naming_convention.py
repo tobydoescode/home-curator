@@ -99,6 +99,7 @@ class CompiledNamingConvention:
     pending_room_overrides: list[tuple[str, _OverrideEntry]] = field(default_factory=list)
     unresolved_room_names: list[str] = field(default_factory=list)
     rule_type: str = "naming_convention"
+    scope: str = "devices"
 
     @property
     def compile_error(self) -> str | None:

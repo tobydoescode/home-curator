@@ -31,6 +31,9 @@ class CompiledCustom:
     # Class-level identifier, not per-instance data:
     rule_type: ClassVar[str] = "custom"
 
+    # "devices" by default; compile_custom sets "entities" from policy.scope.
+    scope: str = field(default="devices")
+
     # Populated by `compile_custom`; not part of the public constructor.
     _when: Any = field(default=None, init=False, repr=False)
     _assert: Any = field(default=None, init=False, repr=False)

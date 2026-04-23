@@ -10,6 +10,7 @@ class CompiledMissingArea:
     enabled: bool
     severity: Severity
     rule_type: str = "missing_area"
+    scope: str = "devices"
     compile_error: str | None = None
 
     def evaluate(self, device: Device, ctx: EvaluationContext) -> Issue | None:

@@ -13,6 +13,7 @@ class CompiledReappeared:
     enabled: bool
     severity: Severity
     rule_type: str = "reappeared_after_delete"
+    scope: str = "devices"
     compile_error: str | None = None
 
     def evaluate(self, device: Device, ctx: EvaluationContext) -> Issue | None:

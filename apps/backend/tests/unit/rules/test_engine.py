@@ -62,6 +62,30 @@ def test_disabled_policy_skipped():
     assert engine.evaluate(_device(), ctx) == []
 
 
+def test_all_existing_compiled_rules_default_scope_devices():
+    """Every compiled rule class must expose a 'scope' attribute. Existing
+    device rules must keep device scope so nothing regresses."""
+    file_ = PoliciesFile.model_validate({
+        "version": 1,
+        "policies": [
+            {"id": "a", "type": "missing_area", "severity": "warning"},
+            {
+                "id": "n", "type": "naming_convention", "severity": "warning",
+                "global": {"preset": "snake_case"}, "rooms": [],
+            },
+            {"id": "r", "type": "reappeared_after_delete", "severity": "info"},
+            {
+                "id": "c", "type": "custom", "severity": "info",
+                "assert": "device.area_id != null", "message": "m",
+            },
+        ],
+    })
+    ctx = _empty_ctx()
+    engine = RuleEngine.compile(file_, ctx)
+    for rule in engine.compiled:
+        assert rule.scope == "devices", rule
+
+
 def test_errored_custom_policy_does_not_crash():
     file_ = PoliciesFile.model_validate(
         {

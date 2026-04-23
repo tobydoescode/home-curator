@@ -93,8 +93,37 @@ class Entity:
     def display_name(self) -> str:
         return self.name or self.original_name or self.entity_id
 
-    # Intentionally NO to_cel_context() here — the entity CEL context shape
-    # (entity.device embedded) is plan 2 (rules + CEL scope dispatch).
+    def to_cel_context(
+        self,
+        *,
+        device_context: dict[str, Any] | None,
+        area_name: str | None,
+    ) -> dict[str, Any]:
+        """Dict form consumed by scope=entities custom_cel policies.
+
+        `device_context` is the result of the owning Device's
+        `to_cel_context()` (or None when the entity is standalone — i.e.
+        `self.device_id is None` or the device can't be resolved).
+        `area_name` is pre-resolved by the caller (the rule engine has
+        the area map) — passed explicitly so policies don't need to know
+        whether the name came from the entity, the owning device, or a
+        ctx lookup.
+        """
+        return {
+            "entity_id": self.entity_id,
+            "name": self.name,
+            "original_name": self.original_name,
+            "domain": self.domain,
+            "platform": self.platform,
+            "device_id": self.device_id,
+            "area_id": self.area_id,
+            "area_name": area_name,
+            "disabled_by": self.disabled_by,
+            "hidden_by": self.hidden_by,
+            "icon": self.icon,
+            "device": device_context,
+            "_state": dict(self.state),
+        }
 
 
 @dataclass(frozen=True)
@@ -131,6 +160,14 @@ class CompiledPolicy(Protocol):
     rule_type: str
     enabled: bool
     severity: Severity
+    # Dispatch filter used by RuleEngine.evaluate. Device rules default to
+    # "devices" to preserve existing behaviour; entity rules override to
+    # "entities". The engine skips compiled rules whose scope doesn't match
+    # the thing being evaluated.
+    scope: Literal["devices", "entities"]
     compile_error: str | None
 
-    def evaluate(self, device: Device, ctx: EvaluationContext) -> Issue | None: ...
+    # `thing` is widened from Device because entity-scoped rules evaluate
+    # against Entity. The engine guarantees each compiled class sees only
+    # its own scope's type.
+    def evaluate(self, thing: object, ctx: EvaluationContext) -> Issue | None: ...
