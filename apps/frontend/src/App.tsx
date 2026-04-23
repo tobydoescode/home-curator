@@ -1,7 +1,7 @@
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 
-import { MantineProvider } from "@mantine/core";
+import { MantineProvider, localStorageColorSchemeManager } from "@mantine/core";
 import { ModalsProvider } from "@mantine/modals";
 import { Notifications } from "@mantine/notifications";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -20,9 +20,17 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
 });
 
+const colorSchemeManager = localStorageColorSchemeManager({
+  key: "home-curator:color-scheme",
+});
+
 export default function App() {
   return (
-    <MantineProvider theme={theme} defaultColorScheme="light">
+    <MantineProvider
+      theme={theme}
+      defaultColorScheme="auto"
+      colorSchemeManager={colorSchemeManager}
+    >
       <Notifications />
       <QueryClientProvider client={queryClient}>
         <ModalsProvider>

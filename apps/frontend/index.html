@@ -4,6 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Home Curator</title>
+    <script>
+      (function () {
+        try {
+          // Keep this key in sync with colorSchemeManager in src/App.tsx.
+          var stored = localStorage.getItem("home-curator:color-scheme");
+          var scheme = stored === "light" || stored === "dark" || stored === "auto" ? stored : "auto";
+          var resolved =
+            scheme === "auto"
+              ? window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light"
+              : scheme;
+          document.documentElement.setAttribute("data-mantine-color-scheme", resolved);
+        } catch (_) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
