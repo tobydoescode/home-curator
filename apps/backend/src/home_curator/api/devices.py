@@ -169,6 +169,7 @@ def list_devices(
         return DeviceOut(
             id=d.id,
             name=d.name_by_user or d.name,
+            name_by_user=d.name_by_user,
             manufacturer=d.manufacturer,
             model=d.model,
             area_id=d.area_id,

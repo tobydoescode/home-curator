@@ -89,3 +89,13 @@ def test_issue_summary(client):
     assert {i["policy_id"] for i in d2["issues"]} == {"naming-convention", "missing-room"}
     assert data["issue_counts_by_type"]["missing_area"] == 1
     assert data["issue_counts_by_type"]["naming_convention"] == 1
+
+
+def test_device_row_exposes_name_by_user(client):
+    # Fixture devices have name_by_user=None — the contract check is that the
+    # field surfaces in the response regardless of value.
+    r = client.get("/api/devices")
+    assert r.status_code == 200
+    rows = {d["id"]: d for d in r.json()["devices"]}
+    assert "name_by_user" in rows["d1"]
+    assert rows["d1"]["name_by_user"] is None
