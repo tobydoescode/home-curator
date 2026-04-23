@@ -93,6 +93,53 @@ class DevicesListResponse(BaseModel):
     all_integrations: list[str] = Field(default_factory=list)
 
 
+class EntityOut(BaseModel):
+    """A single HA entity with its evaluated issues and joined device/area fields."""
+
+    entity_id: str
+    name: str | None = None
+    original_name: str | None = None
+    display_name: str
+    domain: str
+    platform: str
+    device_id: str | None = None
+    device_name: str | None = None
+    area_id: str | None = None
+    area_name: str | None = None
+    disabled_by: str | None = None
+    hidden_by: str | None = None
+    icon: str | None = None
+    created_at: str | None = None
+    modified_at: str | None = None
+    issue_count: int
+    highest_severity: Severity | None = None
+    issues: list[IssueOut] = Field(default_factory=list)
+
+
+class EntitiesListResponse(BaseModel):
+    """Paginated entity list with aggregate issue counts and filter universes.
+
+    Shape parallels `DevicesListResponse`. Includes a `domain_counts` that
+    `DevicesListResponse` doesn't — devices don't have a domain. The
+    `all_*` fields enumerate every known value in the unfiltered universe
+    so the UI's filter dropdowns stay populated regardless of the current
+    selection.
+    """
+
+    entities: list[EntityOut]
+    total: int
+    page: int
+    page_size: int
+    issue_counts_by_type: dict[str, int]
+    domain_counts: dict[str, int] = Field(default_factory=dict)
+    area_counts: dict[str, int] = Field(default_factory=dict)
+    integration_counts: dict[str, int] = Field(default_factory=dict)
+    all_domains: list[str] = Field(default_factory=list)
+    all_areas: list[AreaOut] = Field(default_factory=list)
+    all_integrations: list[str] = Field(default_factory=list)
+    all_issue_types: list[str] = Field(default_factory=list)
+
+
 class ExceptionOut(BaseModel):
     """An acknowledged policy exception for a device."""
 
@@ -106,7 +153,13 @@ class ExceptionOut(BaseModel):
 
 class ExceptionRow(BaseModel):
     id: int
-    device_id: str
+    target_kind: Literal["device", "entity"]
+    device_id: str | None = None
+    entity_id: str | None = None
+    target_name: str | None = None
+    target_area_name: str | None = None
+    # Legacy keys kept while the frontend migrates. Populated when
+    # target_kind == "device" so existing callers don't break.
     device_name: str | None = None
     device_area_name: str | None = None
     policy_id: str
@@ -164,6 +217,52 @@ class RenamePatternResult(BaseModel):
 class RenamePatternResponse(BaseModel):
     results: list[RenamePatternResult]
     error: str | None = None
+
+
+class AssignRoomEntityResult(BaseModel):
+    entity_id: str
+    ok: bool
+    error: str | None = None
+
+
+class AssignRoomEntityResponse(BaseModel):
+    results: list[AssignRoomEntityResult]
+
+
+class RenamePatternEntityResult(BaseModel):
+    entity_id: str
+    id_changed: bool
+    new_entity_id: str | None = None
+    name_changed: bool
+    new_name: str | None = None
+    ok: bool
+    dry_run: bool
+    error: str | None = None
+
+
+class RenamePatternEntityResponse(BaseModel):
+    results: list[RenamePatternEntityResult]
+    error: str | None = None
+
+
+class EntityStateResult(BaseModel):
+    entity_id: str
+    ok: bool
+    error: str | None = None
+
+
+class EntityStateResponse(BaseModel):
+    results: list[EntityStateResult]
+
+
+class DeleteEntityResult(BaseModel):
+    entity_id: str
+    ok: bool
+    error: str | None = None
+
+
+class DeleteEntityResponse(BaseModel):
+    results: list[DeleteEntityResult]
 
 
 class PolicyOut(BaseModel):

@@ -95,11 +95,17 @@ def list_paginated(
     out: list[ExceptionRow] = []
     for r in rows:
         d = devices_by_id.get(r.device_id)
+        name = (d.name_by_user or d.name) if d else None
+        area_name = d.area_name if d else None
         out.append(ExceptionRow(
             id=r.id,
+            target_kind="device",
             device_id=r.device_id,
-            device_name=(d.name_by_user or d.name) if d else None,
-            device_area_name=(d.area_name if d else None),
+            entity_id=None,
+            target_name=name,
+            target_area_name=area_name,
+            device_name=name,
+            device_area_name=area_name,
             policy_id=r.policy_id,
             policy_name=policy_names.get(r.policy_id, r.policy_id),
             acknowledged_at=r.acknowledged_at.isoformat(),
