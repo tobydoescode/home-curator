@@ -114,7 +114,11 @@ class WebSocketHAClient:
         # Re-subscribe to registry change events on every (re)connection.
         # Read until we see the matching result id — HA may interleave events
         # or other server-initiated messages with command responses.
-        for event_type in ("device_registry_updated", "area_registry_updated", "entity_registry_updated"):
+        for event_type in (
+            "device_registry_updated",
+            "area_registry_updated",
+            "entity_registry_updated",
+        ):
             self._msg_id += 1
             mid = self._msg_id
             await ws.send(
