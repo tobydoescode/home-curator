@@ -42,9 +42,11 @@ def list_for_device(device_id: str, state: AppState = Depends(app_state)) -> lis
     """List all acknowledged exceptions for a device."""
     with session_scope(state.session_factory) as s:
         rows = ExceptionsRepo(s).for_device(device_id)
+        # `for_device` filters on device_id == the argument, so device_id is
+        # guaranteed non-null on every returned row — narrow for the type checker.
         return [
             ExceptionOut(
-                device_id=r.device_id,
+                device_id=r.device_id or device_id,
                 policy_id=r.policy_id,
                 acknowledged_at=r.acknowledged_at.isoformat(),
                 acknowledged_by=r.acknowledged_by,
@@ -82,9 +84,14 @@ def list_paginated(
     devices_by_id = {d.id: d for d in state.cache.devices()}
     if area_id:
         allowed = set(area_id)
+        # Phase 9 extends this to join entity rows too; for now only
+        # device-kind rows carry an area, so entity rows drop out of any
+        # area-filtered result.
         rows = [
             r for r in rows
-            if (devices_by_id.get(r.device_id) and devices_by_id[r.device_id].area_id in allowed)
+            if r.device_id is not None
+            and (d := devices_by_id.get(r.device_id)) is not None
+            and d.area_id in allowed
         ]
         total = len(rows)
 
@@ -94,7 +101,7 @@ def list_paginated(
 
     out: list[ExceptionRow] = []
     for r in rows:
-        d = devices_by_id.get(r.device_id)
+        d = devices_by_id.get(r.device_id) if r.device_id is not None else None
         name = (d.name_by_user or d.name) if d else None
         area_name = d.area_name if d else None
         out.append(ExceptionRow(
