@@ -84,7 +84,11 @@ def test_all_acknowledged_keys_returns_all_pairs(session):
     repo.acknowledge("d1", "p2")
     repo.acknowledge("d2", "p1")
     session.commit()
-    assert repo.all_acknowledged_keys() == {("d1", "p1"), ("d1", "p2"), ("d2", "p1")}
+    assert repo.all_acknowledged_keys() == {
+        ("device", "d1", "p1"),
+        ("device", "d1", "p2"),
+        ("device", "d2", "p1"),
+    }
 
 
 def test_all_acknowledged_keys_reflects_clear(session):
@@ -94,7 +98,7 @@ def test_all_acknowledged_keys_reflects_clear(session):
     session.commit()
     repo.clear("d1", "p1")
     session.commit()
-    assert repo.all_acknowledged_keys() == {("d1", "p2")}
+    assert repo.all_acknowledged_keys() == {("device", "d1", "p2")}
 
 
 from datetime import UTC, datetime

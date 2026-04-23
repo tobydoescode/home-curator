@@ -17,6 +17,7 @@ from home_curator.ha_client.base import HAClient
 from home_curator.ha_client.websocket import WebSocketHAClient
 from home_curator.policies.loader import load_policies_file
 from home_curator.registry_cache.cache import RegistryCache
+from home_curator.registry_cache.entity_cache import EntityRegistryCache
 from home_curator.rules.base import EvaluationContext
 from home_curator.rules.engine import RuleEngine
 from home_curator.storage.db import make_engine, make_session_factory, session_scope
@@ -27,6 +28,7 @@ log = logging.getLogger(__name__)
 
 async def _safety_resync_loop(
     cache: RegistryCache,
+    entity_cache: EntityRegistryCache,
     tracker: DeletionTracker,
     broker: EventBroker,
     session_commit,
@@ -34,11 +36,15 @@ async def _safety_resync_loop(
     while True:
         await asyncio.sleep(5 * 60)
         try:
-            diff = await cache.refresh()
+            dev_diff = await cache.refresh()
+            ent_diff = await entity_cache.refresh()
             tracker.handle_diff_from_cache()
+            tracker.handle_entity_diff_from_cache()
             session_commit()
-            if diff.added or diff.removed or diff.updated:
+            if dev_diff.added or dev_diff.removed or dev_diff.updated:
                 await broker.publish({"kind": "devices_changed"})
+            if ent_diff.added or ent_diff.removed or ent_diff.updated:
+                await broker.publish({"kind": "entities_changed"})
         except Exception:
             log.exception("safety resync failed")
 
@@ -79,8 +85,14 @@ def create_app(
         try:
             cache = RegistryCache(client)
             await cache.load()
+            entity_cache = EntityRegistryCache(
+                client,
+                area_lookup=cache.area_id_to_name,
+                device_lookup=cache.device,
+            )
+            await entity_cache.load()
             session = session_factory()
-            tracker = DeletionTracker(cache=cache, session=session)
+            tracker = DeletionTracker(cache=cache, session=session, entity_cache=entity_cache)
             broker = EventBroker()
             load = load_policies_file(effective_settings.policies_path)
             ctx = EvaluationContext(
@@ -94,11 +106,7 @@ def create_app(
                 else RuleEngine(compiled=[])
             )
 
-            async def _refresh_and_publish():
-                # Pull fresh device/area data from HA, update deletion tracker,
-                # then tell the UI to refetch. Without the cache.refresh() the
-                # /api/devices handler would keep serving stale data from the
-                # in-memory cache until the 5-minute safety resync runs.
+            async def _refresh_and_publish_devices():
                 try:
                     await cache.refresh()
                     tracker.handle_diff_from_cache()
@@ -107,17 +115,45 @@ def create_app(
                     log.exception("registry refresh on HA event failed")
                 await broker.publish({"kind": "devices_changed"})
 
-            def on_event(_e):
-                asyncio.get_running_loop().create_task(_refresh_and_publish())
+            async def _refresh_and_publish_entity(entity_id: str | None, kind: str):
+                try:
+                    await entity_cache.refresh()
+                    tracker.handle_entity_diff_from_cache()
+                    session.commit()
+                except Exception:
+                    log.exception("entity registry refresh on HA event failed")
+                # Per-entity notification first, then a broad changed event for
+                # any cross-cutting listener.
+                if entity_id is not None:
+                    await broker.publish({"kind": kind, "entity_id": entity_id})
+                await broker.publish({"kind": "entities_changed"})
+
+            def on_event(e):
+                loop = asyncio.get_running_loop()
+                kind = e.get("kind")
+                if kind == "device_updated":
+                    loop.create_task(_refresh_and_publish_devices())
+                elif kind in ("entity_updated", "entity_deleted"):
+                    loop.create_task(
+                        _refresh_and_publish_entity(e.get("entity_id"), kind)
+                    )
+                elif kind == "area_updated":
+                    loop.create_task(_refresh_and_publish_devices())
+                elif kind == "reconnected":
+                    loop.create_task(_refresh_and_publish_devices())
+                    loop.create_task(
+                        _refresh_and_publish_entity(None, "entities_changed")
+                    )
 
             unsub = client.subscribe(on_event)
             task = asyncio.create_task(
-                _safety_resync_loop(cache, tracker, broker, session.commit)
+                _safety_resync_loop(cache, entity_cache, tracker, broker, session.commit)
             )
 
             app.state.store = AppState(
                 ha=client,
                 cache=cache,
+                entity_cache=entity_cache,
                 tracker=tracker,
                 engine=engine,
                 policies_file=load.file,

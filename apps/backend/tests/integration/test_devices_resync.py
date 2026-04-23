@@ -6,7 +6,14 @@ def test_resync_no_changes_returns_zero_diff(client, fake_ha):
     before_calls = len(fake_ha.update_calls)
     r = client.post("/api/devices/resync")
     assert r.status_code == 200
-    assert r.json() == {"added": 0, "removed": 0, "updated": 0}
+    body = r.json()
+    assert body["added"] == 0
+    assert body["removed"] == 0
+    assert body["updated"] == 0
+    # Entity fields default to 0; present for backwards-compatibility check.
+    assert body["entity_added"] == 0
+    assert body["entity_removed"] == 0
+    assert body["entity_updated"] == 0
     # Resync is read-only — it must not trigger writes back to HA.
     assert len(fake_ha.update_calls) == before_calls
 
@@ -44,7 +51,9 @@ def test_resync_reflects_added_removed_updated(client, fake_ha):
     r = client.post("/api/devices/resync")
     assert r.status_code == 200
     body = r.json()
-    assert body == {"added": 1, "removed": 1, "updated": 1}
+    assert body["added"] == 1
+    assert body["removed"] == 1
+    assert body["updated"] == 1
 
 
 def test_resync_ha_error_returns_502(client, fake_ha):

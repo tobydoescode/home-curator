@@ -47,6 +47,22 @@ def fake_ha():
             },
         ],
         areas=[{"id": "living", "name": "Living Room"}],
+        entities=[
+            {
+                "entity_id": "light.lamp",
+                "name": None,
+                "original_name": "Lamp",
+                "icon": None,
+                "platform": "hue",
+                "device_id": "d1",
+                "area_id": None,
+                "disabled_by": None,
+                "hidden_by": None,
+                "unique_id": "hue:lamp",
+                "created_at": None,
+                "modified_at": None,
+            },
+        ],
     )
 
 

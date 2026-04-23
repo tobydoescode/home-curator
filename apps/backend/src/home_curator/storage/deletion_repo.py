@@ -80,3 +80,21 @@ class DeletionRepo:
             .distinct()
         ).all()
         return {r[0] for r in rows}
+
+    def record_entity_deletion(
+        self,
+        entity_id: str,
+        platform: str | None,
+        id_hash: str,
+        first_seen_at: datetime,
+        deleted_at: datetime,
+    ) -> None:
+        self.session.add(
+            DeletionEvent(
+                entity_id=entity_id,
+                platform=platform,
+                identifiers_hash=id_hash,
+                first_seen_at=first_seen_at,
+                deleted_at=deleted_at,
+            )
+        )

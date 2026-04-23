@@ -1,8 +1,8 @@
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from alembic import context
 from home_curator.config import Settings
 from home_curator.storage.models import Base
 from home_curator.storage.types import TZDateTime
@@ -11,8 +11,11 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-settings = Settings()
-config.set_main_option("sqlalchemy.url", f"sqlite:///{settings.db_path}")
+# Allow callers (e.g. tests) to inject a URL via set_main_option before
+# env.py runs. Only fall back to Settings when no URL has been provided.
+if not config.get_main_option("sqlalchemy.url"):
+    settings = Settings()
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{settings.db_path}")
 
 target_metadata = Base.metadata
 

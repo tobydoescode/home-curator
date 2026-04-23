@@ -25,7 +25,13 @@ def _iso_or_none(v: Any) -> str | None:
 from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed
 
-from home_curator.ha_client.base import EventHandler, HAAreaDict, HADeviceDict, RegistryEvent
+from home_curator.ha_client.base import (
+    EventHandler,
+    HAAreaDict,
+    HADeviceDict,
+    HAEntityDict,
+    RegistryEvent,
+)
 
 log = logging.getLogger(__name__)
 
@@ -108,7 +114,11 @@ class WebSocketHAClient:
         # Re-subscribe to registry change events on every (re)connection.
         # Read until we see the matching result id — HA may interleave events
         # or other server-initiated messages with command responses.
-        for event_type in ("device_registry_updated", "area_registry_updated"):
+        for event_type in (
+            "device_registry_updated",
+            "area_registry_updated",
+            "entity_registry_updated",
+        ):
             self._msg_id += 1
             mid = self._msg_id
             await ws.send(
@@ -201,6 +211,14 @@ class WebSocketHAClient:
                     self._dispatch({"kind": "device_updated", "device_id": data.get("device_id")})
                 elif kind == "area_registry_updated":
                     self._dispatch({"kind": "area_updated"})
+                elif kind == "entity_registry_updated":
+                    action = data.get("action")
+                    entity_id = data.get("entity_id")
+                    if action == "remove":
+                        self._dispatch({"kind": "entity_deleted", "entity_id": entity_id})
+                    else:
+                        # create / update — both re-read the entity registry
+                        self._dispatch({"kind": "entity_updated", "entity_id": entity_id})
 
     def _dispatch(self, event: RegistryEvent) -> None:
         for h in list(self._handlers):
@@ -298,6 +316,51 @@ class WebSocketHAClient:
                 "config_entry_id": entry_id,
                 "device_id": device_id,
             })
+
+    async def get_entities(self) -> list[HAEntityDict]:
+        res: list[dict[str, Any]] = await self._send_cmd(
+            {"type": "config/entity_registry/list"}
+        ) or []
+        out: list[HAEntityDict] = []
+        for e in res:
+            out.append({
+                "entity_id": e["entity_id"],
+                "name": e.get("name"),
+                "original_name": e.get("original_name"),
+                "icon": e.get("icon"),
+                "platform": e.get("platform", ""),
+                "device_id": e.get("device_id"),
+                "area_id": e.get("area_id"),
+                "disabled_by": e.get("disabled_by"),
+                "hidden_by": e.get("hidden_by"),
+                "unique_id": e.get("unique_id"),
+                "created_at": _iso_or_none(e.get("created_at")),
+                "modified_at": _iso_or_none(e.get("modified_at")),
+            })
+        return out
+
+    async def update_entity(self, entity_id: str, changes: dict[str, Any]) -> None:
+        """Forward a partial entity update through HA's entity_registry/update
+        command. Callers pass only changed fields (including `new_entity_id`
+        for slug rename) — HA refusal surfaces as a RuntimeError from
+        `_send_cmd`.
+        """
+        await self._send_cmd({
+            "type": "config/entity_registry/update",
+            "entity_id": entity_id,
+            **changes,
+        })
+
+    async def delete_entity(self, entity_id: str) -> None:
+        """Remove an entity from the HA entity registry.
+
+        HA may refuse if the entity belongs to an active integration that
+        expects it; the error bubbles as RuntimeError from `_send_cmd`.
+        """
+        await self._send_cmd({
+            "type": "config/entity_registry/remove",
+            "entity_id": entity_id,
+        })
 
     def subscribe(self, handler: EventHandler) -> Callable[[], None]:
         self._handlers.append(handler)

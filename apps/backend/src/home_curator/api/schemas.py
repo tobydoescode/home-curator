@@ -242,9 +242,17 @@ class BulkDeleteResponse(BaseModel):
 
 
 class ResyncResponse(BaseModel):
-    """Counts for a manual resync. Matches the `Diff` shape from
-    `registry_cache.cache`, flattened to ints for the client."""
+    """Counts for a manual resync. Separate device and entity diffs so the
+    UI can report which cache actually changed.
+
+    `added`/`removed`/`updated` remain at the top level for backwards
+    compatibility (they describe the device diff); entity counts live in
+    `entity_added`/`entity_removed`/`entity_updated`.
+    """
 
     added: int
     removed: int
     updated: int
+    entity_added: int = 0
+    entity_removed: int = 0
+    entity_updated: int = 0

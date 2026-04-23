@@ -8,6 +8,7 @@ from home_curator.events.broker import EventBroker
 from home_curator.ha_client.base import HAClient
 from home_curator.policies.schema import PoliciesFile
 from home_curator.registry_cache.cache import RegistryCache
+from home_curator.registry_cache.entity_cache import EntityRegistryCache
 from home_curator.rules.engine import RuleEngine
 
 
@@ -15,6 +16,7 @@ from home_curator.rules.engine import RuleEngine
 class AppState:
     ha: HAClient
     cache: RegistryCache
+    entity_cache: EntityRegistryCache
     tracker: DeletionTracker
     engine: RuleEngine
     policies_file: PoliciesFile | None

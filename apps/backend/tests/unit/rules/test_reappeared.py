@@ -46,7 +46,7 @@ def test_exception_suppresses():
         id="r", type="reappeared_after_delete", enabled=True, severity="info"
     )
     r = compile_reappeared(p)
-    ctx = _ctx(exc={("d1", "r")})
+    ctx = _ctx(exc={("device", "d1", "r")})
     assert r.evaluate(_d(state={"reappeared_after_delete": True}), ctx) is None
 
 
