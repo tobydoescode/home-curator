@@ -98,6 +98,10 @@ class DeleteBody(BaseModel):
     device_ids: list[str]
 
 
+class DeleteEntityBody(BaseModel):
+    entity_ids: list[str]
+
+
 @router.post("/assign-room", response_model=AssignRoomResponse, response_model_exclude_none=True)
 async def assign_room(body: AssignRoomBody, state: AppState = Depends(app_state)) -> AssignRoomResponse:
     """Assign the given `area_id` to each device."""
@@ -383,3 +387,33 @@ async def delete(body: DeleteBody, state: AppState = Depends(app_state)) -> Dele
         except Exception as e:
             results.append(DeleteResult(device_id=did, ok=False, error=str(e)))
     return DeleteResponse(results=results)
+
+
+@router.post(
+    "/delete-entity",
+    response_model=DeleteEntityResponse,
+    response_model_exclude_none=True,
+)
+async def delete_entity(
+    body: DeleteEntityBody, state: AppState = Depends(app_state),
+) -> DeleteEntityResponse:
+    """Delete one or more entities via HA's entity_registry/remove.
+
+    Mirrors the landed device `/delete` shape: cache check first, then HA
+    call. Per-entity results so the UI can report partial success.
+    """
+    if not body.entity_ids:
+        raise HTTPException(status_code=400, detail="entity_ids must not be empty")
+    results: list[DeleteEntityResult] = []
+    for eid in body.entity_ids:
+        if state.entity_cache.entity(eid) is None:
+            results.append(
+                DeleteEntityResult(entity_id=eid, ok=False, error="entity not found"),
+            )
+            continue
+        try:
+            await state.ha.delete_entity(eid)
+            results.append(DeleteEntityResult(entity_id=eid, ok=True))
+        except Exception as e:
+            results.append(DeleteEntityResult(entity_id=eid, ok=False, error=str(e)))
+    return DeleteEntityResponse(results=results)

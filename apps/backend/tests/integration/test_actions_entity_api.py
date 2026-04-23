@@ -396,3 +396,72 @@ def test_entity_state_empty_body_rejected(client, fake_ha):
     )
     assert r.status_code == 400
     assert len(fake_ha.update_entity_calls) == before
+
+
+# --- delete-entity (Phase 8) -----------------------------------------------
+
+def test_delete_entity_single_ok(client, fake_ha):
+    r = client.post(
+        "/api/actions/delete-entity",
+        json={"entity_ids": ["light.kitchen_ceiling"]},
+    )
+    assert r.status_code == 200
+    assert r.json() == {
+        "results": [{"entity_id": "light.kitchen_ceiling", "ok": True}],
+    }
+    assert fake_ha.delete_entity_calls == ["light.kitchen_ceiling"]
+
+
+def test_delete_entity_bulk(client, fake_ha):
+    r = client.post(
+        "/api/actions/delete-entity",
+        json={"entity_ids": ["light.kitchen_ceiling", "sensor.temperature"]},
+    )
+    assert r.status_code == 200
+    rows = {row["entity_id"]: row for row in r.json()["results"]}
+    assert rows["light.kitchen_ceiling"]["ok"] is True
+    assert rows["sensor.temperature"]["ok"] is True
+    assert set(fake_ha.delete_entity_calls) == {
+        "light.kitchen_ceiling", "sensor.temperature",
+    }
+
+
+def test_delete_entity_partial_failure(client, fake_ha):
+    original = fake_ha.delete_entity
+
+    async def flaky(eid):
+        if eid == "sensor.temperature":
+            raise RuntimeError("integration refused removal")
+        await original(eid)
+
+    fake_ha.delete_entity = flaky  # type: ignore[method-assign]
+    r = client.post(
+        "/api/actions/delete-entity",
+        json={"entity_ids": ["light.kitchen_ceiling", "sensor.temperature"]},
+    )
+    assert r.status_code == 200
+    rows = {row["entity_id"]: row for row in r.json()["results"]}
+    assert rows["light.kitchen_ceiling"]["ok"] is True
+    assert rows["sensor.temperature"]["ok"] is False
+    assert "integration refused" in rows["sensor.temperature"]["error"]
+
+
+def test_delete_entity_empty_rejected(client, fake_ha):
+    before = len(fake_ha.delete_entity_calls)
+    r = client.post("/api/actions/delete-entity", json={"entity_ids": []})
+    assert r.status_code == 400
+    assert len(fake_ha.delete_entity_calls) == before
+
+
+def test_delete_entity_unknown_marks_not_found(client, fake_ha):
+    r = client.post(
+        "/api/actions/delete-entity",
+        json={"entity_ids": ["ghost.missing"]},
+    )
+    assert r.status_code == 200
+    assert r.json() == {
+        "results": [
+            {"entity_id": "ghost.missing", "ok": False, "error": "entity not found"},
+        ]
+    }
+    assert "ghost.missing" not in fake_ha.delete_entity_calls
