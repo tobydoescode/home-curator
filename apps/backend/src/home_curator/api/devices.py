@@ -224,17 +224,15 @@ async def resync(state: AppState = Depends(app_state)) -> ResyncResponse:
 
     Escape hatch for when the UI looks stale. Mirrors what the 5-minute
     safety loop does: refresh the cache, update the deletion tracker's
-    in-memory state, publish an SSE `devices_changed` event so any other
-    subscribed clients refetch. The tracker's pending DB writes are
-    committed by the next mutation or the next safety-loop tick — missing
-    that commit would only matter if the process dies before then, at
-    which point the safety loop recovers on its next run.
+    in-memory state, commit its pending DB writes in-line, and publish an
+    SSE `devices_changed` event so any other subscribed clients refetch.
     """
     try:
         diff = await state.cache.refresh()
-        state.tracker.handle_diff_from_cache()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"resync failed: {e}")
+    state.tracker.handle_diff_from_cache()
+    state.tracker.flush()
     await state.broker.publish({"kind": "devices_changed"})
     return ResyncResponse(
         added=len(diff.added),
