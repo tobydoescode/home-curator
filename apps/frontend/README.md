@@ -41,7 +41,7 @@ src/
 ├── components/     # shared UI (Layout, SeverityBadge, LiveIndicator)
 ├── hooks/          # TanStack Query hooks per endpoint + useLiveEvents
 ├── pages/
-│   ├── Devices/    # DevicesPage + Table + FilterBar + ActionRow + IssuePanel + modals
+│   ├── Devices/    # DevicesPage + Table + FilterBar + ActionRow + EditDeviceDrawer + modals
 │   └── Settings/   # Naming Conventions editor
 ├── theme.ts        # Mantine theme
 ├── main.tsx        # entry

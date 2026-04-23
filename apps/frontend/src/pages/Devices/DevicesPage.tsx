@@ -9,7 +9,7 @@ import { useDevices, type DevicesSortBy, type DevicesSortDir } from "@/hooks/use
 import { ActionRow } from "./ActionRow";
 import { DevicesTable, type DeviceRow } from "./DevicesTable";
 import { FilterBar, type Filters } from "./FilterBar";
-import { IssuePanel, type IssueItem } from "./IssuePanel";
+import { EditDeviceDrawer } from "./EditDeviceDrawer";
 import { PaginationFooter } from "./PaginationFooter";
 
 function filtersFromParams(p: URLSearchParams): Filters {
@@ -194,12 +194,22 @@ export function DevicesPage() {
           setParams(paramsFromFiltersAndPagination(filters, 1, s, params))
         }
       />
-      <IssuePanel
+      <EditDeviceDrawer
         opened={drawerId !== null}
         onClose={() => setDrawerId(null)}
-        deviceId={drawerId}
-        deviceName={active?.name}
-        issues={(active?.issues ?? []) as IssueItem[]}
+        device={
+          active
+            ? {
+                id: active.id,
+                name: active.name,
+                name_by_user: active.name_by_user ?? null,
+                area_id: active.area_id ?? null,
+                area_name: active.area_name ?? null,
+                issues: active.issues ?? [],
+              }
+            : null
+        }
+        areas={roomsForAssign}
       />
     </Stack>
   );
