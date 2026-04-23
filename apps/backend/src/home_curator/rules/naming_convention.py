@@ -14,16 +14,26 @@ PRESET_TO_PATTERN: dict[str, str] = {
     "snake_case": r"^[a-z0-9]+(_[a-z0-9]+)*$",
     "kebab-case": r"^[a-z0-9]+(-[a-z0-9]+)*$",
     # Title Case tolerates real-world English device naming:
-    #   - apostrophes inside words ("Clara's")
+    #   - apostrophes inside or trailing a word ("Clara's", "Wills'")
     #   - hyphenated words where each segment is capitalised ("En-Suite")
     #   - acronyms and initialisms ("AP", "ESPresense") via [A-Z]+[a-z0-9']*
+    #   - standalone digit-words after the first token ("Side Lamp 2") —
+    #     the first token must still start with a letter so names don't
+    #     begin with a number.
+    #   - digit-led techy abbreviations after the first token ("3D Printer",
+    #     "4K Camera", "12V Sensor") via [0-9]+[A-Z]+[a-z0-9']*.
+    #   - lowercase function words (articles, short prepositions, conjunctions)
+    #     after the first token ("Mum and Dad's Bedroom", "Rooms of the House").
+    #     Never at the start — that's a real capitalisation mistake.
     #   - a trailing parenthesised annotation ("(Local)") with letters / digits
     #     / spaces / hyphens / apostrophes — colons are deliberately excluded
     #     so MAC addresses ("(CC:8D:A2:50:E6:7E)") stay flagged.
     # Snake / kebab stay strict — those are machine-facing formats.
     "title-case": (
         r"^[A-Z]+[a-z0-9']*(-[A-Z]+[a-z0-9']*)*"
-        r"(\s[A-Z]+[a-z0-9']*(-[A-Z]+[a-z0-9']*)*)*"
+        r"(\s([A-Z]+[a-z0-9']*|[0-9]+[A-Z]+[a-z0-9']*|[0-9]+|"
+        r"(?:and|but|for|the|via|an|as|at|by|if|in|of|on|or|to|vs|a))"
+        r"(-[A-Z]+[a-z0-9']*)*)*"
         r"(\s\([A-Za-z0-9 '\-]+\))?$"
     ),
     "prefix-type-n": r"^[a-z]+_[a-z]+_[0-9]+$",

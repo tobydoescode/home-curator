@@ -239,6 +239,8 @@ def test_title_case_allows_apostrophes_and_hyphenated_words():
     rule = compile_naming_convention(p, ctx)
     # Apostrophes inside words (possessive form) are allowed.
     assert rule.evaluate(_dev("Clara's Bedroom Light", None, None), ctx) is None
+    # Trailing apostrophes (plural possessive) are allowed.
+    assert rule.evaluate(_dev("Wills' Bedroom Camera", None, None), ctx) is None
     # Hyphenated words where each segment is capitalised are allowed.
     assert rule.evaluate(_dev("En-Suite Light", None, None), ctx) is None
     # Acronyms are allowed.
@@ -247,11 +249,30 @@ def test_title_case_allows_apostrophes_and_hyphenated_words():
     assert rule.evaluate(_dev("Clara's Bedroom ESPresense Beacon", None, None), ctx) is None
     # Trailing parenthesised annotation is allowed.
     assert rule.evaluate(_dev("Clara's Bedroom Thermostat (Local)", None, None), ctx) is None
+    # Standalone digit-words after the first token are allowed (trailing index).
+    assert rule.evaluate(_dev("Living Room Side Lamp 2", None, None), ctx) is None
+    # Standalone digit-words are also allowed in the middle ("Zone 1 Light").
+    assert rule.evaluate(_dev("Bedroom 2 Front Plug", None, None), ctx) is None
+    # Lowercase function words ("and", "of", "the", ...) are allowed mid-name.
+    assert rule.evaluate(_dev("Mum and Dad's Bedroom", None, None), ctx) is None
+    assert rule.evaluate(_dev("Rooms of the House Lamp", None, None), ctx) is None
+    # Digit-led techy abbreviations ("3D", "4K", "12V") are allowed mid-name.
+    assert rule.evaluate(_dev("Office 3D Printer", None, None), ctx) is None
+    assert rule.evaluate(_dev("Living Room 4K Camera", None, None), ctx) is None
+    assert rule.evaluate(_dev("Garage 12V Sensor", None, None), ctx) is None
     # MAC addresses in parens stay flagged — colons are deliberately excluded.
     assert rule.evaluate(_dev("Bedroom Sensor (CC:8D:A2:50:E6:7E)", None, None), ctx) is not None
     # Still rejects concatenated PascalCase (no space between words).
     assert rule.evaluate(_dev("LivingRoomLamp", None, None), ctx) is not None
     # Still rejects all-lowercase.
     assert rule.evaluate(_dev("clara's bedroom", None, None), ctx) is not None
-    # Still rejects standalone digit-words — "Bedroom 2" isn't title case.
-    assert rule.evaluate(_dev("Bedroom 2 Front Plug", None, None), ctx) is not None
+    # First token must still be letter-led — names can't start with a digit.
+    assert rule.evaluate(_dev("2 Bedroom Lamp", None, None), ctx) is not None
+    # Digit-led techy abbreviation at the start is still rejected ("3D Printer").
+    assert rule.evaluate(_dev("3D Printer", None, None), ctx) is not None
+    # Lowercase tail after a digit-led token is still a real casing mistake.
+    assert rule.evaluate(_dev("Office 3D printer", None, None), ctx) is not None
+    # Function words can't lead — "and Bedroom" is still a capitalisation mistake.
+    assert rule.evaluate(_dev("and Bedroom", None, None), ctx) is not None
+    # A function-word token must be a whole word — "Kitchen andX" still fails.
+    assert rule.evaluate(_dev("Kitchen andX", None, None), ctx) is not None
