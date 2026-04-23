@@ -229,3 +229,12 @@ class BulkDeleteRequest(BaseModel):
 
 class BulkDeleteResponse(BaseModel):
     deleted: list[int]
+
+
+class ResyncResponse(BaseModel):
+    """Counts for a manual resync. Matches the `Diff` shape from
+    `registry_cache.cache`, flattened to ints for the client."""
+
+    added: int
+    removed: int
+    updated: int
