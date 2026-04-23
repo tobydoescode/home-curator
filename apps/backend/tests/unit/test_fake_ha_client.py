@@ -24,7 +24,7 @@ async def test_fake_returns_seeded_devices():
     )
     devs = await fake.get_devices()
     assert len(devs) == 1
-    assert devs[0]["name"] == "lamp"
+    assert devs[0]["name"] == "lamp"  # type: ignore[typeddict-item]
     areas = await fake.get_areas()
     assert areas[0]["name"] == "Living Room"
 
@@ -104,7 +104,7 @@ async def test_fake_returns_seeded_entities():
     ents = await fake.get_entities()
     assert len(ents) == 1
     assert ents[0]["entity_id"] == "light.kitchen_lamp"
-    assert ents[0]["platform"] == "hue"
+    assert ents[0]["platform"] == "hue"  # type: ignore[typeddict-item]
 
 
 @pytest.mark.asyncio
@@ -129,7 +129,7 @@ async def test_fake_records_update_entity_calls_and_mutates_store():
     await fake.update_entity("light.lamp", {"name": "Kitchen Lamp"})
     assert fake.update_entity_calls == [("light.lamp", {"name": "Kitchen Lamp"})]
     ents = await fake.get_entities()
-    assert ents[0]["name"] == "Kitchen Lamp"
+    assert ents[0]["name"] == "Kitchen Lamp"  # type: ignore[typeddict-item]
 
 
 @pytest.mark.asyncio

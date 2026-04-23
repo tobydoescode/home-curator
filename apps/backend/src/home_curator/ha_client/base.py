@@ -1,9 +1,13 @@
 from collections.abc import Callable
-from typing import Any, Protocol, TypedDict, runtime_checkable
+from typing import Any, Protocol, Required, TypedDict, runtime_checkable
 
 
 class HADeviceDict(TypedDict, total=False):
-    id: str
+    # `id` is always present on every HA device registry entry — mark it
+    # Required so subscript access (`d["id"]`) is statically safe. The rest
+    # stay optional for forward-compat with older HA versions and minimal
+    # test fixtures.
+    id: Required[str]
     name: str
     name_by_user: str | None
     manufacturer: str | None
@@ -23,12 +27,13 @@ class HADeviceDict(TypedDict, total=False):
 class HAEntityDict(TypedDict, total=False):
     """One entity row as normalized by the HA client.
 
-    Fields mirror the HA `entity_registry` payload. All are optional for
+    Fields mirror the HA `entity_registry` payload. Most are optional for
     forward-compat: older HA versions may omit `created_at`/`modified_at`,
-    and internal entities have no `unique_id`.
+    and internal entities have no `unique_id`. `entity_id` is required —
+    HA's registry always supplies it.
     """
 
-    entity_id: str
+    entity_id: Required[str]
     name: str | None            # user-set friendly name
     original_name: str | None   # integration-default friendly name
     icon: str | None

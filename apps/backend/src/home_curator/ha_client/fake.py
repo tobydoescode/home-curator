@@ -45,7 +45,11 @@ class FakeHAClient:
         self.update_calls.append((device_id, dict(changes)))
         for d in self._devices:
             if d["id"] == device_id:
-                d.update(changes)
+                # Test helper — `changes` is an arbitrary subset of HADeviceDict
+                # coming from the action endpoint. TypedDict's .update() wants a
+                # Partial[HADeviceDict]; the structural check here is enforced
+                # by the action-layer schema, not the fake.
+                d.update(changes)  # type: ignore[typeddict-item]
 
     async def delete_device(self, device_id: str) -> None:
         self.delete_calls.append(device_id)
@@ -55,7 +59,8 @@ class FakeHAClient:
         self.update_entity_calls.append((entity_id, dict(changes)))
         for e in self._entities:
             if e["entity_id"] == entity_id:
-                e.update(changes)
+                # See update_device for the .update() type-ignore rationale.
+                e.update(changes)  # type: ignore[typeddict-item]
 
     async def delete_entity(self, entity_id: str) -> None:
         self.delete_entity_calls.append(entity_id)
