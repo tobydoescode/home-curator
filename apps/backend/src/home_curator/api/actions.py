@@ -44,6 +44,25 @@ class UpdateDeviceBody(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class UpdateEntityBody(BaseModel):
+    """Partial entity update.
+
+    `new_entity_id` renames the HA slug; all other fields map 1:1 onto
+    `config/entity_registry/update`. `None` is meaningful for `area_id`,
+    `disabled_by`, `hidden_by`, `icon` (it clears the value in HA) — missing
+    keys are omitted from the payload.
+    """
+
+    new_entity_id: str | None = None
+    name: str | None = None
+    area_id: str | None = None
+    disabled_by: str | None = None
+    hidden_by: str | None = None
+    icon: str | None = None
+
+    model_config = {"extra": "forbid"}
+
+
 class DeleteBody(BaseModel):
     device_ids: list[str]
 
@@ -110,6 +129,27 @@ async def update_device(
         raise HTTPException(status_code=400, detail="no fields to update")
     try:
         await state.ha.update_device(device_id, payload)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"ha update failed: {e}")
+    return RenameResponse(ok=True)
+
+
+@router.patch("/entity/{entity_id}", response_model=RenameResponse)
+async def update_entity(
+    entity_id: str,
+    body: UpdateEntityBody,
+    state: AppState = Depends(app_state),
+) -> RenameResponse:
+    """Partial update of a single entity.
+
+    Forwards only the fields the client sent as one `update_entity` call,
+    so one Save = one HA write. HA error → 502 with the HA message.
+    """
+    payload = body.model_dump(exclude_unset=True)
+    if not payload:
+        raise HTTPException(status_code=400, detail="no fields to update")
+    try:
+        await state.ha.update_entity(entity_id, payload)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"ha update failed: {e}")
     return RenameResponse(ok=True)
