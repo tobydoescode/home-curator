@@ -10,7 +10,7 @@ import { ResyncButton } from "./ResyncButton";
 
 const NAV = [
   { label: "Devices", to: "/devices" },
-  { label: "Entities", to: "/entities", disabled: true },
+  { label: "Entities", to: "/entities" },
   { label: "Automations", to: "/automations", disabled: true },
   { label: "Areas", to: "/areas", disabled: true },
   { label: "Settings", to: "/settings" },

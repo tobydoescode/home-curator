@@ -9,6 +9,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { Layout } from "@/components/Layout";
 import { DevicesPage } from "@/pages/Devices/DevicesPage";
+import { EntitiesPage } from "@/pages/Entities/EntitiesPage";
 import { DeviceSettingsPage } from "@/pages/Settings/DeviceSettings/DeviceSettingsPage";
 import { EntitySettingsPage } from "@/pages/Settings/EntitySettings/EntitySettingsPage";
 import { ExceptionsPage } from "@/pages/Settings/Exceptions/ExceptionsPage";
@@ -39,6 +40,7 @@ export default function App() {
               <Route element={<Layout />}>
                 <Route path="/" element={<Navigate to="/devices" replace />} />
                 <Route path="/devices" element={<DevicesPage />} />
+                <Route path="/entities" element={<EntitiesPage />} />
                 <Route path="/settings" element={<SettingsLayout />}>
                   <Route index element={<Navigate to="/settings/devices" replace />} />
                   <Route path="devices" element={<DeviceSettingsPage />} />
