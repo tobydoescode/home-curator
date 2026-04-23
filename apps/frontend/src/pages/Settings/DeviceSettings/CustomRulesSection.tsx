@@ -7,13 +7,26 @@ import { applyCustomRuleEdit } from "@/pages/Settings/applyCustomRuleEdit";
 import { CustomRuleEditor, type CustomRule } from "@/pages/Settings/CustomRuleEditor";
 import type { SectionProps } from "./NamingSection";
 
-export function CustomRulesSection({ draft, onChange }: SectionProps) {
+export interface CustomRulesSectionProps extends SectionProps {
+  /** Which scope's custom rules this section edits. Defaults to "devices". */
+  scope?: "devices" | "entities";
+}
+
+export function CustomRulesSection({
+  draft,
+  onChange,
+  scope = "devices",
+}: CustomRulesSectionProps) {
   const navigate = useNavigate();
   const [editing, setEditing] = useState<number | "new" | null>(null);
 
   const customs = draft.policies
     .map((p, i) => ({ p, i }))
-    .filter(({ p }) => p.type === "custom");
+    .filter(
+      ({ p }) =>
+        p.type === "custom" &&
+        ((p as { scope?: string }).scope ?? "devices") === scope,
+    );
 
   function remove(i: number) {
     const policies = draft.policies.filter((_, j) => j !== i);
@@ -25,7 +38,9 @@ export function CustomRulesSection({ draft, onChange }: SectionProps) {
   }
 
   function handleSaved(rule: CustomRule, slot: number | "new") {
-    onChange(applyCustomRuleEdit(draft, rule, slot));
+    // Lock new rules to the current scope so they land under the right page.
+    const scoped = slot === "new" ? { ...rule, scope } : rule;
+    onChange(applyCustomRuleEdit(draft, scoped, slot));
     setEditing(null);
   }
 
@@ -82,6 +97,7 @@ export function CustomRulesSection({ draft, onChange }: SectionProps) {
       {editing !== null && (
         <CustomRuleEditor
           initial={editing === "new" ? null : (customs.find(({ i }) => i === editing)!.p as any)}
+          scope={scope}
           onClose={() => setEditing(null)}
           onSaved={(rule) => handleSaved(rule, editing)}
         />

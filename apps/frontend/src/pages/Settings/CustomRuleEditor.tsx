@@ -8,7 +8,7 @@ import { type SimulateResponse } from "@/pages/Settings/Simulator";
 export interface CustomRule {
   id: string;
   type: "custom";
-  scope: "devices";
+  scope: "devices" | "entities";
   enabled: boolean;
   severity: "info" | "warning" | "error";
   when: string;
@@ -20,6 +20,8 @@ export interface CustomRuleEditorProps {
   initial: CustomRule | null;
   onClose: () => void;
   onSaved: (rule: CustomRule) => void;
+  /** Current page scope — informs new-rule defaults and the CEL helper. */
+  scope?: "devices" | "entities";
 }
 
 const SEVERITIES = ["info", "warning", "error"] as const;

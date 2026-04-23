@@ -23,9 +23,15 @@ const draft: PoliciesFileShape = {
   ],
 };
 
-function Harness({ initial }: { initial: PoliciesFileShape }) {
+function Harness({
+  initial,
+  scope = "devices",
+}: {
+  initial: PoliciesFileShape;
+  scope?: "devices" | "entities";
+}) {
   const [d, setD] = useState(initial);
-  return <CustomRulesSection draft={d} onChange={setD} />;
+  return <CustomRulesSection draft={d} onChange={setD} scope={scope} />;
 }
 
 function wrap(initial = draft) {
@@ -60,5 +66,84 @@ describe("CustomRulesSection", () => {
     wrap();
     await user.click(screen.getByRole("button", { name: /add custom rule/i }));
     expect(await screen.findByRole("heading", { name: /edit custom rule|add custom rule/i })).toBeInTheDocument();
+  });
+});
+
+describe("CustomRulesSection — scope prop", () => {
+  const mixed: PoliciesFileShape = {
+    version: 1,
+    policies: [
+      {
+        id: "nc",
+        type: "naming_convention",
+        enabled: true,
+        severity: "warning",
+        global: { preset: "snake_case" },
+        starts_with_room: false,
+        rooms: [],
+      } as any,
+      {
+        id: "dev-rule",
+        type: "custom",
+        scope: "devices",
+        enabled: true,
+        severity: "info",
+        when: "true",
+        assert: "device.name != null",
+        message: "msg1",
+      } as any,
+      {
+        id: "ent-rule",
+        type: "custom",
+        scope: "entities",
+        enabled: true,
+        severity: "info",
+        when: "true",
+        assert: "entity.name != null",
+        message: "msg2",
+      } as any,
+    ],
+  };
+
+  beforeEach(() => {
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("{}", { status: 200 })),
+    );
+  });
+
+  it("scope=devices filters out entity-scoped custom rules", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <MantineProvider>
+        <ModalsProvider>
+          <QueryClientProvider client={qc}>
+            <MemoryRouter>
+              <Harness initial={mixed} scope="devices" />
+            </MemoryRouter>
+          </QueryClientProvider>
+        </ModalsProvider>
+      </MantineProvider>,
+    );
+    expect(screen.getByText("dev-rule")).toBeInTheDocument();
+    expect(screen.queryByText("ent-rule")).not.toBeInTheDocument();
+  });
+
+  it("scope=entities filters out device-scoped custom rules", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <MantineProvider>
+        <ModalsProvider>
+          <QueryClientProvider client={qc}>
+            <MemoryRouter>
+              <Harness initial={mixed} scope="entities" />
+            </MemoryRouter>
+          </QueryClientProvider>
+        </ModalsProvider>
+      </MantineProvider>,
+    );
+    expect(screen.getByText("ent-rule")).toBeInTheDocument();
+    expect(screen.queryByText("dev-rule")).not.toBeInTheDocument();
   });
 });
