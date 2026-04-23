@@ -105,14 +105,33 @@ export function DevicesTable({
   const columns: ColumnDef<DeviceRow>[] = [
     {
       id: "select",
-      header: ({ table }) => (
-        <Checkbox
-          aria-label="Select All"
-          checked={table.getIsAllRowsSelected()}
-          indeterminate={table.getIsSomeRowsSelected()}
-          onChange={table.getToggleAllRowsSelectedHandler()}
-        />
-      ),
+      header: ({ table }) => {
+        // TanStack Table's getToggleAllRowsSelectedHandler only touches the
+        // current page's rows — off-page selections survive. Handle it
+        // manually so unchecking clears EVERYTHING (matching user intent),
+        // while checking adds the current page on top of existing picks.
+        const pageIds = table.getRowModel().rows.map((r) => r.id);
+        const totalSelected = Object.values(selection).filter(Boolean).length;
+        const allPageSelected =
+          pageIds.length > 0 && pageIds.every((id) => selection[id]);
+        const somePageSelected = pageIds.some((id) => selection[id]);
+        return (
+          <Checkbox
+            aria-label="Select All"
+            checked={allPageSelected}
+            indeterminate={!allPageSelected && (somePageSelected || totalSelected > 0)}
+            onChange={(e) => {
+              if (e.currentTarget.checked) {
+                const next = { ...selection };
+                for (const id of pageIds) next[id] = true;
+                onSelectionChange(next);
+              } else {
+                onSelectionChange({});
+              }
+            }}
+          />
+        );
+      },
       cell: ({ row }) => (
         <Checkbox
           aria-label={`Select ${row.original.name}`}
