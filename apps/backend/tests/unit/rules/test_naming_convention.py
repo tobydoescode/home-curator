@@ -276,3 +276,44 @@ def test_title_case_allows_apostrophes_and_hyphenated_words():
     assert rule.evaluate(_dev("and Bedroom", None, None), ctx) is not None
     # A function-word token must be a whole word — "Kitchen andX" still fails.
     assert rule.evaluate(_dev("Kitchen andX", None, None), ctx) is not None
+
+
+def test_starts_with_room_snake_case_strips_apostrophe():
+    """'Clara's Bedroom' → 'claras_bedroom' (apostrophe dropped)."""
+    p = NamingConventionPolicy.model_validate({
+        "id": "nc", "type": "naming_convention", "severity": "warning",
+        "global": {"preset": "snake_case"}, "starts_with_room": True, "rooms": [],
+    })
+    ctx = _ctx(area_id_to_name={"cb": "Clara's Bedroom"})
+    rule = compile_naming_convention(p, ctx)
+    assert rule.evaluate(_dev("claras_bedroom_lamp", "cb", "Clara's Bedroom"), ctx) is None
+    issue = rule.evaluate(_dev("clara_s_bedroom_lamp", "cb", "Clara's Bedroom"), ctx)
+    assert issue is not None
+
+
+def test_starts_with_room_snake_case_strips_hyphen():
+    """'En-Suite' → 'ensuite' (hyphen dropped; not underscore-swapped)."""
+    p = NamingConventionPolicy.model_validate({
+        "id": "nc", "type": "naming_convention", "severity": "warning",
+        "global": {"preset": "snake_case"}, "starts_with_room": True, "rooms": [],
+    })
+    ctx = _ctx(area_id_to_name={"es": "En-Suite"})
+    rule = compile_naming_convention(p, ctx)
+    assert rule.evaluate(_dev("ensuite_light", "es", "En-Suite"), ctx) is None
+    issue = rule.evaluate(_dev("en_suite_light", "es", "En-Suite"), ctx)
+    assert issue is not None
+
+
+def test_starts_with_room_snake_case_strips_punctuation_soup():
+    """General case: any non-[a-z0-9_] character is dropped and consecutive
+    underscores collapse. 'Mum & Dad's (Main) Bedroom' → 'mum_dads_main_bedroom'
+    — the double underscore from the '&' would otherwise be invalid snake_case."""
+    p = NamingConventionPolicy.model_validate({
+        "id": "nc", "type": "naming_convention", "severity": "warning",
+        "global": {"preset": "snake_case"}, "starts_with_room": True, "rooms": [],
+    })
+    ctx = _ctx(area_id_to_name={"x": "Mum & Dad's (Main) Bedroom"})
+    rule = compile_naming_convention(p, ctx)
+    assert rule.evaluate(
+        _dev("mum_dads_main_bedroom_lamp", "x", "Mum & Dad's (Main) Bedroom"), ctx
+    ) is None
