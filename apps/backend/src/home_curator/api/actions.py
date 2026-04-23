@@ -76,6 +76,15 @@ class AssignRoomEntitiesBody(BaseModel):
     area_id: str | None
 
 
+class RenamePatternEntitiesBody(BaseModel):
+    entity_ids: list[str]
+    id_pattern: str | None = None
+    id_replacement: str | None = None
+    name_pattern: str | None = None
+    name_replacement: str | None = None
+    dry_run: bool = True
+
+
 class DeleteBody(BaseModel):
     device_ids: list[str]
 
@@ -185,6 +194,140 @@ async def assign_room_entities(
         except Exception as e:
             results.append(AssignRoomEntityResult(entity_id=eid, ok=False, error=str(e)))
     return AssignRoomEntityResponse(results=results)
+
+
+@router.post(
+    "/rename-pattern-entities",
+    response_model=RenamePatternEntityResponse,
+    response_model_exclude_none=False,
+)
+async def rename_pattern_entities(
+    body: RenamePatternEntitiesBody, state: AppState = Depends(app_state),
+) -> RenamePatternEntityResponse:
+    """Dual-regex rename across entity_id and / or friendly name.
+
+    Each side is independently optional. A pattern-validation error
+    returns at the top-level (short-circuits `results`). Per-entity
+    HA collisions come back per row with `ok=false`.
+    """
+    id_pat = None
+    name_pat = None
+    if body.id_pattern is not None:
+        try:
+            id_pat = re.compile(body.id_pattern)
+        except re.error as e:
+            return RenamePatternEntityResponse(
+                results=[], error=f"invalid id_pattern: {e}",
+            )
+    if body.name_pattern is not None:
+        try:
+            name_pat = re.compile(body.name_pattern)
+        except re.error as e:
+            return RenamePatternEntityResponse(
+                results=[], error=f"invalid name_pattern: {e}",
+            )
+    if id_pat is None and name_pat is None:
+        return RenamePatternEntityResponse(
+            results=[], error="provide at least one of id_pattern or name_pattern",
+        )
+
+    results: list[RenamePatternEntityResult] = []
+    for eid in body.entity_ids:
+        e = state.entity_cache.entity(eid)
+        if e is None:
+            results.append(
+                RenamePatternEntityResult(
+                    entity_id=eid,
+                    id_changed=False,
+                    name_changed=False,
+                    ok=False,
+                    dry_run=body.dry_run,
+                    error="entity not found",
+                )
+            )
+            continue
+
+        new_id: str | None = None
+        id_changed = False
+        if id_pat is not None and body.id_replacement is not None:
+            proposed = id_pat.sub(body.id_replacement, eid)
+            if proposed != eid:
+                new_id = proposed
+                id_changed = True
+
+        new_name: str | None = None
+        name_changed = False
+        if name_pat is not None and body.name_replacement is not None:
+            current = e.display_name
+            proposed_name = name_pat.sub(body.name_replacement, current)
+            if proposed_name != current:
+                new_name = proposed_name
+                name_changed = True
+
+        if not (id_changed or name_changed):
+            # Entity matched the selection but neither regex touched it.
+            results.append(
+                RenamePatternEntityResult(
+                    entity_id=eid,
+                    id_changed=False,
+                    new_entity_id=None,
+                    name_changed=False,
+                    new_name=None,
+                    ok=True,
+                    dry_run=body.dry_run,
+                    error=None,
+                )
+            )
+            continue
+
+        if body.dry_run:
+            results.append(
+                RenamePatternEntityResult(
+                    entity_id=eid,
+                    id_changed=id_changed,
+                    new_entity_id=new_id,
+                    name_changed=name_changed,
+                    new_name=new_name,
+                    ok=True,
+                    dry_run=True,
+                    error=None,
+                )
+            )
+            continue
+
+        payload: dict[str, str] = {}
+        if id_changed and new_id is not None:
+            payload["new_entity_id"] = new_id
+        if name_changed and new_name is not None:
+            payload["name"] = new_name
+        try:
+            await state.ha.update_entity(eid, payload)
+            results.append(
+                RenamePatternEntityResult(
+                    entity_id=eid,
+                    id_changed=id_changed,
+                    new_entity_id=new_id,
+                    name_changed=name_changed,
+                    new_name=new_name,
+                    ok=True,
+                    dry_run=False,
+                    error=None,
+                )
+            )
+        except Exception as ex:
+            results.append(
+                RenamePatternEntityResult(
+                    entity_id=eid,
+                    id_changed=id_changed,
+                    new_entity_id=new_id,
+                    name_changed=name_changed,
+                    new_name=new_name,
+                    ok=False,
+                    dry_run=False,
+                    error=str(ex),
+                )
+            )
+    return RenamePatternEntityResponse(results=results, error=None)
 
 
 @router.post("/delete", response_model=DeleteResponse, response_model_exclude_none=True)

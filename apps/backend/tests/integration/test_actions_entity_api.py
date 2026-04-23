@@ -112,3 +112,162 @@ def test_assign_room_entities_partial_failure(client, fake_ha):
     }
     assert rows["sensor.temperature"]["ok"] is False
     assert "integration refused" in rows["sensor.temperature"]["error"]
+
+
+# --- rename-pattern-entities (Phase 6) -------------------------------------
+
+def test_rename_pattern_dry_run_both_regexes(client, fake_ha):
+    before = len(fake_ha.update_entity_calls)
+    r = client.post(
+        "/api/actions/rename-pattern-entities",
+        json={
+            "entity_ids": ["light.kitchen_ceiling"],
+            "id_pattern": r"^light\.kitchen_(.+)$",
+            "id_replacement": r"light.main_\1",
+            "name_pattern": r"^Kitchen\s+(.+)$",
+            "name_replacement": r"Main \1",
+            "dry_run": True,
+        },
+    )
+    assert r.status_code == 200
+    [row] = r.json()["results"]
+    assert row == {
+        "entity_id": "light.kitchen_ceiling",
+        "id_changed": True,
+        "new_entity_id": "light.main_ceiling",
+        "name_changed": True,
+        "new_name": "Main Ceiling",
+        "ok": True,
+        "dry_run": True,
+        "error": None,
+    }
+    # No HA writes on dry_run.
+    assert len(fake_ha.update_entity_calls) == before
+
+
+def test_rename_pattern_apply_sends_changed_fields_only(client, fake_ha):
+    # Apply only the id rename; leave name untouched.
+    before = len(fake_ha.update_entity_calls)
+    r = client.post(
+        "/api/actions/rename-pattern-entities",
+        json={
+            "entity_ids": ["light.kitchen_ceiling"],
+            "id_pattern": r"^light\.kitchen_(.+)$",
+            "id_replacement": r"light.main_\1",
+            "dry_run": False,
+        },
+    )
+    assert r.status_code == 200
+    [row] = r.json()["results"]
+    assert row["ok"] is True
+    assert row["id_changed"] is True
+    assert row["name_changed"] is False
+    assert len(fake_ha.update_entity_calls) == before + 1
+    assert fake_ha.update_entity_calls[-1] == (
+        "light.kitchen_ceiling",
+        {"new_entity_id": "light.main_ceiling"},
+    )
+
+
+def test_rename_pattern_name_only_apply(client, fake_ha):
+    r = client.post(
+        "/api/actions/rename-pattern-entities",
+        json={
+            "entity_ids": ["light.kitchen_ceiling"],
+            "name_pattern": r"^Kitchen\s+(.+)$",
+            "name_replacement": r"Main \1",
+            "dry_run": False,
+        },
+    )
+    assert r.status_code == 200
+    assert fake_ha.update_entity_calls[-1] == (
+        "light.kitchen_ceiling",
+        {"name": "Main Ceiling"},
+    )
+
+
+def test_rename_pattern_invalid_id_pattern_top_level_error(client):
+    r = client.post(
+        "/api/actions/rename-pattern-entities",
+        json={
+            "entity_ids": ["light.kitchen_ceiling"],
+            "id_pattern": "[",
+            "id_replacement": "x",
+            "dry_run": True,
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["results"] == []
+    assert "invalid id_pattern" in body["error"]
+
+
+def test_rename_pattern_invalid_name_pattern_top_level_error(client):
+    r = client.post(
+        "/api/actions/rename-pattern-entities",
+        json={
+            "entity_ids": ["light.kitchen_ceiling"],
+            "name_pattern": "[",
+            "name_replacement": "x",
+            "dry_run": True,
+        },
+    )
+    assert r.status_code == 200
+    assert "invalid name_pattern" in r.json()["error"]
+
+
+def test_rename_pattern_requires_at_least_one_side(client):
+    r = client.post(
+        "/api/actions/rename-pattern-entities",
+        json={"entity_ids": ["light.kitchen_ceiling"], "dry_run": True},
+    )
+    assert r.status_code == 200
+    assert "at least one" in r.json()["error"].lower()
+
+
+def test_rename_pattern_collision_surfaces_per_entity(client, fake_ha):
+    # Simulate HA refusing the new slug (already exists).
+    original = fake_ha.update_entity
+
+    async def colliding(eid, changes):
+        if "new_entity_id" in changes:
+            raise RuntimeError("entity_id already exists")
+        await original(eid, changes)
+
+    fake_ha.update_entity = colliding  # type: ignore[method-assign]
+
+    r = client.post(
+        "/api/actions/rename-pattern-entities",
+        json={
+            "entity_ids": ["light.kitchen_ceiling"],
+            "id_pattern": r"^light\.kitchen_(.+)$",
+            "id_replacement": r"light.main_\1",
+            "dry_run": False,
+        },
+    )
+    assert r.status_code == 200
+    [row] = r.json()["results"]
+    assert row["ok"] is False
+    assert "already exists" in row["error"]
+
+
+def test_rename_pattern_skips_non_matching(client, fake_ha):
+    before = len(fake_ha.update_entity_calls)
+    r = client.post(
+        "/api/actions/rename-pattern-entities",
+        json={
+            "entity_ids": ["light.kitchen_ceiling", "sensor.temperature"],
+            "id_pattern": r"^light\.kitchen_(.+)$",
+            "id_replacement": r"light.main_\1",
+            "dry_run": False,
+        },
+    )
+    assert r.status_code == 200
+    rows = {row["entity_id"]: row for row in r.json()["results"]}
+    # sensor.temperature doesn't match — reported ok=true, id_changed=false,
+    # no HA write for that one.
+    assert rows["sensor.temperature"]["id_changed"] is False
+    assert rows["sensor.temperature"]["ok"] is True
+    writes_after = fake_ha.update_entity_calls[before:]
+    assert len(writes_after) == 1
+    assert writes_after[0][0] == "light.kitchen_ceiling"
