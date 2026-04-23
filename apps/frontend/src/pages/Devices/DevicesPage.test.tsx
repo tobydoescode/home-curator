@@ -23,16 +23,22 @@ function mockFetchOnce(body: unknown) {
 
 function wrap(ui: React.ReactElement) {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
   });
+  // Provider order mirrors App.tsx. ModalsProvider MUST be a descendant of
+  // QueryClientProvider — modal children render inside ModalsProvider's
+  // subtree and otherwise can't call `useQueryClient()`.
   return (
     <MantineProvider>
       <Notifications />
-      <ModalsProvider>
-        <QueryClientProvider client={client}>
+      <QueryClientProvider client={client}>
+        <ModalsProvider>
           <MemoryRouter>{ui}</MemoryRouter>
-        </QueryClientProvider>
-      </ModalsProvider>
+        </ModalsProvider>
+      </QueryClientProvider>
     </MantineProvider>
   );
 }
