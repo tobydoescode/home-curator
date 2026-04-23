@@ -220,22 +220,33 @@ def list_devices(
 
 @router.post("/devices/resync", response_model=ResyncResponse)
 async def resync(state: AppState = Depends(app_state)) -> ResyncResponse:
-    """Force a re-pull of devices and areas from Home Assistant.
+    """Force a re-pull of devices, areas and entities from Home Assistant.
 
-    Escape hatch for when the UI looks stale. Mirrors what the 5-minute
-    safety loop does: refresh the cache, update the deletion tracker's
-    in-memory state, commit its pending DB writes in-line, and publish an
-    SSE `devices_changed` event so any other subscribed clients refetch.
+    Escape hatch for when the UI looks stale. Refreshes both registry
+    caches, updates the deletion tracker's in-memory state, commits its
+    pending DB writes, and publishes SSE events for every cache that
+    actually changed.
     """
     try:
-        diff = await state.cache.refresh()
+        dev_diff = await state.cache.refresh()
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"resync failed: {e}")
+        raise HTTPException(status_code=502, detail=f"device resync failed: {e}")
+    try:
+        ent_diff = await state.entity_cache.refresh()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"entity resync failed: {e}")
     state.tracker.handle_diff_from_cache()
+    state.tracker.handle_entity_diff_from_cache()
     state.tracker.commit()
-    await state.broker.publish({"kind": "devices_changed"})
+    if dev_diff.added or dev_diff.removed or dev_diff.updated:
+        await state.broker.publish({"kind": "devices_changed"})
+    if ent_diff.added or ent_diff.removed or ent_diff.updated:
+        await state.broker.publish({"kind": "entities_changed"})
     return ResyncResponse(
-        added=len(diff.added),
-        removed=len(diff.removed),
-        updated=len(diff.updated),
+        added=len(dev_diff.added),
+        removed=len(dev_diff.removed),
+        updated=len(dev_diff.updated),
+        entity_added=len(ent_diff.added),
+        entity_removed=len(ent_diff.removed),
+        entity_updated=len(ent_diff.updated),
     )
