@@ -1,5 +1,5 @@
 """GET / PUT /api/policies."""
-import celpy
+from celpy.adapter import json_to_cel
 from fastapi import APIRouter, Depends, HTTPException
 
 from home_curator.api.deps import AppState, app_state
@@ -150,7 +150,7 @@ def _simulate_devices(rule, state: AppState) -> SimulateResponse:
     passing: list[SimulateTargetRow] = []
     # Simulator runs raw CEL — acknowledged exceptions are intentionally not applied here.
     for d in hydrated:
-        cel_ctx = {"device": celpy.json_to_cel(d.to_cel_context())}
+        cel_ctx = {"device": json_to_cel(d.to_cel_context())}
         try:
             if rule._when is not None and not bool(rule._when.evaluate(cel_ctx)):
                 continue
@@ -208,7 +208,7 @@ def _simulate_entities(rule, state: AppState) -> SimulateResponse:
             device_context=owning.to_cel_context() if owning is not None else None,
             area_name=area_name,
         )
-        cel_ctx = {"entity": celpy.json_to_cel(entity_ctx)}
+        cel_ctx = {"entity": json_to_cel(entity_ctx)}
         try:
             if rule._when is not None and not bool(rule._when.evaluate(cel_ctx)):
                 continue
