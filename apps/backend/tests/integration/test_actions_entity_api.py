@@ -64,3 +64,51 @@ def test_patch_entity_ha_error_surfaces_as_502(client, fake_ha):
     )
     assert r.status_code == 502
     assert "ha refused" in r.json()["detail"]
+
+
+# --- assign-room-entities (Phase 5) ----------------------------------------
+
+def test_assign_room_entities_bulk(client, fake_ha):
+    r = client.post(
+        "/api/actions/assign-room-entities",
+        json={
+            "entity_ids": ["light.kitchen_ceiling", "sensor.temperature"],
+            "area_id": "living",
+        },
+    )
+    assert r.status_code == 200
+    rows = r.json()["results"]
+    assert rows == [
+        {"entity_id": "light.kitchen_ceiling", "ok": True},
+        {"entity_id": "sensor.temperature", "ok": True},
+    ]
+    assert fake_ha.update_entity_calls[-2:] == [
+        ("light.kitchen_ceiling", {"area_id": "living"}),
+        ("sensor.temperature", {"area_id": "living"}),
+    ]
+
+
+def test_assign_room_entities_partial_failure(client, fake_ha):
+    original = fake_ha.update_entity
+
+    async def flaky(eid, changes):
+        if eid == "sensor.temperature":
+            raise RuntimeError("integration refused")
+        await original(eid, changes)
+
+    fake_ha.update_entity = flaky  # type: ignore[method-assign]
+
+    r = client.post(
+        "/api/actions/assign-room-entities",
+        json={
+            "entity_ids": ["light.kitchen_ceiling", "sensor.temperature"],
+            "area_id": "living",
+        },
+    )
+    assert r.status_code == 200
+    rows = {row["entity_id"]: row for row in r.json()["results"]}
+    assert rows["light.kitchen_ceiling"] == {
+        "entity_id": "light.kitchen_ceiling", "ok": True,
+    }
+    assert rows["sensor.temperature"]["ok"] is False
+    assert "integration refused" in rows["sensor.temperature"]["error"]

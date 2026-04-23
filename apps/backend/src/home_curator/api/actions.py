@@ -5,10 +5,18 @@ from pydantic import BaseModel
 
 from home_curator.api.deps import AppState, app_state
 from home_curator.api.schemas import (
+    AssignRoomEntityResponse,
+    AssignRoomEntityResult,
     AssignRoomResponse,
     AssignRoomResult,
+    DeleteEntityResponse,
+    DeleteEntityResult,
     DeleteResponse,
     DeleteResult,
+    EntityStateResponse,
+    EntityStateResult,
+    RenamePatternEntityResponse,
+    RenamePatternEntityResult,
     RenamePatternResponse,
     RenamePatternResult,
     RenameResponse,
@@ -61,6 +69,11 @@ class UpdateEntityBody(BaseModel):
     icon: str | None = None
 
     model_config = {"extra": "forbid"}
+
+
+class AssignRoomEntitiesBody(BaseModel):
+    entity_ids: list[str]
+    area_id: str | None
 
 
 class DeleteBody(BaseModel):
@@ -153,6 +166,25 @@ async def update_entity(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"ha update failed: {e}")
     return RenameResponse(ok=True)
+
+
+@router.post(
+    "/assign-room-entities",
+    response_model=AssignRoomEntityResponse,
+    response_model_exclude_none=True,
+)
+async def assign_room_entities(
+    body: AssignRoomEntitiesBody, state: AppState = Depends(app_state),
+) -> AssignRoomEntityResponse:
+    """Bulk-assign an area_id to one or more entities."""
+    results: list[AssignRoomEntityResult] = []
+    for eid in body.entity_ids:
+        try:
+            await state.ha.update_entity(eid, {"area_id": body.area_id})
+            results.append(AssignRoomEntityResult(entity_id=eid, ok=True))
+        except Exception as e:
+            results.append(AssignRoomEntityResult(entity_id=eid, ok=False, error=str(e)))
+    return AssignRoomEntityResponse(results=results)
 
 
 @router.post("/delete", response_model=DeleteResponse, response_model_exclude_none=True)
