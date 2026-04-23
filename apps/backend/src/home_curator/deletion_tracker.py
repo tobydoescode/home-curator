@@ -28,10 +28,11 @@ class DeletionTracker:
             d.id: datetime.now(UTC) for d in cache.devices()
         }
 
-    def flush(self) -> None:
-        """Persist pending deletion-event writes. Call after `handle_diff_from_cache`
-        if the caller isn't holding the session elsewhere (e.g. the resync endpoint,
-        which — unlike the HA-event path — doesn't have a committing context)."""
+    def commit(self) -> None:
+        """Persist pending deletion-event writes by committing this tracker's
+        session. Call after `handle_diff_from_cache` if the caller doesn't hold
+        a committing context elsewhere (e.g. the resync endpoint — unlike the
+        HA-event path in main.py which commits the session directly)."""
         self._session.commit()
 
     def state_for(self, device_id: str) -> dict[str, Any]:

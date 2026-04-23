@@ -127,7 +127,11 @@ describe("useResync", () => {
     ).rejects.toThrow();
     await waitFor(() =>
       expect(showSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ color: "red", title: "Resync Failed" }),
+        expect.objectContaining({
+          color: "red",
+          title: "Resync Failed",
+          message: "resync failed: ha unavailable",
+        }),
       ),
     );
     expect(invalidateSpy).not.toHaveBeenCalled();

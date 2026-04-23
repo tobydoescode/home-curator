@@ -8,7 +8,15 @@ export function useResync() {
   return useMutation({
     mutationFn: async () => {
       const { data, error } = await api.POST("/api/devices/resync", {});
-      if (error) throw new Error(String(error));
+      if (error) {
+        const detail =
+          typeof error === "object" && error !== null && "detail" in error
+            ? String((error as { detail: unknown }).detail)
+            : typeof error === "string"
+              ? error
+              : JSON.stringify(error);
+        throw new Error(detail);
+      }
       return data!;
     },
     onSuccess: (diff) => {

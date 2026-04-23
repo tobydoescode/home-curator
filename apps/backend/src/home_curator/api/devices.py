@@ -232,7 +232,7 @@ async def resync(state: AppState = Depends(app_state)) -> ResyncResponse:
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"resync failed: {e}")
     state.tracker.handle_diff_from_cache()
-    state.tracker.flush()
+    state.tracker.commit()
     await state.broker.publish({"kind": "devices_changed"})
     return ResyncResponse(
         added=len(diff.added),
