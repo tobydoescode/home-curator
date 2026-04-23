@@ -31,12 +31,12 @@ def test_evaluation_context():
     ctx = EvaluationContext(
         area_name_to_id={"garage": "garage_xyz"},
         area_id_to_name={"garage_xyz": "Garage"},
-        exceptions={("d1", "p1")},
+        exceptions={("device", "d1", "p1")},
     )
     assert ctx.resolve_area_id_from_name("Garage") == "garage_xyz"
     assert ctx.resolve_area_id_from_name("Unknown") is None
-    assert ("d1", "p1") in ctx.exceptions
-    assert ("d1", "p2") not in ctx.exceptions
+    assert ("device", "d1", "p1") in ctx.exceptions
+    assert ("device", "d1", "p2") not in ctx.exceptions
 
 
 def test_to_cel_context_keys_and_state_prefix():
