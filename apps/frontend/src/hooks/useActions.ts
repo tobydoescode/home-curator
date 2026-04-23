@@ -58,3 +58,37 @@ export function useRenamePattern() {
     },
   });
 }
+
+export function useUpdateDevice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      device_id,
+      changes,
+    }: {
+      device_id: string;
+      changes: { name_by_user?: string | null; area_id?: string | null };
+    }) => {
+      const { error } = await api.PATCH("/api/actions/device/{device_id}", {
+        params: { path: { device_id } },
+        body: changes,
+      });
+      if (error) throw new Error(String(error));
+    },
+    onSuccess: () => {
+      notifications.show({
+        title: "Device Updated",
+        message: "Changes saved",
+        color: "green",
+      });
+      invalidateDevices(qc);
+    },
+    onError: (err) => {
+      notifications.show({
+        title: "Save Failed",
+        message: err instanceof Error ? err.message : "Unknown error",
+        color: "red",
+      });
+    },
+  });
+}

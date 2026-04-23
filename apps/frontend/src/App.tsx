@@ -24,8 +24,8 @@ export default function App() {
   return (
     <MantineProvider theme={theme} defaultColorScheme="light">
       <Notifications />
-      <ModalsProvider>
-        <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <ModalsProvider>
           <BrowserRouter>
             <Routes>
               <Route element={<Layout />}>
@@ -46,8 +46,8 @@ export default function App() {
               </Route>
             </Routes>
           </BrowserRouter>
-        </QueryClientProvider>
-      </ModalsProvider>
+        </ModalsProvider>
+      </QueryClientProvider>
     </MantineProvider>
   );
 }

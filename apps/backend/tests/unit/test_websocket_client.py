@@ -34,6 +34,10 @@ async def _fake_ha(ws):
             await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": [
                 {"entity_id": "light.lamp", "device_id": "d1", "platform": "hue"}
             ]}))
+        elif msg.get("type") == "config_entries/get":
+            await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": [
+                {"entry_id": "e1", "domain": "hue"}
+            ]}))
         elif msg.get("type") == "subscribe_events":
             await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": None}))
 

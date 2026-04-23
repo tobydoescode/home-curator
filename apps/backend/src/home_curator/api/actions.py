@@ -1,6 +1,6 @@
 import re
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from home_curator.api.deps import AppState, app_state
@@ -30,6 +30,16 @@ class RenamePatternBody(BaseModel):
     pattern: str
     replacement: str
     dry_run: bool = True
+
+
+class UpdateDeviceBody(BaseModel):
+    # Both fields optional — the PATCH accepts any subset. Missing keys are
+    # omitted from the HA payload; `None` is meaningful and forwarded (e.g.
+    # `area_id: null` to clear the room assignment).
+    name_by_user: str | None = None
+    area_id: str | None = None
+
+    model_config = {"extra": "forbid"}
 
 
 @router.post("/assign-room", response_model=AssignRoomResponse, response_model_exclude_none=True)
@@ -79,3 +89,21 @@ async def rename_pattern(body: RenamePatternBody, state: AppState = Depends(app_
             except Exception as e:
                 results.append(RenamePatternResult(device_id=did, matched=True, ok=False, error=str(e)))
     return RenamePatternResponse(results=results)
+
+
+@router.patch("/device/{device_id}", response_model=RenameResponse)
+async def update_device(
+    device_id: str,
+    body: UpdateDeviceBody,
+    state: AppState = Depends(app_state),
+) -> RenameResponse:
+    """Partial update of a single device. Forwards only the fields the client
+    sent as a single HA `update_device` call, so one Save = one HA write."""
+    payload = body.model_dump(exclude_unset=True)
+    if not payload:
+        raise HTTPException(status_code=400, detail="no fields to update")
+    try:
+        await state.ha.update_device(device_id, payload)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"ha update failed: {e}")
+    return RenameResponse(ok=True)

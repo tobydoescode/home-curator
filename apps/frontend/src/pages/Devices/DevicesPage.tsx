@@ -1,6 +1,6 @@
 import { Alert, Stack, Text, Title } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { RowSelectionState } from "@tanstack/react-table";
 
@@ -9,7 +9,7 @@ import { useDevices, type DevicesSortBy, type DevicesSortDir } from "@/hooks/use
 import { ActionRow } from "./ActionRow";
 import { DevicesTable, type DeviceRow } from "./DevicesTable";
 import { FilterBar, type Filters } from "./FilterBar";
-import { IssuePanel, type IssueItem } from "./IssuePanel";
+import { EditDeviceDrawer } from "./EditDeviceDrawer";
 import { PaginationFooter } from "./PaginationFooter";
 
 function filtersFromParams(p: URLSearchParams): Filters {
@@ -142,6 +142,13 @@ export function DevicesPage() {
     [data, drawerId],
   );
 
+  // If the currently-drawered device disappears from the result set (e.g.
+  // deleted via HA → SSE → refetch), close the drawer so it doesn't
+  // "teleport" back if the device reappears later.
+  useEffect(() => {
+    if (drawerId !== null && data && !active) setDrawerId(null);
+  }, [drawerId, data, active]);
+
   if (isLoading) return <Text>Loading…</Text>;
   if (error)
     return (
@@ -194,12 +201,22 @@ export function DevicesPage() {
           setParams(paramsFromFiltersAndPagination(filters, 1, s, params))
         }
       />
-      <IssuePanel
+      <EditDeviceDrawer
         opened={drawerId !== null}
         onClose={() => setDrawerId(null)}
-        deviceId={drawerId}
-        deviceName={active?.name}
-        issues={(active?.issues ?? []) as IssueItem[]}
+        device={
+          active
+            ? {
+                id: active.id,
+                name: active.name,
+                name_by_user: active.name_by_user ?? null,
+                area_id: active.area_id ?? null,
+                area_name: active.area_name ?? null,
+                issues: active.issues ?? [],
+              }
+            : null
+        }
+        areas={roomsForAssign}
       />
     </Stack>
   );

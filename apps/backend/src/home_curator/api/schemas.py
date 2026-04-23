@@ -48,6 +48,7 @@ class DeviceOut(BaseModel):
 
     id: str
     name: str
+    name_by_user: str | None = None
     manufacturer: str | None = None
     model: str | None = None
     area_id: str | None = None
