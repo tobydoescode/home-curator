@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Severity = Literal["info", "warning", "error"]
 NamingPreset = Literal["snake_case", "kebab-case", "title-case", "prefix-type-n", "custom"]
-CustomScope = Literal["devices"]
+CustomScope = Literal["devices", "entities"]
 
 
 class _PolicyBase(BaseModel):
@@ -21,6 +21,9 @@ class MissingAreaPolicy(_PolicyBase):
 
 class ReappearedAfterDeletePolicy(_PolicyBase):
     type: Literal["reappeared_after_delete"]
+    # Scope controls whether this fires per-device or per-entity. Default
+    # preserves the original device-only behaviour for pre-existing configs.
+    scope: Literal["devices", "entities"] = "devices"
 
 
 class NamingPatternConfig(BaseModel):
@@ -108,7 +111,9 @@ class NamingConventionPolicy(_PolicyBase):
 
 class CustomPolicy(_PolicyBase):
     type: Literal["custom"]
-    scope: CustomScope
+    # Default "devices" so new device-scope rules don't need to spell it out.
+    # Existing on-disk files that carry an explicit scope still load unchanged.
+    scope: CustomScope = "devices"
     when_: str = Field(alias="when", default="true")
     assert_: str = Field(alias="assert")
     message: str

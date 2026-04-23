@@ -172,12 +172,48 @@ def test_room_override_enabled_requires_preset():
         RoomOverride.model_validate({"area_id": "mgmt", "enabled": True})
 
 
-def test_custom_policy_requires_scope():
+def test_custom_policy_rejects_invalid_scope():
+    """Unknown scope values must not quietly default — only 'devices' or
+    'entities' are accepted."""
     with pytest.raises(ValidationError):
         CustomPolicy.model_validate({
             "id": "c", "type": "custom", "severity": "info",
+            "scope": "areas",
             "assert": "true", "message": "m",
         })
+
+
+def test_custom_policy_scope_defaults_to_devices():
+    """New device-scope custom rules don't have to spell out scope."""
+    p = CustomPolicy.model_validate({
+        "id": "c", "type": "custom", "severity": "info",
+        "assert": "true", "message": "m",
+    })
+    assert p.scope == "devices"
+
+
+def test_custom_policy_scope_entities_accepted():
+    p = CustomPolicy.model_validate({
+        "id": "c", "type": "custom", "severity": "info", "scope": "entities",
+        "assert": "true", "message": "m",
+    })
+    assert p.scope == "entities"
+
+
+def test_reappeared_policy_scope_defaults_to_devices():
+    from home_curator.policies.schema import ReappearedAfterDeletePolicy
+    p = ReappearedAfterDeletePolicy.model_validate({
+        "id": "r", "type": "reappeared_after_delete", "severity": "info",
+    })
+    assert p.scope == "devices"
+
+
+def test_reappeared_policy_scope_entities_accepted():
+    from home_curator.policies.schema import ReappearedAfterDeletePolicy
+    p = ReappearedAfterDeletePolicy.model_validate({
+        "id": "r", "type": "reappeared_after_delete", "severity": "info", "scope": "entities",
+    })
+    assert p.scope == "entities"
 
 
 def test_custom_policy_scope_devices_ok():
