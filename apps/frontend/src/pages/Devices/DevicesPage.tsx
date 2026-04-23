@@ -27,6 +27,7 @@ function paramsFromFiltersAndPagination(
   f: Filters,
   page: number,
   pageSize: number,
+  current?: URLSearchParams,
 ): URLSearchParams {
   const out = new URLSearchParams();
   if (f.q) out.set("q", f.q);
@@ -37,6 +38,14 @@ function paramsFromFiltersAndPagination(
   if (f.with_issues) out.set("with_issues", "true");
   if (page !== 1) out.set("page", String(page));
   if (pageSize !== 50) out.set("page_size", String(pageSize));
+  // Preserve orthogonal params (sort) so a filter change doesn't wipe
+  // the user's chosen column ordering.
+  if (current) {
+    for (const key of ["sort_by", "sort_dir"]) {
+      const v = current.get(key);
+      if (v) out.set(key, v);
+    }
+  }
   return out;
 }
 
@@ -158,7 +167,7 @@ export function DevicesPage() {
         roomCounts={data.area_counts}
         issueTypeCounts={data.issue_counts_by_type}
         integrationCounts={data.integration_counts}
-        onChange={(f) => setParams(paramsFromFiltersAndPagination(f, 1, pageSize))}
+        onChange={(f) => setParams(paramsFromFiltersAndPagination(f, 1, pageSize, params))}
       />
       <ActionRow
         selectedIds={selectedIds}
@@ -179,10 +188,10 @@ export function DevicesPage() {
         page={page}
         pageSize={pageSize}
         onPageChange={(p) =>
-          setParams(paramsFromFiltersAndPagination(filters, p, pageSize))
+          setParams(paramsFromFiltersAndPagination(filters, p, pageSize, params))
         }
         onPageSizeChange={(s) =>
-          setParams(paramsFromFiltersAndPagination(filters, 1, s))
+          setParams(paramsFromFiltersAndPagination(filters, 1, s, params))
         }
       />
       <IssuePanel
