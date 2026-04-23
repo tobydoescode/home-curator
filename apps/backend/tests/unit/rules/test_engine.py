@@ -86,6 +86,33 @@ def test_all_existing_compiled_rules_default_scope_devices():
         assert rule.scope == "devices", rule
 
 
+def test_engine_compiles_mixed_device_and_entity_types():
+    """Mixed-policy file compiles without TypeError and produces both
+    device-scoped and entity-scoped compiled rules."""
+    file_ = PoliciesFile.model_validate({
+        "version": 1,
+        "policies": [
+            {"id": "a", "type": "missing_area", "severity": "warning"},
+            {"id": "b", "type": "entity_missing_area", "severity": "info"},
+            {
+                "id": "c", "type": "entity_naming_convention", "severity": "warning",
+                "name": {"global": {"preset": "title-case"}}, "entity_id": {},
+            },
+            {
+                "id": "d", "type": "reappeared_after_delete", "severity": "info",
+                "scope": "entities",
+            },
+        ],
+    })
+    ctx = _empty_ctx()
+    engine = RuleEngine.compile(file_, ctx)
+    by_id = {r.id: r for r in engine.compiled}
+    assert by_id["a"].scope == "devices"
+    assert by_id["b"].scope == "entities"
+    assert by_id["c"].scope == "entities"
+    assert by_id["d"].scope == "entities"
+
+
 def test_errored_custom_policy_does_not_crash():
     file_ = PoliciesFile.model_validate(
         {

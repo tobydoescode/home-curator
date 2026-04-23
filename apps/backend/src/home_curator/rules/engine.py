@@ -2,6 +2,8 @@ from dataclasses import dataclass
 
 from home_curator.policies.schema import (
     CustomPolicy,
+    EntityMissingAreaPolicy,
+    EntityNamingConventionPolicy,
     MissingAreaPolicy,
     NamingConventionPolicy,
     PoliciesFile,
@@ -11,7 +13,11 @@ from home_curator.rules.base import (
     CompiledPolicy, Device, Entity, EvaluationContext, Issue,
 )
 from home_curator.rules.custom_cel import compile_custom
-from home_curator.rules.missing_area import compile_missing_area
+from home_curator.rules.entity_naming import compile_entity_naming
+from home_curator.rules.missing_area import (
+    compile_entity_missing_area,
+    compile_missing_area,
+)
 from home_curator.rules.naming_convention import compile_naming_convention
 from home_curator.rules.reappeared_after_delete import compile_reappeared
 
@@ -26,8 +32,12 @@ class RuleEngine:
         for p in file_.policies:
             if isinstance(p, MissingAreaPolicy):
                 rules.append(compile_missing_area(p))
+            elif isinstance(p, EntityMissingAreaPolicy):
+                rules.append(compile_entity_missing_area(p))
             elif isinstance(p, NamingConventionPolicy):
                 rules.append(compile_naming_convention(p, ctx))
+            elif isinstance(p, EntityNamingConventionPolicy):
+                rules.append(compile_entity_naming(p, ctx))
             elif isinstance(p, ReappearedAfterDeletePolicy):
                 rules.append(compile_reappeared(p))
             elif isinstance(p, CustomPolicy):
