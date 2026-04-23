@@ -119,3 +119,15 @@ async def test_entity_deleted_broker_event_reaches_sse(app_with_fake):
         "entity_deleted",
     )
     assert found == {"kind": "entity_deleted", "entity_id": "light.lamp"}
+
+
+@pytest.mark.asyncio
+async def test_entities_changed_broker_event_reaches_sse(app_with_fake):
+    """Broad `entities_changed` event — no entity_id — reaches SSE. Fires on
+    every entity-registry refresh so subscribers know to re-query."""
+    found = await _run_sse_emit_and_collect(
+        app_with_fake,
+        {"kind": "entities_changed"},
+        "entities_changed",
+    )
+    assert found == {"kind": "entities_changed"}
