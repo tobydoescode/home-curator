@@ -7,7 +7,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from home_curator.ha_client.base import HAClient, HAEntityDict
-from home_curator.registry_cache.cache import Area
 from home_curator.rules.base import Device, Entity
 
 

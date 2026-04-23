@@ -1,11 +1,18 @@
 import pytest
 
+from home_curator.ha_client.base import HADeviceDict, HAEntityDict
 from home_curator.ha_client.fake import FakeHAClient
 from home_curator.registry_cache.cache import RegistryCache
 from home_curator.registry_cache.entity_cache import EntityRegistryCache
 
 
-def _ent(eid, device_id="d1", area_id=None, platform="hue", unique_id="x"):
+def _ent(
+    eid: str,
+    device_id: str | None = "d1",
+    area_id: str | None = None,
+    platform: str = "hue",
+    unique_id: str | None = "x",
+) -> HAEntityDict:
     return {
         "entity_id": eid,
         "name": None,
@@ -20,7 +27,7 @@ def _ent(eid, device_id="d1", area_id=None, platform="hue", unique_id="x"):
     }
 
 
-def _dev(did, area_id=None):
+def _dev(did: str, area_id: str | None = None) -> HADeviceDict:
     return {
         "id": did,
         "name": did,
