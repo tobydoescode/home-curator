@@ -3,8 +3,20 @@ import { notifications } from "@mantine/notifications";
 
 import { api } from "@/api/client";
 
+import { showDetailedResultToast, type DetailedResult } from "./useDetailedToast";
+
 function invalidateDevices(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["devices"] });
+}
+
+function toDetailedDevice<
+  T extends { device_id: string; ok: boolean; error?: string | null },
+>(rows: T[]): DetailedResult[] {
+  return rows.map((r) => ({
+    id: r.device_id,
+    ok: r.ok,
+    error: r.error ?? undefined,
+  }));
 }
 
 export function useAssignRoom() {
@@ -16,13 +28,10 @@ export function useAssignRoom() {
       return data!;
     },
     onSuccess: (res) => {
-      const fails = res.results.filter((r) => !r.ok);
-      notifications.show({
-        title: "Assign Room",
-        message: fails.length
-          ? `${res.results.length - fails.length} Updated, ${fails.length} Failed`
-          : `${res.results.length} Updated`,
-        color: fails.length ? "yellow" : "green",
+      showDetailedResultToast({
+        kind: "Device",
+        action: "Updated",
+        results: toDetailedDevice(res.results),
       });
       invalidateDevices(qc);
     },
@@ -53,8 +62,14 @@ export function useRenamePattern() {
       if (error) throw new Error(String(error));
       return data!;
     },
-    onSuccess: (_res, vars) => {
-      if (!vars.dry_run) invalidateDevices(qc);
+    onSuccess: (res, vars) => {
+      if (vars.dry_run) return;
+      showDetailedResultToast({
+        kind: "Device",
+        action: "Renamed",
+        results: toDetailedDevice(res.results ?? []),
+      });
+      invalidateDevices(qc);
     },
   });
 }
@@ -104,35 +119,13 @@ export function useDeleteDevices() {
       return data!;
     },
     onSuccess: (res) => {
-      const total = res.results.length;
-      const failed = res.results.filter((r) => !r.ok).length;
-      const ok = total - failed;
-      if (failed === 0) {
-        notifications.show({
-          title: "Device Deleted",
-          message: total === 1 ? "Device deleted" : `${ok} devices deleted`,
-          color: "green",
-        });
-        invalidateDevices(qc);
-      } else if (ok === 0) {
-        // All failed → no cache invalidation; nothing changed server-side.
-        const firstError = res.results.find((r) => r.error)?.error;
-        notifications.show({
-          title: "Delete Failed",
-          message:
-            total === 1
-              ? firstError ?? "Unknown error"
-              : `${failed} devices failed to delete`,
-          color: "red",
-        });
-      } else {
-        notifications.show({
-          title: "Partial Delete",
-          message: `${ok} deleted, ${failed} failed`,
-          color: "yellow",
-        });
-        invalidateDevices(qc);
-      }
+      showDetailedResultToast({
+        kind: "Device",
+        action: "Deleted",
+        results: toDetailedDevice(res.results),
+      });
+      // Only invalidate when at least one delete actually succeeded.
+      if (res.results.some((r) => r.ok)) invalidateDevices(qc);
     },
     onError: (err) => {
       notifications.show({

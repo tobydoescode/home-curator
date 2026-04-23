@@ -167,7 +167,8 @@ describe("useDeleteDevices", () => {
     expect(showSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         color: "green",
-        message: "2 devices deleted",
+        // Shared helper produces Title Case "N Devices Deleted"
+        message: "2 Devices Deleted",
       }),
     );
   });
@@ -182,10 +183,13 @@ describe("useDeleteDevices", () => {
     await act(async () => {
       await result.current.mutateAsync(["d1", "d2"]);
     });
+    // Partial delete now routes through showDetailedResultToast; the message is
+    // a JSX span ("N deleted, M failed View Details") rather than a string.
+    // Assert the colour + the title discriminator instead.
     expect(showSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         color: "yellow",
-        message: "1 deleted, 1 failed",
+        title: "Partial Deleted",
       }),
     );
   });
