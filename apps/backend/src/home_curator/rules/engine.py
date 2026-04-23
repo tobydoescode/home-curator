@@ -7,7 +7,9 @@ from home_curator.policies.schema import (
     PoliciesFile,
     ReappearedAfterDeletePolicy,
 )
-from home_curator.rules.base import CompiledPolicy, Device, EvaluationContext, Issue
+from home_curator.rules.base import (
+    CompiledPolicy, Device, Entity, EvaluationContext, Issue,
+)
 from home_curator.rules.custom_cel import compile_custom
 from home_curator.rules.missing_area import compile_missing_area
 from home_curator.rules.naming_convention import compile_naming_convention
@@ -34,12 +36,18 @@ class RuleEngine:
                 raise TypeError(f"Unhandled policy type: {type(p).__name__}")
         return cls(compiled=rules)
 
-    def evaluate(self, device: Device, ctx: EvaluationContext) -> list[Issue]:
+    def evaluate(self, thing: Device | Entity, ctx: EvaluationContext) -> list[Issue]:
+        """Dispatch by thing type. Rules whose scope doesn't match the
+        current scope are skipped silently — they aren't errors, they
+        just don't apply. Compile-errored rules are always skipped."""
+        scope = "entities" if isinstance(thing, Entity) else "devices"
         out: list[Issue] = []
         for r in self.compiled:
             if r.compile_error:
                 continue
-            issue = r.evaluate(device, ctx)
+            if r.scope != scope:
+                continue
+            issue = r.evaluate(thing, ctx)
             if issue is not None:
                 out.append(issue)
         return out

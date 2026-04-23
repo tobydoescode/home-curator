@@ -149,6 +149,11 @@ class EvaluationContext:
     # without their ids colliding. Compiled rules look up their own scope's
     # key.
     exceptions: set[tuple[TargetKind, str, str]]
+    # Optional lookup used by entity-scope rules that need the owning
+    # device's shape (custom_cel entity.device context; entity_missing_area
+    # lenient mode). Defaults to empty so existing device-only callers
+    # don't have to supply it.
+    devices_by_id: dict[str, "Device"] = field(default_factory=dict)
 
     def resolve_area_id_from_name(self, name: str) -> str | None:
         return self.area_name_to_id.get(name.lower())
