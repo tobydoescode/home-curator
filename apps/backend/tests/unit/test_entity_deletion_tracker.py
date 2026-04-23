@@ -3,6 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from home_curator.deletion_tracker import DeletionTracker
+from home_curator.ha_client.base import HAEntityDict
 from home_curator.ha_client.fake import FakeHAClient
 from home_curator.registry_cache.cache import RegistryCache
 from home_curator.registry_cache.entity_cache import EntityRegistryCache
@@ -16,7 +17,12 @@ def _session():
     return Session(e)
 
 
-def _ent(eid, platform="hue", unique_id="u1", device_id=None):
+def _ent(
+    eid: str,
+    platform: str = "hue",
+    unique_id: str | None = "u1",
+    device_id: str | None = None,
+) -> HAEntityDict:
     return {
         "entity_id": eid,
         "name": None,
