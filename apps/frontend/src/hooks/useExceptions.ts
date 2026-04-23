@@ -15,7 +15,8 @@ export function useAcknowledgeException() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: {
-      device_id: string;
+      device_id?: string;
+      entity_id?: string;
       policy_id: string;
       note?: string;
       acknowledged_by?: string;
@@ -23,26 +24,51 @@ export function useAcknowledgeException() {
       const { error } = await api.POST("/api/exceptions", { body });
       if (error) throw new Error(String(error));
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["devices"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["devices"] });
+      qc.invalidateQueries({ queryKey: ["entities"] });
+      qc.invalidateQueries({ queryKey: ["exceptions-list"] });
+    },
   });
 }
 
 export function useClearException() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({
-      device_id,
-      policy_id,
-    }: {
-      device_id: string;
+    mutationFn: async (args: {
+      device_id?: string;
+      entity_id?: string;
       policy_id: string;
     }) => {
-      const { error } = await api.DELETE("/api/exceptions/{device_id}/{policy_id}", {
-        params: { path: { device_id, policy_id } },
-      });
-      if (error) throw new Error(String(error));
+      if (args.device_id) {
+        const { error } = await api.DELETE(
+          "/api/exceptions/{device_id}/{policy_id}",
+          {
+            params: {
+              path: { device_id: args.device_id, policy_id: args.policy_id },
+            },
+          },
+        );
+        if (error) throw new Error(String(error));
+      } else if (args.entity_id) {
+        const { error } = await api.DELETE(
+          "/api/exceptions/entity/{entity_id}/{policy_id}",
+          {
+            params: {
+              path: { entity_id: args.entity_id, policy_id: args.policy_id },
+            },
+          },
+        );
+        if (error) throw new Error(String(error));
+      } else {
+        throw new Error("device_id or entity_id required");
+      }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["devices"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["devices"] });
+      qc.invalidateQueries({ queryKey: ["entities"] });
+      qc.invalidateQueries({ queryKey: ["exceptions-list"] });
+    },
   });
 }
 
