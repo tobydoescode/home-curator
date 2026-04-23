@@ -1,4 +1,15 @@
-import { ActionIcon, Alert, Button, Group, Select, Stack, Switch, Table, TextInput, Title } from "@mantine/core";
+import {
+  ActionIcon,
+  Alert,
+  Button,
+  Group,
+  Select,
+  Stack,
+  Switch,
+  Table,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import { IconTrash } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -14,7 +25,12 @@ export interface SectionProps {
   onChange: (d: PoliciesFileShape) => void;
 }
 
-type Preset = "snake_case" | "kebab-case" | "title-case" | "prefix-type-n" | "custom";
+type Preset =
+  | "snake_case"
+  | "kebab-case"
+  | "title-case"
+  | "prefix-type-n"
+  | "custom";
 
 const PRESET_LABELS: Record<Preset, string> = {
   snake_case: "snake_case",
@@ -34,9 +50,33 @@ const PRESET_EXAMPLE: Record<Preset, string> = {
 
 const SEVERITIES = ["info", "warning", "error"] as const;
 
-export function NamingSection({ draft, onChange }: SectionProps) {
-  const idx = draft.policies.findIndex((p) => p.type === "naming_convention");
+// ---------------------------------------------------------------------------
+// Generic block editor. Does not know about the wrapping policy shape; edits
+// only {preset, pattern, starts_with_room, rooms[]}. Shared by the device
+// naming section and the Entity Settings page.
+// ---------------------------------------------------------------------------
+export interface NamingBlock {
+  preset: Preset;
+  pattern?: string | null;
+  starts_with_room?: boolean;
+  rooms?: RoomOverride[];
+}
 
+export interface NamingBlockSectionProps {
+  block: NamingBlock;
+  onBlockChange: (next: NamingBlock) => void;
+  /** When false, the preset dropdown is hidden (entity_id shape). */
+  showPreset?: boolean;
+  /** When false, the custom-pattern field is hidden (entity_id shape). */
+  allowCustomPattern?: boolean;
+}
+
+export function NamingBlockSection({
+  block,
+  onBlockChange,
+  showPreset = true,
+  allowCustomPattern = true,
+}: NamingBlockSectionProps) {
   const areas = useQuery({
     queryKey: ["areas"],
     queryFn: async () => {
@@ -45,6 +85,234 @@ export function NamingSection({ draft, onChange }: SectionProps) {
       return data ?? [];
     },
   });
+
+  const rooms = block.rooms ?? [];
+  const overrideOptions: { value: string; label: string }[] = [
+    ...(Object.keys(PRESET_LABELS) as Preset[]).map((v) => ({
+      value: v,
+      label: PRESET_LABELS[v],
+    })),
+    { value: "__disabled", label: "Disabled" },
+  ];
+
+  function patchBlock(next: Partial<NamingBlock>): void {
+    onBlockChange({ ...block, ...next });
+  }
+
+  function updateOverride(i: number, patchObj: Partial<RoomOverride>): void {
+    const next = [...rooms];
+    next[i] = { ...next[i], ...patchObj };
+    patchBlock({ rooms: next });
+  }
+
+  function removeOverride(i: number): void {
+    patchBlock({ rooms: rooms.filter((_, j) => j !== i) });
+  }
+
+  function addOverride(): void {
+    patchBlock({
+      rooms: [
+        ...rooms,
+        { area_id: null, enabled: true, preset: "snake_case" },
+      ],
+    });
+  }
+
+  return (
+    <Stack>
+      <Group align="flex-start">
+        {showPreset && (
+          <Select
+            label="Preset"
+            aria-label="Preset"
+            data={(Object.keys(PRESET_LABELS) as Preset[]).map((v) => ({
+              value: v,
+              label: PRESET_LABELS[v],
+            }))}
+            value={block.preset}
+            onChange={(v) => {
+              if (!v) return;
+              patchBlock({
+                preset: v as Preset,
+                pattern: v === "custom" ? "" : undefined,
+              });
+            }}
+            description={`e.g. ${PRESET_EXAMPLE[block.preset]}`}
+            inputWrapperOrder={["label", "input", "description", "error"]}
+          />
+        )}
+        {allowCustomPattern && block.preset === "custom" && (
+          <TextInput
+            label="Pattern"
+            aria-label="Pattern"
+            value={block.pattern ?? ""}
+            onChange={(e) => {
+              const v = e.currentTarget.value;
+              patchBlock({ pattern: v });
+            }}
+            style={{ flex: 1 }}
+          />
+        )}
+      </Group>
+      <Switch
+        role="switch"
+        aria-label="Starts with room name"
+        label="Starts with room name"
+        checked={!!block.starts_with_room}
+        onChange={(e) => {
+          const v = e.currentTarget.checked;
+          patchBlock({ starts_with_room: v });
+        }}
+      />
+      <Group justify="space-between">
+        <Title order={5}>Per-Room Overrides</Title>
+        <Button size="xs" onClick={addOverride}>
+          + Add Override
+        </Button>
+      </Group>
+      {rooms.length === 0 && (
+        <Alert color="gray" variant="light">
+          No room overrides yet.
+        </Alert>
+      )}
+      {rooms.length > 0 && (
+        <Table withTableBorder>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Room</Table.Th>
+              {showPreset && <Table.Th>Preset</Table.Th>}
+              {allowCustomPattern && <Table.Th>Pattern</Table.Th>}
+              <Table.Th>Starts With Room</Table.Th>
+              <Table.Th />
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {rooms.map((r, i) => {
+              const presetValue = r.enabled
+                ? r.preset ?? "snake_case"
+                : "__disabled";
+              const usedElsewhere = new Set(
+                rooms
+                  .filter((_, j) => j !== i)
+                  .map((o) => o.area_id)
+                  .filter((v): v is string => Boolean(v)),
+              );
+              const areaOptions = (areas.data ?? [])
+                .filter((a) => !usedElsewhere.has(a.id))
+                .map((a) => ({ value: a.id, label: a.name }));
+              const orphanValue =
+                r.area_id &&
+                !areaOptions.find((o) => o.value === r.area_id)
+                  ? r.area_id
+                  : null;
+              return (
+                <Table.Tr key={i}>
+                  <Table.Td>
+                    <Select
+                      aria-label={`Room ${i}`}
+                      searchable
+                      data={
+                        orphanValue
+                          ? [
+                              ...areaOptions,
+                              {
+                                value: orphanValue,
+                                label: `${orphanValue} (missing)`,
+                              },
+                            ]
+                          : areaOptions
+                      }
+                      value={r.area_id ?? null}
+                      onChange={(v) => updateOverride(i, { area_id: v })}
+                    />
+                  </Table.Td>
+                  {showPreset && (
+                    <Table.Td>
+                      <Select
+                        aria-label={`Preset for room ${i}`}
+                        data={overrideOptions}
+                        value={presetValue}
+                        onChange={(v) => {
+                          if (v === "__disabled") {
+                            updateOverride(i, {
+                              enabled: false,
+                              preset: null,
+                              pattern: null,
+                              starts_with_room: null,
+                            });
+                          } else if (v === "custom") {
+                            updateOverride(i, {
+                              enabled: true,
+                              preset: "custom",
+                              pattern: r.pattern ?? "",
+                            });
+                          } else if (v) {
+                            updateOverride(i, {
+                              enabled: true,
+                              preset: v as Preset,
+                              pattern: null,
+                            });
+                          }
+                        }}
+                      />
+                    </Table.Td>
+                  )}
+                  {allowCustomPattern && (
+                    <Table.Td>
+                      {r.enabled && r.preset === "custom" && (
+                        <TextInput
+                          value={r.pattern ?? ""}
+                          onChange={(e) => {
+                            const v = e.currentTarget.value;
+                            updateOverride(i, { pattern: v });
+                          }}
+                        />
+                      )}
+                    </Table.Td>
+                  )}
+                  <Table.Td>
+                    {r.enabled && (
+                      <Switch
+                        aria-label={`Starts with room for row ${i}`}
+                        checked={
+                          r.starts_with_room === null ||
+                          r.starts_with_room === undefined
+                            ? !!block.starts_with_room
+                            : r.starts_with_room
+                        }
+                        onChange={(e) => {
+                          const v = e.currentTarget.checked;
+                          updateOverride(i, { starts_with_room: v });
+                        }}
+                      />
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    <ActionIcon
+                      variant="subtle"
+                      color="red"
+                      onClick={() => removeOverride(i)}
+                    >
+                      <IconTrash size={16} />
+                    </ActionIcon>
+                  </Table.Td>
+                </Table.Tr>
+              );
+            })}
+          </Table.Tbody>
+        </Table>
+      )}
+    </Stack>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Device-naming wrapper: preserves the original (draft, onChange) signature
+// used by DeviceSettingsPage. Extracts the block, wires NamingBlockSection,
+// and keeps severity + enabled alongside the block.
+// ---------------------------------------------------------------------------
+export function NamingSection({ draft, onChange }: SectionProps) {
+  const idx = draft.policies.findIndex((p) => p.type === "naming_convention");
 
   if (idx < 0) {
     return (
@@ -55,181 +323,55 @@ export function NamingSection({ draft, onChange }: SectionProps) {
     );
   }
   const nc = draft.policies[idx] as NamingPolicy;
-  // The generated schema types `rooms` as optional; normalise to an array
-  // at the top so every downstream access can assume present.
-  const rooms: RoomOverride[] = nc.rooms ?? [];
 
-  function patch(next: Partial<NamingPolicy>) {
+  function patchPolicy(next: Partial<NamingPolicy>): void {
     const policies = [...draft.policies];
     policies[idx] = { ...nc, ...next };
     onChange({ ...draft, policies });
   }
 
-  const overrideOptions: { value: string; label: string }[] = [
-    ...(Object.keys(PRESET_LABELS) as Preset[]).map((v) => ({
-      value: v, label: PRESET_LABELS[v],
-    })),
-    { value: "__disabled", label: "Disabled" },
-  ];
+  const block: NamingBlock = {
+    preset: nc.global.preset as Preset,
+    pattern: nc.global.pattern ?? null,
+    starts_with_room: !!nc.starts_with_room,
+    rooms: nc.rooms ?? [],
+  };
 
-  function updateOverride(i: number, patchObj: Partial<RoomOverride>) {
-    const next = [...rooms];
-    next[i] = { ...next[i], ...patchObj };
-    patch({ rooms: next });
-  }
-
-  function removeOverride(i: number) {
-    patch({ rooms: rooms.filter((_, j) => j !== i) });
-  }
-
-  function addOverride() {
-    patch({ rooms: [...rooms, { area_id: null, enabled: true, preset: "snake_case" }] });
+  function onBlockChange(next: NamingBlock): void {
+    patchPolicy({
+      global: { preset: next.preset, pattern: next.pattern ?? undefined },
+      starts_with_room: !!next.starts_with_room,
+      rooms: next.rooms ?? [],
+    });
   }
 
   return (
     <Stack>
       <Title order={4}>Naming</Title>
-      <Group align="flex-start">
-        <Select
-          label="Preset"
-          aria-label="Preset"
-          data={(Object.keys(PRESET_LABELS) as Preset[]).map((v) => ({
-            value: v, label: PRESET_LABELS[v],
-          }))}
-          value={nc.global.preset}
-          onChange={(v) => {
-            if (!v) return;
-            patch({
-              global: {
-                preset: v as Preset,
-                pattern: v === "custom" ? "" : undefined,
-              },
-            });
-          }}
-          description={`e.g. ${PRESET_EXAMPLE[nc.global.preset as Preset]}`}
-          inputWrapperOrder={["label", "input", "description", "error"]}
-        />
-        {nc.global.preset === "custom" && (
-          <TextInput
-            label="Pattern"
-            aria-label="Pattern"
-            value={nc.global.pattern ?? ""}
-            onChange={(e) => patch({ global: { ...nc.global, pattern: e.currentTarget.value } })}
-            style={{ flex: 1 }}
-          />
-        )}
+      <Group>
         <Select
           label="Severity"
           aria-label="Severity"
-          data={SEVERITIES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
+          data={SEVERITIES.map((s) => ({
+            value: s,
+            label: s[0].toUpperCase() + s.slice(1),
+          }))}
           value={nc.severity}
-          onChange={(v) => v && patch({ severity: v as NamingPolicy["severity"] })}
+          onChange={(v) =>
+            v && patchPolicy({ severity: v as NamingPolicy["severity"] })
+          }
         />
         <Switch
           label="Enabled"
           checked={nc.enabled}
-          onChange={(e) => patch({ enabled: e.currentTarget.checked })}
+          onChange={(e) => {
+            const v = e.currentTarget.checked;
+            patchPolicy({ enabled: v });
+          }}
           mt={28}
         />
       </Group>
-      <Switch
-        role="switch"
-        aria-label="Starts with room name"
-        label="Starts with room name"
-        checked={!!nc.starts_with_room}
-        onChange={(e) => patch({ starts_with_room: e.currentTarget.checked })}
-      />
-      <Group justify="space-between">
-        <Title order={5}>Per-Room Overrides</Title>
-        <Button size="xs" onClick={addOverride}>+ Add Override</Button>
-      </Group>
-      {rooms.length === 0 && (
-        <Alert color="gray" variant="light">No room overrides yet.</Alert>
-      )}
-      {rooms.length > 0 && (
-        <Table withTableBorder>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Room</Table.Th>
-              <Table.Th>Preset</Table.Th>
-              <Table.Th>Pattern</Table.Th>
-              <Table.Th>Starts With Room</Table.Th>
-              <Table.Th />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {rooms.map((r, i) => {
-              const presetValue = r.enabled ? (r.preset ?? "snake_case") : "__disabled";
-              // Exclude area_ids already claimed by OTHER override rows so
-              // the user can't pick the same room twice. The evaluator keys
-              // by area_id, so duplicates would silently shadow each other.
-              const usedElsewhere = new Set(
-                rooms
-                  .filter((_, j) => j !== i)
-                  .map((o) => o.area_id)
-                  .filter((v): v is string => Boolean(v)),
-              );
-              const areaOptions = (areas.data ?? [])
-                .filter((a) => !usedElsewhere.has(a.id))
-                .map((a) => ({ value: a.id, label: a.name }));
-              const orphanValue = r.area_id && !areaOptions.find((o) => o.value === r.area_id)
-                ? r.area_id : null;
-              return (
-                <Table.Tr key={i}>
-                  <Table.Td>
-                    <Select
-                      aria-label={`Room ${i}`}
-                      searchable
-                      data={orphanValue ? [...areaOptions, { value: orphanValue, label: `${orphanValue} (missing)` }] : areaOptions}
-                      value={r.area_id ?? null}
-                      onChange={(v) => updateOverride(i, { area_id: v })}
-                    />
-                  </Table.Td>
-                  <Table.Td>
-                    <Select
-                      aria-label={`Preset for room ${i}`}
-                      data={overrideOptions}
-                      value={presetValue}
-                      onChange={(v) => {
-                        if (v === "__disabled") {
-                          updateOverride(i, { enabled: false, preset: null, pattern: null, starts_with_room: null });
-                        } else if (v === "custom") {
-                          updateOverride(i, { enabled: true, preset: "custom", pattern: r.pattern ?? "" });
-                        } else if (v) {
-                          updateOverride(i, { enabled: true, preset: v as Preset, pattern: null });
-                        }
-                      }}
-                    />
-                  </Table.Td>
-                  <Table.Td>
-                    {r.enabled && r.preset === "custom" && (
-                      <TextInput
-                        value={r.pattern ?? ""}
-                        onChange={(e) => updateOverride(i, { pattern: e.currentTarget.value })}
-                      />
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    {r.enabled && (
-                      <Switch
-                        aria-label={`Starts with room for row ${i}`}
-                        checked={r.starts_with_room === null || r.starts_with_room === undefined
-                          ? nc.starts_with_room : r.starts_with_room}
-                        onChange={(e) => updateOverride(i, { starts_with_room: e.currentTarget.checked })}
-                      />
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    <ActionIcon variant="subtle" color="red" onClick={() => removeOverride(i)}>
-                      <IconTrash size={16} />
-                    </ActionIcon>
-                  </Table.Td>
-                </Table.Tr>
-              );
-            })}
-          </Table.Tbody>
-        </Table>
-      )}
+      <NamingBlockSection block={block} onBlockChange={onBlockChange} />
     </Stack>
   );
 }

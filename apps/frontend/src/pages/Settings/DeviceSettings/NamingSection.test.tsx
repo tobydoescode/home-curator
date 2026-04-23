@@ -114,3 +114,61 @@ describe("NamingSection — overrides", () => {
     expect(override.preset).toBeNull();
   });
 });
+
+describe("NamingBlockSection (generic)", () => {
+  beforeEach(() => {
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify([{ id: "lr", name: "Living Room" }]),
+            { status: 200 },
+          ),
+      ),
+    );
+  });
+
+  it("renders the block editor without preset dropdown when showPreset=false", async () => {
+    const { NamingBlockSection } = await import("./NamingSection");
+    const qc = new QueryClient();
+    render(
+      <MantineProvider>
+        <QueryClientProvider client={qc}>
+          <NamingBlockSection
+            block={{ preset: "snake_case", starts_with_room: false, rooms: [] }}
+            onBlockChange={() => {}}
+            showPreset={false}
+            allowCustomPattern={false}
+          />
+        </QueryClientProvider>
+      </MantineProvider>,
+    );
+    expect(screen.queryByLabelText(/preset/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: /starts with room/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("emits onBlockChange when starts_with_room flips", async () => {
+    const { NamingBlockSection } = await import("./NamingSection");
+    const spy = vi.fn();
+    const qc = new QueryClient();
+    const user = userEvent.setup();
+    render(
+      <MantineProvider>
+        <QueryClientProvider client={qc}>
+          <NamingBlockSection
+            block={{ preset: "snake_case", starts_with_room: false, rooms: [] }}
+            onBlockChange={spy}
+          />
+        </QueryClientProvider>
+      </MantineProvider>,
+    );
+    await user.click(screen.getByRole("switch", { name: /starts with room/i }));
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ starts_with_room: true }),
+    );
+  });
+});
