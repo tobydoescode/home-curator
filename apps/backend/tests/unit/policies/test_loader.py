@@ -15,14 +15,17 @@ def test_loads_valid_file():
 
 def test_missing_file_returns_default_policies(tmp_path):
     # First-run of the addon: no policies.yaml on disk yet. The loader
-    # seeds the three built-in rule types so Device Settings has something
-    # to render. The user tweaks / removes via the UI.
+    # seeds six built-in rules so both Device and Entity settings have
+    # something to render. The user tweaks / removes via the UI.
     r = load_policies_file(tmp_path / "missing.yaml")
     assert r.error is None
     assert r.file is not None
     assert r.file.version == 1
     types = {p.type for p in r.file.policies}
-    assert types == {"naming_convention", "missing_area", "reappeared_after_delete"}
+    assert types == {
+        "naming_convention", "missing_area", "reappeared_after_delete",
+        "entity_naming_convention", "entity_missing_area",
+    }
 
 
 def test_invalid_yaml_syntax(tmp_path):

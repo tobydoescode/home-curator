@@ -11,9 +11,20 @@ from home_curator.policies.schema import PoliciesFile
 def _default_policies() -> PoliciesFile:
     """Sensible starting state when no policies.yaml exists yet.
 
-    Ships the three built-in rule types enabled so the Device Settings UI
-    has something to render on first run. Severities chosen to match the
-    spec defaults. The user tweaks / removes via the UI.
+    Ships six built-in rules so both the Device and Entity settings pages
+    have something to render on first run. Severities / enabled flags
+    chosen to match the spec defaults.
+
+    Device baseline (all enabled):
+      - naming-convention   snake_case, warning
+      - missing-room        warning
+      - reappeared          info, device scope (default)
+
+    Entity baseline:
+      - entity-naming-convention  title-case name + snake_case entity_id,
+                                  warning, ENABLED
+      - entity-missing-area       info, DISABLED by default
+      - entity-reappeared         info, entity scope, DISABLED by default
     """
     return PoliciesFile.model_validate({
         "version": 1,
@@ -38,6 +49,36 @@ def _default_policies() -> PoliciesFile:
                 "type": "reappeared_after_delete",
                 "enabled": True,
                 "severity": "info",
+            },
+            # --- entity baseline ---
+            {
+                "id": "entity-naming-convention",
+                "type": "entity_naming_convention",
+                "enabled": True,
+                "severity": "warning",
+                "name": {
+                    "global": {"preset": "title-case"},
+                    "starts_with_room": False,
+                    "rooms": [],
+                },
+                "entity_id": {
+                    "starts_with_room": False,
+                    "rooms": [],
+                },
+            },
+            {
+                "id": "entity-missing-area",
+                "type": "entity_missing_area",
+                "enabled": False,
+                "severity": "info",
+                "require_own_area": False,
+            },
+            {
+                "id": "entity-reappeared",
+                "type": "reappeared_after_delete",
+                "enabled": False,
+                "severity": "info",
+                "scope": "entities",
             },
         ],
     })
