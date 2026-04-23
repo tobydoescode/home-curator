@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { RowSelectionState } from "@tanstack/react-table";
 
+import { ColumnVisibilityGear } from "@/components/ColumnVisibility/ColumnVisibilityGear";
+import { useColumnVisibility } from "@/components/ColumnVisibility/useColumnVisibility";
 import { SEARCH_DEBOUNCE_MS } from "@/constants";
 import { useDevices, type DevicesSortBy, type DevicesSortDir } from "@/hooks/useDevices";
 import { ActionRow } from "./ActionRow";
@@ -11,6 +13,21 @@ import { DevicesTable, type DeviceRow } from "./DevicesTable";
 import { FilterBar, type Filters } from "./FilterBar";
 import { EditDeviceDrawer } from "./EditDeviceDrawer";
 import { PaginationFooter } from "./PaginationFooter";
+
+// Every column id rendered by `DevicesTable`, in the order shown to users.
+// Keep in sync with `DevicesTable`'s column defs. `select` and `link` are
+// fixed (no user-controlled visibility) so they're omitted from the gear.
+const DEVICES_COLUMNS: { id: string; label: string }[] = [
+  { id: "severity", label: "Severity" },
+  { id: "name", label: "Device Name" },
+  { id: "room", label: "Room" },
+  { id: "integration", label: "Integration" },
+  { id: "created", label: "Created" },
+  { id: "modified", label: "Modified" },
+];
+
+const DEVICES_COLUMN_IDS = DEVICES_COLUMNS.map((c) => c.id);
+const DEVICES_DEFAULT_VISIBLE = DEVICES_COLUMN_IDS;  // all visible (no regression)
 
 function filtersFromParams(p: URLSearchParams): Filters {
   return {
@@ -53,6 +70,12 @@ export function DevicesPage() {
   const [selection, setSelection] = useState<RowSelectionState>({});
   const [drawerId, setDrawerId] = useState<string | null>(null);
   const [params, setParams] = useSearchParams();
+
+  const columnVis = useColumnVisibility({
+    storageKey: "home-curator:columns:devices",
+    allColumns: DEVICES_COLUMN_IDS,
+    defaultVisible: DEVICES_DEFAULT_VISIBLE,
+  });
 
   const filters = useMemo(() => filtersFromParams(params), [params]);
   const page = Number(params.get("page") ?? 1);
@@ -175,6 +198,14 @@ export function DevicesPage() {
         issueTypeCounts={data.issue_counts_by_type}
         integrationCounts={data.integration_counts}
         onChange={(f) => setParams(paramsFromFiltersAndPagination(f, 1, pageSize, params))}
+        rightSlot={
+          <ColumnVisibilityGear
+            columns={DEVICES_COLUMNS}
+            visible={columnVis.visible}
+            onToggle={columnVis.toggle}
+            onReset={columnVis.reset}
+          />
+        }
       />
       <ActionRow
         selectedIds={selectedIds}
@@ -190,6 +221,7 @@ export function DevicesPage() {
         sortBy={sortBy}
         sortDir={sortDir}
         onSort={cycleSort}
+        columnVisibility={columnVis.visible}
       />
       <PaginationFooter
         total={data.total}

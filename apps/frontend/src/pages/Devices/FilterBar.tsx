@@ -21,6 +21,8 @@ interface Props {
   issueTypeCounts?: Record<string, number>;
   integrationCounts?: Record<string, number>;
   onChange: (filters: Filters) => void;
+  /** Renders to the right of the Clear button — typically the column-visibility gear. */
+  rightSlot?: React.ReactNode;
 }
 
 export const emptyFilters: Filters = {
@@ -41,6 +43,7 @@ export function FilterBar({
   issueTypeCounts,
   integrationCounts,
   onChange,
+  rightSlot,
 }: Props) {
   const patch = (p: Partial<Filters>) => onChange({ ...filters, ...p });
   return (
@@ -86,6 +89,7 @@ export function FilterBar({
       <Button variant="subtle" onClick={() => onChange(emptyFilters)}>
         Clear
       </Button>
+      {rightSlot}
     </Group>
   );
 }

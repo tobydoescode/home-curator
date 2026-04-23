@@ -47,6 +47,8 @@ interface Props {
   sortBy: DevicesSortBy | null;
   sortDir: DevicesSortDir;
   onSort: (column: DevicesSortBy) => void;
+  /** TanStack-shaped {id: bool}. When omitted, all columns are visible. */
+  columnVisibility?: Record<string, boolean>;
 }
 
 function SortHeader({
@@ -86,6 +88,7 @@ export function DevicesTable({
   sortBy,
   sortDir,
   onSort,
+  columnVisibility,
 }: Props) {
   // Base URL for "Open in Home Assistant" links. The backend returns the
   // externally-configured HA URL if set (typically in dev via HA_EXTERNAL_URL);
@@ -222,7 +225,10 @@ export function DevicesTable({
     data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    state: { rowSelection: selection },
+    state: {
+      rowSelection: selection,
+      columnVisibility: columnVisibility ?? {},
+    },
     onRowSelectionChange: onSelectionChange,
     getRowId: (row) => row.id,
     enableRowSelection: true,

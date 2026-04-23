@@ -75,6 +75,65 @@ describe("DevicesPage", () => {
     expect(screen.getAllByText("Living Room").length).toBeGreaterThan(0);
   });
 
+  it("toggles a column's visibility through the gear popover and persists it", async () => {
+    window.localStorage.clear();
+    mockFetchOnce({
+      devices: [
+        {
+          id: "d1",
+          name: "Lamp",
+          name_by_user: null,
+          manufacturer: null,
+          model: null,
+          area_id: "living",
+          area_name: "Living Room",
+          integration: "hue",
+          disabled_by: null,
+          entities: [],
+          issue_count: 0,
+          highest_severity: null,
+          issues: [],
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 50,
+      issue_counts_by_type: {},
+      all_areas: [{ id: "living", name: "Living Room" }],
+      all_issue_types: [],
+      all_integrations: [],
+      area_counts: {},
+      integration_counts: {},
+    });
+
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+    render(wrap(<DevicesPage />));
+
+    // Pre-condition: Integration column present in header (default-visible).
+    expect(
+      await screen.findByRole("button", { name: /Sort by Integration/i }),
+    ).toBeInTheDocument();
+
+    // Open the gear, uncheck "Integration".
+    await user.click(screen.getByRole("button", { name: /Columns/i }));
+    await user.click(
+      await screen.findByRole("checkbox", { name: "Integration" }),
+    );
+
+    // Header gone after toggle.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: /Sort by Integration/i }),
+      ).not.toBeInTheDocument(),
+    );
+
+    // Persisted under the scoped devices key.
+    expect(
+      window.localStorage.getItem("home-curator:columns:devices"),
+    ).not.toBeNull();
+  });
+
   it("opens the edit drawer when a row is clicked", async () => {
     mockFetchOnce({
       devices: [
