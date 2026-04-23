@@ -181,19 +181,24 @@ class ExceptionsRepo:
         search: str | None = None,
         policy_ids: set[str] | None = None,
         device_ids: set[str] | None = None,
+        entity_ids: set[str] | None = None,
         page: int = 1,
         page_size: int = 50,
     ) -> tuple[list[Exemption], int]:
         """Paginated exception list, newest-first.
 
         Filters are ANDed. `search` matches substring against note OR
-        device_id OR entity_id (case-insensitive).
+        device_id OR entity_id (case-insensitive). Passing `device_ids`
+        restricts to device-kind rows; passing `entity_ids` restricts to
+        entity-kind rows; passing neither returns both kinds.
         """
         stmt = select(Exemption)
         if policy_ids:
             stmt = stmt.where(Exemption.policy_id.in_(policy_ids))
         if device_ids:
             stmt = stmt.where(Exemption.device_id.in_(device_ids))
+        if entity_ids:
+            stmt = stmt.where(Exemption.entity_id.in_(entity_ids))
         if search:
             like = f"%{search.lower()}%"
             stmt = stmt.where(
