@@ -92,3 +92,54 @@ export function useUpdateDevice() {
     },
   });
 }
+
+export function useDeleteDevices() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (device_ids: string[]) => {
+      const { data, error } = await api.POST("/api/actions/delete", {
+        body: { device_ids },
+      });
+      if (error) throw new Error(String(error));
+      return data!;
+    },
+    onSuccess: (res) => {
+      const total = res.results.length;
+      const failed = res.results.filter((r) => !r.ok).length;
+      const ok = total - failed;
+      if (failed === 0) {
+        notifications.show({
+          title: "Device Deleted",
+          message: total === 1 ? "Device deleted" : `${ok} devices deleted`,
+          color: "green",
+        });
+        invalidateDevices(qc);
+      } else if (ok === 0) {
+        // All failed → no cache invalidation; nothing changed server-side.
+        const firstError = res.results.find((r) => r.error)?.error;
+        notifications.show({
+          title: "Delete Failed",
+          message:
+            total === 1
+              ? firstError ?? "Unknown error"
+              : `${failed} devices failed to delete`,
+          color: "red",
+        });
+      } else {
+        notifications.show({
+          title: "Partial Delete",
+          message: `${ok} deleted, ${failed} failed`,
+          color: "yellow",
+        });
+        invalidateDevices(qc);
+      }
+    },
+    onError: (err) => {
+      notifications.show({
+        title: "Delete Failed",
+        message: err instanceof Error ? err.message : "Unknown error",
+        color: "red",
+      });
+    },
+  });
+}
