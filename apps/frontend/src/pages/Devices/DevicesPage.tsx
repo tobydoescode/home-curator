@@ -1,6 +1,6 @@
 import { Alert, Stack, Text, Title } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { RowSelectionState } from "@tanstack/react-table";
 
@@ -141,6 +141,13 @@ export function DevicesPage() {
     () => data?.devices.find((d) => d.id === drawerId) ?? null,
     [data, drawerId],
   );
+
+  // If the currently-drawered device disappears from the result set (e.g.
+  // deleted via HA → SSE → refetch), close the drawer so it doesn't
+  // "teleport" back if the device reappears later.
+  useEffect(() => {
+    if (drawerId !== null && data && !active) setDrawerId(null);
+  }, [drawerId, data, active]);
 
   if (isLoading) return <Text>Loading…</Text>;
   if (error)

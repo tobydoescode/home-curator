@@ -260,4 +260,47 @@ describe("EditDeviceDrawer", () => {
       screen.getByRole("button", { name: /Clear Exception/i }),
     ).toBeInTheDocument();
   });
+
+  it("re-reads as non-dirty when the device prop updates to the saved value", async () => {
+    // Regression guard: initialName / initialAreaId are recomputed each
+    // render from the device prop. After a save lands and the parent
+    // refetches, the drawer sees new props where name_by_user matches
+    // what the user just saved — isDirty must flip back to false so the
+    // Save button disables without any manual reset.
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const user = userEvent.setup();
+    const { rerender } = render(
+      wrap(
+        <EditDeviceDrawer
+          opened
+          onClose={() => {}}
+          device={DEVICE}
+          areas={AREAS}
+        />,
+      ),
+    );
+    const nameInput = screen.getByLabelText("Name") as HTMLInputElement;
+    await user.clear(nameInput);
+    await user.type(nameInput, "Hue Bulb 3");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    // Simulate the parent re-rendering with the post-save server state.
+    rerender(
+      wrap(
+        <EditDeviceDrawer
+          opened
+          onClose={() => {}}
+          device={{ ...DEVICE, name_by_user: "Hue Bulb 3" }}
+          areas={AREAS}
+        />,
+      ),
+    );
+
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
 });
