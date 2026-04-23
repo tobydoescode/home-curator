@@ -58,3 +58,22 @@ async def test_unsubscribe_stops_delivery_and_is_idempotent():
     assert len(received) == 1
 
     unsub()  # second call must not raise
+
+
+@pytest.mark.asyncio
+async def test_fake_delete_device_removes_from_store_and_records_call():
+    from home_curator.ha_client.fake import FakeHAClient
+
+    ha = FakeHAClient(
+        devices=[
+            {"id": "d1", "name": "a", "config_entries": ["e1"]},
+            {"id": "d2", "name": "b", "config_entries": ["e2"]},
+        ],
+        areas=[],
+    )
+
+    await ha.delete_device("d1")
+
+    assert ha.delete_calls == ["d1"]
+    remaining = await ha.get_devices()
+    assert [d["id"] for d in remaining] == ["d2"]
