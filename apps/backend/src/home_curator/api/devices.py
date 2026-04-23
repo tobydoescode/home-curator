@@ -3,7 +3,7 @@ import re
 from collections import Counter
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from home_curator.api.deps import AppState, app_state
 from home_curator.api.schemas import (
@@ -12,6 +12,7 @@ from home_curator.api.schemas import (
     DevicesListResponse,
     EntitySummary,
     IssueOut,
+    ResyncResponse,
 )
 from home_curator.rules.base import Device, EvaluationContext, Issue
 from home_curator.storage.db import session_scope
@@ -214,4 +215,27 @@ def list_devices(
         all_areas=all_areas,
         all_issue_types=all_issue_types,
         all_integrations=all_integrations,
+    )
+
+
+@router.post("/devices/resync", response_model=ResyncResponse)
+async def resync(state: AppState = Depends(app_state)) -> ResyncResponse:
+    """Force a re-pull of devices and areas from Home Assistant.
+
+    Escape hatch for when the UI looks stale. Mirrors what the 5-minute
+    safety loop does: refresh the cache, update the deletion tracker's
+    in-memory state, commit its pending DB writes in-line, and publish an
+    SSE `devices_changed` event so any other subscribed clients refetch.
+    """
+    try:
+        diff = await state.cache.refresh()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"resync failed: {e}")
+    state.tracker.handle_diff_from_cache()
+    state.tracker.commit()
+    await state.broker.publish({"kind": "devices_changed"})
+    return ResyncResponse(
+        added=len(diff.added),
+        removed=len(diff.removed),
+        updated=len(diff.updated),
     )

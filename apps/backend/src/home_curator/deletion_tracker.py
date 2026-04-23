@@ -17,6 +17,7 @@ class DeletionTracker:
 
     def __init__(self, cache: RegistryCache, session: Session) -> None:
         self._cache = cache
+        self._session = session
         self._repo = DeletionRepo(session)
         self._state: dict[str, dict[str, Any]] = {}
         # Snapshot of identifiers by device id for diffing
@@ -26,6 +27,13 @@ class DeletionTracker:
         self._last_known_first_seen: dict[str, datetime] = {
             d.id: datetime.now(UTC) for d in cache.devices()
         }
+
+    def commit(self) -> None:
+        """Persist pending deletion-event writes by committing this tracker's
+        session. Call after `handle_diff_from_cache` if the caller doesn't hold
+        a committing context elsewhere (e.g. the resync endpoint — unlike the
+        HA-event path in main.py which commits the session directly)."""
+        self._session.commit()
 
     def state_for(self, device_id: str) -> dict[str, Any]:
         return dict(self._state.get(device_id, {}))

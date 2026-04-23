@@ -5,6 +5,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useLocalStorageBoolean } from "@/hooks/useLocalStorageBoolean";
 
 import { LiveIndicator } from "./LiveIndicator";
+import { ResyncButton } from "./ResyncButton";
 
 const NAV = [
   { label: "Devices", to: "/devices" },
@@ -53,7 +54,10 @@ export function Layout() {
             />
             <Title order={5}>Home Curator</Title>
           </Group>
-          <LiveIndicator />
+          <Group gap="xs">
+            <ResyncButton />
+            <LiveIndicator />
+          </Group>
         </Group>
       </AppShell.Header>
       <AppShell.Navbar p="sm">
