@@ -332,6 +332,14 @@ def test_area_counts_dim_zero_for_rooms_with_no_visible_entities(client):
 
 
 def test_all_issue_types_lists_only_entity_scope_rule_types(client):
-    # Fixture has no entity-scope rules, so the list is empty.
+    # Conftest's policies.yaml seeds only device policies, but the loader
+    # now merges in the entity baseline (entity_naming_convention +
+    # entity_missing_area + reappeared_after_delete@entities) so existing
+    # users' configs render the Entity Settings page correctly. All three
+    # entity rule types surface in all_issue_types.
     r = client.get("/api/entities")
-    assert r.json()["all_issue_types"] == []
+    assert set(r.json()["all_issue_types"]) == {
+        "entity_naming_convention",
+        "entity_missing_area",
+        "reappeared_after_delete",
+    }

@@ -72,11 +72,18 @@ def test_mixed_policies_yaml_roundtrip(tmp_path: Path):
     reloaded = result.file
 
     assert reloaded is not None
-    # Same number, same types, same ids in the same order.
-    assert [type(p).__name__ for p in reloaded.policies] == [
+    # The roundtrip must preserve the user's original policies in the
+    # original order at the head of the list. Baselines missing from the
+    # fixture (none here — _mixed_policies uses distinct ids like "nc",
+    # "ma" rather than the baseline ids) may be merged afterwards, so we
+    # slice to the original length before comparing.
+    n = len(original.policies)
+    assert [type(p).__name__ for p in reloaded.policies[:n]] == [
         type(p).__name__ for p in original.policies
     ]
-    assert [p.id for p in reloaded.policies] == [p.id for p in original.policies]
+    assert [p.id for p in reloaded.policies[:n]] == [
+        p.id for p in original.policies
+    ]
 
     # Spot-check entity-specific fields survive.
     by_id = {p.id: p for p in reloaded.policies}
@@ -113,7 +120,13 @@ def test_roundtrip_compiles_through_rule_engine(tmp_path: Path):
     )
     engine = RuleEngine.compile(reloaded, ctx)
     scopes = {r.id: r.scope for r in engine.compiled}
-    assert scopes == {
+    # All eight originals must be present and scoped correctly; any merged
+    # baselines (not in the original fixture) are ignored for this check.
+    originals = {
         "nc": "devices", "ma": "devices", "r-dev": "devices", "c-dev": "devices",
         "en": "entities", "ema": "entities", "r-ent": "entities", "c-ent": "entities",
     }
+    for rule_id, expected_scope in originals.items():
+        assert scopes.get(rule_id) == expected_scope, (
+            f"{rule_id} expected scope={expected_scope}, got {scopes.get(rule_id)}"
+        )

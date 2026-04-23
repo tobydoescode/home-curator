@@ -10,7 +10,15 @@ def test_loads_valid_file():
     assert isinstance(r, LoadResult)
     assert r.file is not None
     assert r.error is None
-    assert len(r.file.policies) == 4
+    # Fixture has 4 policies; loader merges any missing baselines. The
+    # fixture already has the three device baselines, so only the three
+    # entity baselines are appended → 4 + 3 = 7.
+    assert len(r.file.policies) == 7
+    ids = {p.id for p in r.file.policies}
+    # Fixture-original ids survive.
+    assert {"naming-convention", "missing-room", "reappeared", "aqara-needs-room"} <= ids
+    # Entity baselines were merged in.
+    assert {"entity-naming-convention", "entity-missing-area", "entity-reappeared"} <= ids
 
 
 def test_missing_file_returns_default_policies(tmp_path):

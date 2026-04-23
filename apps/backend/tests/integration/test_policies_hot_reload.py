@@ -2,9 +2,11 @@ import time
 
 
 def test_policy_edit_triggers_reload(client, tmp_path):
-    # Sanity: 2 policies currently
+    # Sanity: conftest seeds 2 policies; loader merges baselines not present
+    # on disk (reappeared + entity-* triplet), so the API returns 6 total.
     r = client.get("/api/policies")
-    assert len(r.json()["policies"]) == 2
+    ids = {p["id"] for p in r.json()["policies"]}
+    assert {"missing-room", "naming-convention"} <= ids
 
     # Edit the file: disable missing-room
     policies_path = tmp_path / "config" / "policies.yaml"

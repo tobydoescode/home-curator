@@ -3,8 +3,11 @@ def test_list_policies(client):
     assert r.status_code == 200
     body = r.json()
     assert body["error"] is None
-    ids = sorted(p["id"] for p in body["policies"])
-    assert ids == ["missing-room", "naming-convention"]
+    ids = {p["id"] for p in body["policies"]}
+    # Fixture supplies missing-room + naming-convention; loader merges in the
+    # baseline policies not present on disk (reappeared, entity-* triplet).
+    assert {"missing-room", "naming-convention"} <= ids
+    assert {"entity-naming-convention", "entity-missing-area", "entity-reappeared"} <= ids
 
 
 def test_update_policies_round_trips(client):
