@@ -235,7 +235,8 @@ class WebSocketHAClient:
         out: list[HADeviceDict] = []
         for d in devs:
             did: str = d["id"]
-            primary_entry_id = (d.get("config_entries") or [None])[0]
+            device_entries: list[str] = list(d.get("config_entries") or [])
+            primary_entry_id = device_entries[0] if device_entries else None
             out.append({
                 "id": did,
                 "name": d.get("name_by_user") or d.get("name") or did,
@@ -246,6 +247,7 @@ class WebSocketHAClient:
                 "integration": entry_domain.get(primary_entry_id) if primary_entry_id else None,
                 "disabled_by": d.get("disabled_by"),
                 "identifiers": [list(i) for i in d.get("identifiers", [])],
+                "config_entries": device_entries,
                 "entities": index.get(did, []),
                 "created_at": _iso_or_none(d.get("created_at")),
                 "modified_at": _iso_or_none(d.get("modified_at")),
