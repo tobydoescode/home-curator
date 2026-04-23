@@ -205,3 +205,45 @@ def test_naming_convention_starts_with_room_true_accepted():
         "global": {"preset": "snake_case"}, "starts_with_room": True,
     })
     assert p.starts_with_room is True
+
+
+def test_duplicate_area_id_overrides_rejected():
+    import pytest
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError, match="duplicate room override"):
+        NamingConventionPolicy.model_validate({
+            "id": "nc", "type": "naming_convention", "severity": "warning",
+            "global": {"preset": "snake_case"},
+            "rooms": [
+                {"area_id": "lr", "enabled": True, "preset": "title-case"},
+                {"area_id": "lr", "enabled": False},  # same area — not allowed
+            ],
+        })
+
+
+def test_duplicate_room_name_overrides_rejected():
+    import pytest
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError, match="duplicate room override"):
+        NamingConventionPolicy.model_validate({
+            "id": "nc", "type": "naming_convention", "severity": "warning",
+            "global": {"preset": "snake_case"},
+            "rooms": [
+                {"room": "Living Room", "enabled": True, "preset": "title-case"},
+                # Case-insensitive — "living room" duplicates "Living Room".
+                {"room": "living room", "enabled": False},
+            ],
+        })
+
+
+def test_unique_overrides_accepted():
+    p = NamingConventionPolicy.model_validate({
+        "id": "nc", "type": "naming_convention", "severity": "warning",
+        "global": {"preset": "snake_case"},
+        "rooms": [
+            {"area_id": "lr", "enabled": True, "preset": "title-case"},
+            {"area_id": "kitchen", "enabled": False},
+            {"room": "Management", "enabled": False},
+        ],
+    })
+    assert len(p.rooms) == 3

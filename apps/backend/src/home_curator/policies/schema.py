@@ -81,6 +81,30 @@ class NamingConventionPolicy(_PolicyBase):
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
+    @model_validator(mode="after")
+    def _unique_room_overrides(self):
+        # A single room can have only one override — the evaluator keys by
+        # area_id / room name, so duplicates would silently shadow each
+        # other. The UI also filters already-used rooms out of the picker;
+        # this validator catches direct-YAML edits that bypass the UI.
+        seen_area_ids: set[str] = set()
+        seen_room_names: set[str] = set()
+        for o in self.rooms:
+            if o.area_id:
+                if o.area_id in seen_area_ids:
+                    raise ValueError(
+                        f"duplicate room override for area_id={o.area_id!r}"
+                    )
+                seen_area_ids.add(o.area_id)
+            elif o.room:
+                key = o.room.lower()
+                if key in seen_room_names:
+                    raise ValueError(
+                        f"duplicate room override for room={o.room!r}"
+                    )
+                seen_room_names.add(key)
+        return self
+
 
 class CustomPolicy(_PolicyBase):
     type: Literal["custom"]

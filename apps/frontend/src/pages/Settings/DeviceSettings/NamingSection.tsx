@@ -160,7 +160,18 @@ export function NamingSection({ draft, onChange }: SectionProps) {
           <Table.Tbody>
             {rooms.map((r, i) => {
               const presetValue = r.enabled ? (r.preset ?? "snake_case") : "__disabled";
-              const areaOptions = (areas.data ?? []).map((a) => ({ value: a.id, label: a.name }));
+              // Exclude area_ids already claimed by OTHER override rows so
+              // the user can't pick the same room twice. The evaluator keys
+              // by area_id, so duplicates would silently shadow each other.
+              const usedElsewhere = new Set(
+                rooms
+                  .filter((_, j) => j !== i)
+                  .map((o) => o.area_id)
+                  .filter((v): v is string => Boolean(v)),
+              );
+              const areaOptions = (areas.data ?? [])
+                .filter((a) => !usedElsewhere.has(a.id))
+                .map((a) => ({ value: a.id, label: a.name }));
               const orphanValue = r.area_id && !areaOptions.find((o) => o.value === r.area_id)
                 ? r.area_id : null;
               return (
