@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol, TypedDict, runtime_checkable
 
 Severity = Literal["info", "warning", "error"]
+TargetKind = Literal["device", "entity"]
 
 
 class EntitySummary(TypedDict, total=True):
@@ -63,6 +64,39 @@ class Device:
         }
 
 
+@dataclass
+class Entity:
+    """One HA entity, enriched with `state` for rule evaluation.
+
+    Mirrors `Device`'s shape. `area_id` is the entity's own override — when
+    None, rules that need an effective area fall back to the owning device's
+    area_id (unless the policy opts into strict mode).
+    """
+
+    entity_id: str
+    name: str | None
+    original_name: str | None
+    icon: str | None
+    domain: str
+    platform: str
+    device_id: str | None
+    area_id: str | None
+    area_name: str | None
+    disabled_by: str | None
+    hidden_by: str | None
+    unique_id: str | None
+    created_at: str | None = None
+    modified_at: str | None = None
+    state: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def display_name(self) -> str:
+        return self.name or self.original_name or self.entity_id
+
+    # Intentionally NO to_cel_context() here — the entity CEL context shape
+    # (entity.device embedded) is plan 2 (rules + CEL scope dispatch).
+
+
 @dataclass(frozen=True)
 class Issue:
     policy_id: str
@@ -76,7 +110,11 @@ class Issue:
 class EvaluationContext:
     area_name_to_id: dict[str, str]  # lowercased name → area_id
     area_id_to_name: dict[str, str]
-    exceptions: set[tuple[str, str]]  # (device_id, policy_id)
+    # Discriminated exception set: the first element is the target kind
+    # ("device" or "entity") so device and entity exceptions can coexist
+    # without their ids colliding. Compiled rules look up their own scope's
+    # key.
+    exceptions: set[tuple[TargetKind, str, str]]
 
     def resolve_area_id_from_name(self, name: str) -> str | None:
         return self.area_name_to_id.get(name.lower())

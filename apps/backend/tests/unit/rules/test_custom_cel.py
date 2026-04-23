@@ -125,7 +125,7 @@ def test_exception_suppresses():
         }
     )
     rule = compile_custom(p)
-    assert rule.evaluate(_d(area_id=None), _ctx(exc={("d1", "c")})) is None
+    assert rule.evaluate(_d(area_id=None), _ctx(exc={("device", "d1", "c")})) is None
 
 
 def test_disabled_rule_does_not_fire():

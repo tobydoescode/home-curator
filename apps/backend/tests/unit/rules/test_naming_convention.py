@@ -80,7 +80,7 @@ def test_room_override_resolved_by_area_id():
 
 def test_exception_suppresses():
     rule = compile_naming_convention(_policy("snake_case"))
-    ctx = _ctx(exceptions={("d1", "nc")})
+    ctx = _ctx(exceptions={("device", "d1", "nc")})
     assert rule.evaluate(_d(name="NotSnake"), ctx) is None
 
 

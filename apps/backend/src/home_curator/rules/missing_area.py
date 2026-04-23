@@ -15,7 +15,7 @@ class CompiledMissingArea:
     def evaluate(self, device: Device, ctx: EvaluationContext) -> Issue | None:
         if not self.enabled:
             return None
-        if (device.id, self.id) in ctx.exceptions:
+        if ("device", device.id, self.id) in ctx.exceptions:
             return None
         if device.area_id is None:
             return Issue(

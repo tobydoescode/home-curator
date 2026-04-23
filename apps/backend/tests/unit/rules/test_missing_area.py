@@ -40,7 +40,7 @@ def test_no_issue_when_area_present():
 def test_exception_suppresses():
     p = MissingAreaPolicy(id="ma", type="missing_area", enabled=True, severity="warning")
     rule = compile_missing_area(p)
-    ctx = _ctx(exc={("d1", "ma")})
+    ctx = _ctx(exc={("device", "d1", "ma")})
     assert rule.evaluate(_device(area_id=None), ctx) is None
 
 

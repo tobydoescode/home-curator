@@ -102,7 +102,7 @@ def test_exception_suppresses_issue_end_to_end():
         }
     )
     ctx = EvaluationContext(
-        area_name_to_id={}, area_id_to_name={}, exceptions={("d", "a")}
+        area_name_to_id={}, area_id_to_name={}, exceptions={("device", "d", "a")}
     )
     engine = RuleEngine.compile(file_, ctx)
     assert engine.evaluate(_device(), ctx) == []

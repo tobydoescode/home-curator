@@ -40,7 +40,7 @@ class CompiledCustom:
     def evaluate(self, device: Device, ctx: EvaluationContext) -> Issue | None:
         if not self.enabled or self.compile_error:
             return None
-        if (device.id, self.id) in ctx.exceptions:
+        if ("device", device.id, self.id) in ctx.exceptions:
             return None
         cel_ctx = {"device": celpy.json_to_cel(device.to_cel_context())}
         try:
