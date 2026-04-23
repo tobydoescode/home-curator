@@ -19,6 +19,15 @@ class MissingAreaPolicy(_PolicyBase):
     type: Literal["missing_area"]
 
 
+class EntityMissingAreaPolicy(_PolicyBase):
+    """Entity-scope variant of missing_area. Default is lenient: an entity
+    whose own area_id is None still passes if its owning device has an
+    area set. Flip require_own_area=True to demand the entity's own
+    area_id regardless of device."""
+    type: Literal["entity_missing_area"]
+    require_own_area: bool = False
+
+
 class ReappearedAfterDeletePolicy(_PolicyBase):
     type: Literal["reappeared_after_delete"]
     # Scope controls whether this fires per-device or per-entity. Default
