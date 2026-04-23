@@ -180,6 +180,7 @@ export function DevicesPage() {
         selectedIds={selectedIds}
         rooms={roomsForAssign}
         deviceLookup={deviceLookup}
+        onClearSelection={() => setSelection({})}
       />
       <DevicesTable
         rows={deviceRows}
