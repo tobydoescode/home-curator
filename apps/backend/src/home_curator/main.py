@@ -7,7 +7,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from home_curator.api import devices as devices_api, exceptions as exceptions_api, actions as actions_api, policies as policies_api, events as events_api, areas as areas_api, config_api
+from home_curator.api import (
+    actions as actions_api,
+    areas as areas_api,
+    config_api,
+    devices as devices_api,
+    entities as entities_api,
+    events as events_api,
+    exceptions as exceptions_api,
+    policies as policies_api,
+)
 from home_curator.api.deps import AppState
 from home_curator.api.schemas import HealthResponse
 from home_curator.config import Settings
@@ -216,6 +225,7 @@ def create_app(
         return HealthResponse(ok=True)
 
     app.include_router(devices_api.router)
+    app.include_router(entities_api.router)
     app.include_router(exceptions_api.router)
     app.include_router(actions_api.router)
     app.include_router(policies_api.router)
