@@ -1,6 +1,7 @@
 import { Button, Group, Menu, Paper, Text } from "@mantine/core";
 import { modals } from "@mantine/modals";
 
+import { useDeleteDevices } from "@/hooks/useActions";
 import type { DeviceRow } from "./DevicesTable";
 import { AssignRoomModal } from "./modals/AssignRoomModal";
 import { RenameModal } from "./modals/RenameModal";
@@ -10,9 +11,15 @@ interface Props {
   selectedIds: string[];
   rooms: { id: string; name: string }[];
   deviceLookup: Record<string, DeviceRow>;
+  onClearSelection: () => void;
 }
 
-export function ActionRow({ selectedIds, rooms, deviceLookup }: Props) {
+export function ActionRow({
+  selectedIds,
+  rooms,
+  deviceLookup,
+  onClearSelection,
+}: Props) {
   if (selectedIds.length === 0) return null;
 
   const openAssignRoom = () =>
@@ -54,6 +61,25 @@ export function ActionRow({ selectedIds, rooms, deviceLookup }: Props) {
       ),
     });
 
+  const deleteDevices = useDeleteDevices();
+
+  const openDelete = () => {
+    modals.openConfirmModal({
+      title: `Delete ${selectedIds.length} ${selectedIds.length === 1 ? "device" : "devices"}?`,
+      children:
+        "This cannot be undone. Some devices may fail to delete if their integration does not allow it.",
+      labels: { confirm: "Delete", cancel: "Keep" },
+      confirmProps: { color: "red" },
+      onConfirm: () => {
+        // Clear on any HTTP success — partial failures stay visible in
+        // the table and are communicated via the hook's yellow toast.
+        deleteDevices.mutate(selectedIds, {
+          onSuccess: () => onClearSelection(),
+        });
+      },
+    });
+  };
+
   return (
     <Paper withBorder p="xs" bg="indigo.0">
       <Group justify="space-between">
@@ -61,6 +87,15 @@ export function ActionRow({ selectedIds, rooms, deviceLookup }: Props) {
           {selectedIds.length} {selectedIds.length === 1 ? "Device" : "Devices"} Selected
         </Text>
         <Group gap="xs">
+          <Button
+            size="xs"
+            color="red"
+            variant="light"
+            onClick={openDelete}
+            loading={deleteDevices.isPending}
+          >
+            Delete
+          </Button>
           <Button size="xs" variant="default" onClick={openAssignRoom}>
             Assign Room…
           </Button>

@@ -4,7 +4,7 @@ import { MantineProvider } from "@mantine/core";
 import { ModalsProvider } from "@mantine/modals";
 import { Notifications } from "@mantine/notifications";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -302,5 +302,88 @@ describe("EditDeviceDrawer", () => {
     );
 
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+
+  it("deletes the device via confirm modal and closes on success", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ results: [{ device_id: "d1", ok: true }] }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(
+      wrap(
+        <EditDeviceDrawer
+          opened
+          onClose={onClose}
+          device={DEVICE}
+          areas={AREAS}
+        />,
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    // Confirm modal appears with the device's display name.
+    expect(await screen.findByText(/Delete hue_bulb_3\?/i)).toBeInTheDocument();
+
+    // "Keep" leaves everything alone.
+    await user.click(screen.getByRole("button", { name: "Keep" }));
+    expect(onClose).not.toHaveBeenCalled();
+
+    // Wait for the confirm modal to fully unmount before re-opening.
+    await waitFor(() =>
+      expect(screen.queryByText(/Delete hue_bulb_3\?/i)).not.toBeInTheDocument(),
+    );
+
+    // Re-open and confirm delete. Drawer's Delete button is the only one now.
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    // Scope to the confirm modal (its heading contains the device name).
+    const confirmTitle = await screen.findByText(/Delete hue_bulb_3\?/i);
+    const modalRoot = confirmTitle.closest('[role="dialog"]') as HTMLElement;
+    await user.click(within(modalRoot).getByRole("button", { name: "Delete" }));
+
+    // The POST fired with a single-id payload.
+    const deletePost = fetchSpy.mock.calls
+      .map((c) => c[0] as Request)
+      .find((r) => r.url.includes("/api/actions/delete"));
+    expect(deletePost).toBeDefined();
+    expect(deletePost!.method).toBe("POST");
+    expect(await deletePost!.json()).toEqual({ device_ids: ["d1"] });
+
+    // Drawer closes on success.
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps the drawer open when delete fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          results: [{ device_id: "d1", ok: false, error: "integration refused" }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(
+      wrap(
+        <EditDeviceDrawer
+          opened
+          onClose={onClose}
+          device={DEVICE}
+          areas={AREAS}
+        />,
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    const confirmTitle = await screen.findByText(/Delete hue_bulb_3\?/i);
+    const modalRoot = confirmTitle.closest('[role="dialog"]') as HTMLElement;
+    await user.click(within(modalRoot).getByRole("button", { name: "Delete" }));
+
+    // Give the mutation time to resolve; onClose must not fire.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

@@ -235,7 +235,8 @@ class WebSocketHAClient:
         out: list[HADeviceDict] = []
         for d in devs:
             did: str = d["id"]
-            primary_entry_id = (d.get("config_entries") or [None])[0]
+            device_entries: list[str] = list(d.get("config_entries") or [])
+            primary_entry_id = device_entries[0] if device_entries else None
             out.append({
                 "id": did,
                 "name": d.get("name_by_user") or d.get("name") or did,
@@ -246,6 +247,7 @@ class WebSocketHAClient:
                 "integration": entry_domain.get(primary_entry_id) if primary_entry_id else None,
                 "disabled_by": d.get("disabled_by"),
                 "identifiers": [list(i) for i in d.get("identifiers", [])],
+                "config_entries": device_entries,
                 "entities": index.get(did, []),
                 "created_at": _iso_or_none(d.get("created_at")),
                 "modified_at": _iso_or_none(d.get("modified_at")),
@@ -260,6 +262,42 @@ class WebSocketHAClient:
 
     async def update_device(self, device_id: str, changes: dict[str, Any]) -> None:
         await self._send_cmd({"type": "config/device_registry/update", "device_id": device_id, **changes})
+
+    async def delete_device(self, device_id: str) -> None:
+        """Remove the device by unlinking every config entry that owns it.
+
+        Home Assistant deletes a device once the last config entry is
+        removed. Integrations are free to refuse; if any call returns a
+        non-success result, `_send_cmd` raises and we propagate that
+        error to the caller.
+
+        Not atomic for multi-entry devices: if the first entry removes but
+        the second is refused, we raise, leaving the device in HA with
+        only the entries we didn't reach. Retry is safe — the
+        remove_config_entry call is HA-idempotent — so the caller can
+        surface the error and let the user try again.
+        """
+        # Re-query HA rather than trusting the cache: the cache updates on
+        # SSE events, which land *after* HA commits a change. During a bulk
+        # delete (looping over device_ids in the API layer) the cache for
+        # device N can already be stale by the time we act on it, so
+        # trusting it risks sending remove_config_entry for an entry HA
+        # just removed.
+        devs: list[dict[str, Any]] = await self._send_cmd(
+            {"type": "config/device_registry/list"}
+        ) or []
+        match = next((d for d in devs if d["id"] == device_id), None)
+        if match is None:
+            raise RuntimeError(f"device {device_id} not found in HA registry")
+        entries: list[str] = list(match.get("config_entries") or [])
+        if not entries:
+            raise RuntimeError(f"device {device_id} has no config entries to remove")
+        for entry_id in entries:
+            await self._send_cmd({
+                "type": "config/device_registry/remove_config_entry",
+                "config_entry_id": entry_id,
+                "device_id": device_id,
+            })
 
     def subscribe(self, handler: EventHandler) -> Callable[[], None]:
         self._handlers.append(handler)

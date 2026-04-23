@@ -13,7 +13,7 @@ import { modals } from "@mantine/modals";
 import { useEffect, useState } from "react";
 
 import { SeverityBadge } from "@/components/SeverityBadge";
-import { useUpdateDevice } from "@/hooks/useActions";
+import { useDeleteDevices, useUpdateDevice } from "@/hooks/useActions";
 import {
   useAcknowledgeException,
   useClearException,
@@ -49,6 +49,7 @@ export function EditDeviceDrawer({ opened, onClose, device, areas }: Props) {
   const [name, setName] = useState(initialName);
   const [areaId, setAreaId] = useState<string | null>(initialAreaId);
   const update = useUpdateDevice();
+  const deleteDevices = useDeleteDevices();
   const ack = useAcknowledgeException();
   const clear = useClearException();
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -71,6 +72,25 @@ export function EditDeviceDrawer({ opened, onClose, device, areas }: Props) {
     if (trimmedName !== initialName) changes.name_by_user = trimmedName;
     if (areaId !== initialAreaId) changes.area_id = areaId;
     update.mutate({ device_id: device.id, changes });
+  };
+
+  const displayName = device.name_by_user ?? device.name;
+
+  const openDelete = () => {
+    modals.openConfirmModal({
+      title: `Delete ${displayName}?`,
+      children:
+        "This cannot be undone. If the integration refuses, the device will stay.",
+      labels: { confirm: "Delete", cancel: "Keep" },
+      confirmProps: { color: "red" },
+      onConfirm: () => {
+        deleteDevices.mutate([device.id], {
+          onSuccess: (res) => {
+            if (res.results[0]?.ok) onClose();
+          },
+        });
+      },
+    });
   };
 
   const requestClose = () => {
@@ -114,13 +134,23 @@ export function EditDeviceDrawer({ opened, onClose, device, areas }: Props) {
           searchable
           clearable
         />
-        <Group justify="flex-end">
-          <Button variant="subtle" onClick={requestClose}>
-            Cancel
+        <Group justify="space-between">
+          <Button
+            color="red"
+            variant="light"
+            onClick={openDelete}
+            loading={deleteDevices.isPending}
+          >
+            Delete
           </Button>
-          <Button disabled={!canSave} onClick={save} loading={update.isPending}>
-            Save
-          </Button>
+          <Group gap="xs">
+            <Button variant="subtle" onClick={requestClose}>
+              Cancel
+            </Button>
+            <Button disabled={!canSave} onClick={save} loading={update.isPending}>
+              Save
+            </Button>
+          </Group>
         </Group>
         {device.issues.length > 0 && <Divider my="sm" />}
         {device.issues.length === 0 ? null : (

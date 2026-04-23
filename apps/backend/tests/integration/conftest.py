@@ -29,6 +29,7 @@ def fake_ha():
                 "integration": "hue",
                 "disabled_by": None,
                 "identifiers": [["hue", "a"]],
+                "config_entries": ["e1"],
                 "entities": [{"id": "light.lamp", "domain": "light"}],
             },
             {
@@ -41,6 +42,7 @@ def fake_ha():
                 "integration": "aqara",
                 "disabled_by": None,
                 "identifiers": [["aqara", "b"]],
+                "config_entries": ["e2"],
                 "entities": [],
             },
         ],

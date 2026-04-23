@@ -7,6 +7,8 @@ from home_curator.api.deps import AppState, app_state
 from home_curator.api.schemas import (
     AssignRoomResponse,
     AssignRoomResult,
+    DeleteResponse,
+    DeleteResult,
     RenamePatternResponse,
     RenamePatternResult,
     RenameResponse,
@@ -40,6 +42,10 @@ class UpdateDeviceBody(BaseModel):
     area_id: str | None = None
 
     model_config = {"extra": "forbid"}
+
+
+class DeleteBody(BaseModel):
+    device_ids: list[str]
 
 
 @router.post("/assign-room", response_model=AssignRoomResponse, response_model_exclude_none=True)
@@ -107,3 +113,24 @@ async def update_device(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"ha update failed: {e}")
     return RenameResponse(ok=True)
+
+
+@router.post("/delete", response_model=DeleteResponse, response_model_exclude_none=True)
+async def delete(body: DeleteBody, state: AppState = Depends(app_state)) -> DeleteResponse:
+    """Delete one or more devices via HA's remove_config_entry path.
+
+    Returns per-device results so the UI can report partial success.
+    """
+    if not body.device_ids:
+        raise HTTPException(status_code=400, detail="device_ids must not be empty")
+    results: list[DeleteResult] = []
+    for did in body.device_ids:
+        if state.cache.device(did) is None:
+            results.append(DeleteResult(device_id=did, ok=False, error="device not found"))
+            continue
+        try:
+            await state.ha.delete_device(did)
+            results.append(DeleteResult(device_id=did, ok=True))
+        except Exception as e:
+            results.append(DeleteResult(device_id=did, ok=False, error=str(e)))
+    return DeleteResponse(results=results)

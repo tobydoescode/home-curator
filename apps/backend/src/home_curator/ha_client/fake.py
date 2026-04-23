@@ -12,6 +12,7 @@ class FakeHAClient:
         self._areas = list(areas)
         self._handlers: list[EventHandler] = []
         self.update_calls: list[tuple[str, dict[str, Any]]] = []
+        self.delete_calls: list[str] = []
 
     async def start(self) -> None:
         return None
@@ -30,6 +31,10 @@ class FakeHAClient:
         for d in self._devices:
             if d["id"] == device_id:
                 d.update(changes)
+
+    async def delete_device(self, device_id: str) -> None:
+        self.delete_calls.append(device_id)
+        self._devices = [d for d in self._devices if d["id"] != device_id]
 
     def subscribe(self, handler: EventHandler) -> Callable[[], None]:
         self._handlers.append(handler)

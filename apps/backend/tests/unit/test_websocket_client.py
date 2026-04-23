@@ -97,3 +97,52 @@ async def test_reconnects_and_emits_reconnected_event(monkeypatch):
             assert areas[0]["name"] == "Living Room"
         finally:
             await client.stop()
+
+
+@pytest.mark.asyncio
+async def test_delete_device_removes_each_config_entry():
+    # Fake HA records remove_config_entry calls and responds success.
+    calls: list[dict] = []
+
+    async def _fake_ha_with_delete(ws):
+        await ws.send(json.dumps(HA_AUTH_REQUIRED))
+        msg = json.loads(await ws.recv())
+        assert msg == {"type": "auth", "access_token": "tok"}
+        await ws.send(json.dumps(HA_AUTH_OK))
+
+        async for raw in ws:
+            msg = json.loads(raw)
+            if msg.get("type") == "config/device_registry/list":
+                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": [
+                    {"id": "d1", "name": "lamp", "area_id": None, "disabled_by": None,
+                     "manufacturer": None, "model": None, "name_by_user": None,
+                     "identifiers": [["hue", "x"]], "entry_type": None,
+                     "config_entries": ["e1", "e2"]}
+                ]}))
+            elif msg.get("type") == "config/entity_registry/list":
+                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": []}))
+            elif msg.get("type") == "config_entries/get":
+                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": [
+                    {"entry_id": "e1", "domain": "hue"},
+                ]}))
+            elif msg.get("type") == "subscribe_events":
+                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": None}))
+            elif msg.get("type") == "config/device_registry/remove_config_entry":
+                calls.append(msg)
+                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": None}))
+
+    async with websockets.serve(_fake_ha_with_delete, "localhost", 0) as server:
+        port = server.sockets[0].getsockname()[1]
+        client = WebSocketHAClient(url=f"ws://localhost:{port}", token="tok")
+        await client.start()
+        try:
+            await client.delete_device("d1")
+        finally:
+            await client.stop()
+
+    types = [c["type"] for c in calls]
+    entry_ids = [c["config_entry_id"] for c in calls]
+    device_ids = [c["device_id"] for c in calls]
+    assert types == ["config/device_registry/remove_config_entry"] * 2
+    assert entry_ids == ["e1", "e2"]
+    assert device_ids == ["d1", "d1"]
