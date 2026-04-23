@@ -137,6 +137,16 @@ class AssignRoomResponse(BaseModel):
     results: list[AssignRoomResult]
 
 
+class DeleteResult(BaseModel):
+    device_id: str
+    ok: bool
+    error: str | None = None
+
+
+class DeleteResponse(BaseModel):
+    results: list[DeleteResult]
+
+
 class RenameResponse(BaseModel):
     ok: bool
 

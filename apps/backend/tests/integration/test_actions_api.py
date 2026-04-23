@@ -98,3 +98,54 @@ def test_patch_device_ha_error_surfaces_as_502(client, fake_ha):
         json={"name_by_user": "x"},
     )
     assert r.status_code == 502
+
+
+def test_delete_single_device_ok(client, fake_ha):
+    r = client.post(
+        "/api/actions/delete",
+        json={"device_ids": ["d1"]},
+    )
+    assert r.status_code == 200
+    assert r.json() == {"results": [{"device_id": "d1", "ok": True}]}
+    assert fake_ha.delete_calls == ["d1"]
+
+
+def test_delete_bulk_partial_failure(client, fake_ha):
+    # Make d2's delete fail; d1 still succeeds.
+    original = fake_ha.delete_device
+
+    async def flaky(device_id):
+        if device_id == "d2":
+            raise RuntimeError("integration refused removal")
+        await original(device_id)
+
+    fake_ha.delete_device = flaky  # type: ignore[method-assign]
+
+    r = client.post(
+        "/api/actions/delete",
+        json={"device_ids": ["d1", "d2"]},
+    )
+    assert r.status_code == 200
+    rows = {row["device_id"]: row for row in r.json()["results"]}
+    assert rows["d1"] == {"device_id": "d1", "ok": True}
+    assert rows["d2"]["ok"] is False
+    assert "integration refused removal" in rows["d2"]["error"]
+
+
+def test_delete_empty_body_rejected(client, fake_ha):
+    before = len(fake_ha.delete_calls)
+    r = client.post("/api/actions/delete", json={"device_ids": []})
+    assert r.status_code == 400
+    assert len(fake_ha.delete_calls) == before
+
+
+def test_delete_unknown_device_id(client, fake_ha):
+    r = client.post(
+        "/api/actions/delete",
+        json={"device_ids": ["ghost"]},
+    )
+    assert r.status_code == 200
+    assert r.json() == {
+        "results": [{"device_id": "ghost", "ok": False, "error": "device not found"}]
+    }
+    assert "ghost" not in fake_ha.delete_calls
