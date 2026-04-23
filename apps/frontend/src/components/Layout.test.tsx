@@ -66,4 +66,11 @@ describe("Layout", () => {
     const desktopBurger = screen.getByLabelText("Toggle Sidebar");
     expect(desktopBurger.querySelector("[data-opened]")).not.toBeNull();
   });
+
+  it("renders the color scheme toggle in the header", () => {
+    wrap();
+    expect(
+      screen.getByRole("button", { name: /color scheme/i }),
+    ).toBeInTheDocument();
+  });
 });

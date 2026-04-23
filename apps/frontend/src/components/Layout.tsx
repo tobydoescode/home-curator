@@ -4,6 +4,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { useLocalStorageBoolean } from "@/hooks/useLocalStorageBoolean";
 
+import { ColorSchemeToggle } from "./ColorSchemeToggle";
 import { LiveIndicator } from "./LiveIndicator";
 import { ResyncButton } from "./ResyncButton";
 
@@ -55,6 +56,7 @@ export function Layout() {
             <Title order={5}>Home Curator</Title>
           </Group>
           <Group gap="xs">
+            <ColorSchemeToggle />
             <ResyncButton />
             <LiveIndicator />
           </Group>
