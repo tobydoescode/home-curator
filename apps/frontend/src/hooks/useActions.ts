@@ -75,6 +75,20 @@ export function useUpdateDevice() {
       });
       if (error) throw new Error(String(error));
     },
-    onSuccess: () => invalidateDevices(qc),
+    onSuccess: () => {
+      notifications.show({
+        title: "Device Updated",
+        message: "Changes saved",
+        color: "green",
+      });
+      invalidateDevices(qc);
+    },
+    onError: (err) => {
+      notifications.show({
+        title: "Save Failed",
+        message: err instanceof Error ? err.message : "Unknown error",
+        color: "red",
+      });
+    },
   });
 }

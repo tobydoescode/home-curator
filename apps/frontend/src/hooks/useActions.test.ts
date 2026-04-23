@@ -1,3 +1,4 @@
+import { notifications } from "@mantine/notifications";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import React from "react";
@@ -59,5 +60,54 @@ describe("useUpdateDevice", () => {
         });
       }),
     ).rejects.toThrow();
+  });
+
+  it("shows a success notification on 200", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const showSpy = vi.spyOn(notifications, "show");
+
+    const { result } = renderHook(() => useUpdateDevice(), { wrapper: wrap() });
+    await act(async () => {
+      await result.current.mutateAsync({
+        device_id: "d1",
+        changes: { name_by_user: "x" },
+      });
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(showSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ color: "green" }),
+    );
+  });
+
+  it("shows an error notification on failure", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ detail: "ha update failed" }), {
+        status: 502,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const showSpy = vi.spyOn(notifications, "show");
+
+    const { result } = renderHook(() => useUpdateDevice(), { wrapper: wrap() });
+    await expect(
+      act(async () => {
+        await result.current.mutateAsync({
+          device_id: "d1",
+          changes: { name_by_user: "x" },
+        });
+      }),
+    ).rejects.toThrow();
+
+    await waitFor(() =>
+      expect(showSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ color: "red" }),
+      ),
+    );
   });
 });

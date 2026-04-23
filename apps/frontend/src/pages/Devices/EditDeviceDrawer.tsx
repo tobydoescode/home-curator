@@ -21,7 +21,9 @@ import {
 
 export interface EditDeviceDrawerDevice {
   id: string;
+  /** Backend-resolved display name (`name_by_user or name` from HA). */
   name: string;
+  /** Raw HA user override; null when not set. */
   name_by_user: string | null;
   area_id: string | null;
   area_name: string | null;
@@ -157,6 +159,7 @@ export function EditDeviceDrawer({ opened, onClose, device, areas }: Props) {
                   <Button
                     size="xs"
                     variant="subtle"
+                    loading={clear.isPending}
                     onClick={() =>
                       clear.mutate({
                         device_id: device.id,
