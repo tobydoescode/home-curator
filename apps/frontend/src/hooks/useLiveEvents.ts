@@ -15,6 +15,12 @@ export function useLiveEvents() {
         qc.invalidateQueries({ queryKey: ["devices"] });
       if (e.kind === "policies_changed")
         qc.invalidateQueries({ queryKey: ["policies"] });
+      if (
+        e.kind === "entities_changed" ||
+        e.kind === "entity_updated" ||
+        e.kind === "entity_deleted"
+      )
+        qc.invalidateQueries({ queryKey: ["entities"] });
     });
     return unsub;
   }, [qc]);

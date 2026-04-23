@@ -1,6 +1,10 @@
 export type SSEEvent =
   | { kind: "devices_changed" }
-  | { kind: "policies_changed" };
+  | { kind: "policies_changed" }
+  | { kind: "entities_changed" }
+  | { kind: "entity_updated"; entity_id: string }
+  | { kind: "entity_deleted"; entity_id: string }
+  | { kind: "exceptions_changed" };
 
 export function subscribeSSE(
   onEvent: (e: SSEEvent) => void,
