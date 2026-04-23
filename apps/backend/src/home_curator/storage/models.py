@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Literal
 
-from sqlalchemy import CheckConstraint, Enum as SAEnum, Index, UniqueConstraint, text
+from sqlalchemy import CheckConstraint, Enum as SAEnum, Index, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from home_curator.storage.types import TZDateTime

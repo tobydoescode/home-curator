@@ -6,8 +6,6 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect
 
-from home_curator.storage.models import Base
-
 
 def _alembic_config(db_url: str) -> Config:
     root = Path(__file__).resolve().parents[2]
