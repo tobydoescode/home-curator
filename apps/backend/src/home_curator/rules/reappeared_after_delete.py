@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from home_curator.policies.schema import ReappearedAfterDeletePolicy
-from home_curator.rules.base import Device, EvaluationContext, Issue, Severity
+from home_curator.rules.base import Device, Entity, EvaluationContext, Issue, Severity
 
 # Shared contract between deletion tracker (writer) and this rule (reader).
 STATE_KEY_REAPPEARED = "reappeared_after_delete"
@@ -16,9 +16,27 @@ class CompiledReappeared:
     scope: str = "devices"
     compile_error: str | None = None
 
-    def evaluate(self, device: Device, ctx: EvaluationContext) -> Issue | None:
+    def evaluate(self, thing: object, ctx: EvaluationContext) -> Issue | None:
         if not self.enabled:
             return None
+        if self.scope == "entities":
+            assert isinstance(thing, Entity)
+            entity = thing
+            if ("entity", entity.entity_id, self.id) in ctx.exceptions:
+                return None
+            if entity.state.get(STATE_KEY_REAPPEARED):
+                return Issue(
+                    policy_id=self.id,
+                    rule_type=self.rule_type,
+                    severity=self.severity,
+                    message="Entity Reappeared After Being Deleted",
+                    target_kind="entity",
+                    target_id=entity.entity_id,
+                )
+            return None
+        # devices
+        assert isinstance(thing, Device)
+        device = thing
         if ("device", device.id, self.id) in ctx.exceptions:
             return None
         if device.state.get(STATE_KEY_REAPPEARED):
@@ -34,4 +52,6 @@ class CompiledReappeared:
 
 
 def compile_reappeared(p: ReappearedAfterDeletePolicy) -> CompiledReappeared:
-    return CompiledReappeared(id=p.id, enabled=p.enabled, severity=p.severity)
+    return CompiledReappeared(
+        id=p.id, enabled=p.enabled, severity=p.severity, scope=p.scope,
+    )
