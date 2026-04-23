@@ -199,3 +199,10 @@ def _resolve_area_id(override: RoomOverride, ctx: EvaluationContext | None) -> s
     if override.room and ctx:
         return ctx.resolve_area_id_from_name(override.room)
     return None
+
+
+# Public re-exports so entity_naming (and any other future rule) can share
+# the preset-to-pattern mapping and the room-prefix derivation without
+# depending on private names.
+pattern_from_config = _pattern_from_config
+room_prefix = _room_prefix
