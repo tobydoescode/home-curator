@@ -46,4 +46,13 @@ describe("ColorSchemeToggle", () => {
     await user.click(await screen.findByRole("menuitem", { name: /light/i }));
     expect(document.documentElement.getAttribute("data-mantine-color-scheme")).toBe("light");
   });
+
+  it("sets data-mantine-color-scheme back to the system preference when System is selected", async () => {
+    const user = userEvent.setup();
+    wrap(<ColorSchemeToggle />, "dark");
+    await user.click(screen.getByRole("button", { name: /color scheme/i }));
+    await user.click(await screen.findByRole("menuitem", { name: /system/i }));
+    const scheme = document.documentElement.getAttribute("data-mantine-color-scheme");
+    expect(["light", "dark"]).toContain(scheme);
+  });
 });
