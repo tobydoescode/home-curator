@@ -2,6 +2,7 @@ import { AppShell, Group, NavLink, Title } from "@mantine/core";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { LiveIndicator } from "./LiveIndicator";
+import { ResyncButton } from "./ResyncButton";
 
 const NAV = [
   { label: "Devices", to: "/devices" },
@@ -23,7 +24,10 @@ export function Layout() {
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Title order={5}>Home Curator</Title>
-          <LiveIndicator />
+          <Group gap="xs">
+            <ResyncButton />
+            <LiveIndicator />
+          </Group>
         </Group>
       </AppShell.Header>
       <AppShell.Navbar p="sm">
