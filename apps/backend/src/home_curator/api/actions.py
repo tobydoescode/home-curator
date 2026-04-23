@@ -1,4 +1,5 @@
 import re
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -83,6 +84,14 @@ class RenamePatternEntitiesBody(BaseModel):
     name_pattern: str | None = None
     name_replacement: str | None = None
     dry_run: bool = True
+
+
+class EntityStateBody(BaseModel):
+    """Bulk enable / disable / show / hide."""
+
+    entity_ids: list[str]
+    field: Literal["disabled_by", "hidden_by"]
+    value: Literal["user"] | None
 
 
 class DeleteBody(BaseModel):
@@ -328,6 +337,31 @@ async def rename_pattern_entities(
                 )
             )
     return RenamePatternEntityResponse(results=results, error=None)
+
+
+@router.post(
+    "/entity-state",
+    response_model=EntityStateResponse,
+    response_model_exclude_none=True,
+)
+async def entity_state(
+    body: EntityStateBody, state: AppState = Depends(app_state),
+) -> EntityStateResponse:
+    """Bulk flip `disabled_by` / `hidden_by` to `"user"` or `None`.
+
+    Per-entity HA refusal (e.g. re-enabling an integration-disabled
+    entity) surfaces in the per-row `error`.
+    """
+    if not body.entity_ids:
+        raise HTTPException(status_code=400, detail="entity_ids must not be empty")
+    results: list[EntityStateResult] = []
+    for eid in body.entity_ids:
+        try:
+            await state.ha.update_entity(eid, {body.field: body.value})
+            results.append(EntityStateResult(entity_id=eid, ok=True))
+        except Exception as e:
+            results.append(EntityStateResult(entity_id=eid, ok=False, error=str(e)))
+    return EntityStateResponse(results=results)
 
 
 @router.post("/delete", response_model=DeleteResponse, response_model_exclude_none=True)

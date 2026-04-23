@@ -271,3 +271,128 @@ def test_rename_pattern_skips_non_matching(client, fake_ha):
     writes_after = fake_ha.update_entity_calls[before:]
     assert len(writes_after) == 1
     assert writes_after[0][0] == "light.kitchen_ceiling"
+
+
+# --- entity-state (Phase 7) ------------------------------------------------
+
+def test_entity_state_disable(client, fake_ha):
+    r = client.post(
+        "/api/actions/entity-state",
+        json={
+            "entity_ids": ["light.kitchen_ceiling"],
+            "field": "disabled_by",
+            "value": "user",
+        },
+    )
+    assert r.status_code == 200
+    assert r.json()["results"] == [{"entity_id": "light.kitchen_ceiling", "ok": True}]
+    assert fake_ha.update_entity_calls[-1] == (
+        "light.kitchen_ceiling",
+        {"disabled_by": "user"},
+    )
+
+
+def test_entity_state_enable(client, fake_ha):
+    r = client.post(
+        "/api/actions/entity-state",
+        json={
+            "entity_ids": ["switch.garage_door"],
+            "field": "disabled_by",
+            "value": None,
+        },
+    )
+    assert r.status_code == 200
+    assert fake_ha.update_entity_calls[-1] == (
+        "switch.garage_door",
+        {"disabled_by": None},
+    )
+
+
+def test_entity_state_hide(client, fake_ha):
+    r = client.post(
+        "/api/actions/entity-state",
+        json={
+            "entity_ids": ["light.kitchen_ceiling"],
+            "field": "hidden_by",
+            "value": "user",
+        },
+    )
+    assert r.status_code == 200
+    assert fake_ha.update_entity_calls[-1] == (
+        "light.kitchen_ceiling",
+        {"hidden_by": "user"},
+    )
+
+
+def test_entity_state_show(client, fake_ha):
+    r = client.post(
+        "/api/actions/entity-state",
+        json={
+            "entity_ids": ["binary_sensor.kitchen_motion"],
+            "field": "hidden_by",
+            "value": None,
+        },
+    )
+    assert r.status_code == 200
+    assert fake_ha.update_entity_calls[-1] == (
+        "binary_sensor.kitchen_motion",
+        {"hidden_by": None},
+    )
+
+
+def test_entity_state_ha_refusal_is_per_row(client, fake_ha):
+    original = fake_ha.update_entity
+
+    async def flaky(eid, changes):
+        if eid == "switch.garage_door":
+            raise RuntimeError("integration disabled this entity")
+        await original(eid, changes)
+
+    fake_ha.update_entity = flaky  # type: ignore[method-assign]
+    r = client.post(
+        "/api/actions/entity-state",
+        json={
+            "entity_ids": ["light.kitchen_ceiling", "switch.garage_door"],
+            "field": "disabled_by",
+            "value": None,
+        },
+    )
+    assert r.status_code == 200
+    rows = {row["entity_id"]: row for row in r.json()["results"]}
+    assert rows["light.kitchen_ceiling"]["ok"] is True
+    assert rows["switch.garage_door"]["ok"] is False
+    assert "integration disabled" in rows["switch.garage_door"]["error"]
+
+
+def test_entity_state_invalid_field_rejected(client):
+    r = client.post(
+        "/api/actions/entity-state",
+        json={
+            "entity_ids": ["light.kitchen_ceiling"],
+            "field": "name",
+            "value": "x",
+        },
+    )
+    assert r.status_code == 422
+
+
+def test_entity_state_invalid_value_rejected(client):
+    r = client.post(
+        "/api/actions/entity-state",
+        json={
+            "entity_ids": ["light.kitchen_ceiling"],
+            "field": "disabled_by",
+            "value": "integration",
+        },
+    )
+    assert r.status_code == 422
+
+
+def test_entity_state_empty_body_rejected(client, fake_ha):
+    before = len(fake_ha.update_entity_calls)
+    r = client.post(
+        "/api/actions/entity-state",
+        json={"entity_ids": [], "field": "disabled_by", "value": "user"},
+    )
+    assert r.status_code == 400
+    assert len(fake_ha.update_entity_calls) == before
