@@ -192,12 +192,15 @@ async def test_get_entities_normalizes_payload():
     assert len(ents) == 1
     e = ents[0]
     assert e["entity_id"] == "light.kitchen_lamp"
-    assert e["platform"] == "hue"
-    assert e["device_id"] == "d1"
-    assert e["unique_id"] == "hue:abc"
+    # Fields are NotRequired on HAEntityDict for forward-compat; this fixture
+    # supplies them, so the assertions are safe at runtime. See docs/tech-debt.md
+    # for the broader TypedDict rethink.
+    assert e["platform"] == "hue"  # type: ignore[typeddict-item]
+    assert e["device_id"] == "d1"  # type: ignore[typeddict-item]
+    assert e["unique_id"] == "hue:abc"  # type: ignore[typeddict-item]
     # epoch-seconds → ISO normalization
-    assert isinstance(e["created_at"], str) and e["created_at"].startswith("20")
-    assert e["modified_at"] is None
+    assert isinstance(e["created_at"], str) and e["created_at"].startswith("20")  # type: ignore[typeddict-item]
+    assert e["modified_at"] is None  # type: ignore[typeddict-item]
 
 
 @pytest.mark.asyncio
