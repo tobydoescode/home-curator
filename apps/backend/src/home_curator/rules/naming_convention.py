@@ -55,9 +55,17 @@ def _room_prefix(preset: NamingPreset, area_id: str, area_name: str | None) -> s
     owns prefixing explicitly).
     """
     if preset == "snake_case":
-        if area_name:
-            return area_name.lower().replace(" ", "_")
-        return area_id.lower().replace("-", "_")
+        # Lower + space-to-underscore, then drop any character that isn't a
+        # valid snake_case token character, then collapse consecutive
+        # underscores. Handles apostrophes ("Clara's Bedroom" →
+        # "claras_bedroom"), hyphens ("En-Suite" → "ensuite"), and
+        # punctuation that leaves adjacent separators ("Mum & Dad's
+        # Bedroom" → "mum_dads_bedroom", not "mum__dads_bedroom"). Without
+        # the collapse the prefix itself would be invalid snake_case and
+        # every device in a punctuated-name room would fail the
+        # starts-with-room check.
+        source = area_name.lower().replace(" ", "_") if area_name else area_id.lower().replace("-", "_")
+        return re.sub(r"_+", "_", re.sub(r"[^a-z0-9_]", "", source))
     if preset == "kebab-case":
         # Prefer area_name → lower + spaces-to-hyphens for readable prefixes;
         # fall back to area_id with underscores swapped for hyphens.
@@ -91,6 +99,7 @@ class CompiledNamingConvention:
     pending_room_overrides: list[tuple[str, _OverrideEntry]] = field(default_factory=list)
     unresolved_room_names: list[str] = field(default_factory=list)
     rule_type: str = "naming_convention"
+    scope: str = "devices"
 
     @property
     def compile_error(self) -> str | None:
@@ -129,14 +138,16 @@ class CompiledNamingConvention:
         if not pattern.match(device.display_name):
             return Issue(
                 policy_id=self.id, rule_type=self.rule_type, severity=self.severity,
-                message="Name Doesn't Match Convention", device_id=device.id,
+                message="Name Doesn't Match Convention",
+                target_kind="device", target_id=device.id,
             )
         if swr and device.area_id:
             prefix = _room_prefix(preset, device.area_id, device.area_name)
             if prefix is not None and not device.display_name.startswith(prefix):
                 return Issue(
                     policy_id=self.id, rule_type=self.rule_type, severity=self.severity,
-                    message="Name Doesn't Start With Its Room", device_id=device.id,
+                    message="Name Doesn't Start With Its Room",
+                    target_kind="device", target_id=device.id,
                 )
         return None
 
@@ -188,3 +199,10 @@ def _resolve_area_id(override: RoomOverride, ctx: EvaluationContext | None) -> s
     if override.room and ctx:
         return ctx.resolve_area_id_from_name(override.room)
     return None
+
+
+# Public re-exports so entity_naming (and any other future rule) can share
+# the preset-to-pattern mapping and the room-prefix derivation without
+# depending on private names.
+pattern_from_config = _pattern_from_config
+room_prefix = _room_prefix

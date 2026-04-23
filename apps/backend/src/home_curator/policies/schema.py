@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Severity = Literal["info", "warning", "error"]
 NamingPreset = Literal["snake_case", "kebab-case", "title-case", "prefix-type-n", "custom"]
-CustomScope = Literal["devices"]
+CustomScope = Literal["devices", "entities"]
 
 
 class _PolicyBase(BaseModel):
@@ -19,8 +19,20 @@ class MissingAreaPolicy(_PolicyBase):
     type: Literal["missing_area"]
 
 
+class EntityMissingAreaPolicy(_PolicyBase):
+    """Entity-scope variant of missing_area. Default is lenient: an entity
+    whose own area_id is None still passes if its owning device has an
+    area set. Flip require_own_area=True to demand the entity's own
+    area_id regardless of device."""
+    type: Literal["entity_missing_area"]
+    require_own_area: bool = False
+
+
 class ReappearedAfterDeletePolicy(_PolicyBase):
     type: Literal["reappeared_after_delete"]
+    # Scope controls whether this fires per-device or per-entity. Default
+    # preserves the original device-only behaviour for pre-existing configs.
+    scope: Literal["devices", "entities"] = "devices"
 
 
 class NamingPatternConfig(BaseModel):
@@ -73,6 +85,29 @@ class RoomOverride(BaseModel):
         return self
 
 
+def _validate_unique_room_overrides(rooms, *, context: str) -> None:
+    """Shared uniqueness check. Used by the device NamingConventionPolicy,
+    and the name/entity_id blocks of EntityNamingConventionPolicy. A single
+    room can have only one override — the evaluator keys by area_id / room
+    name, so duplicates would silently shadow each other."""
+    seen_area_ids: set[str] = set()
+    seen_room_names: set[str] = set()
+    for o in rooms:
+        if o.area_id:
+            if o.area_id in seen_area_ids:
+                raise ValueError(
+                    f"duplicate room override for area_id={o.area_id!r} in {context}"
+                )
+            seen_area_ids.add(o.area_id)
+        elif o.room:
+            key = o.room.lower()
+            if key in seen_room_names:
+                raise ValueError(
+                    f"duplicate room override for room={o.room!r} in {context}"
+                )
+            seen_room_names.add(key)
+
+
 class NamingConventionPolicy(_PolicyBase):
     type: Literal["naming_convention"]
     global_: NamingPatternConfig = Field(alias="global")
@@ -83,32 +118,86 @@ class NamingConventionPolicy(_PolicyBase):
 
     @model_validator(mode="after")
     def _unique_room_overrides(self):
-        # A single room can have only one override — the evaluator keys by
-        # area_id / room name, so duplicates would silently shadow each
-        # other. The UI also filters already-used rooms out of the picker;
-        # this validator catches direct-YAML edits that bypass the UI.
-        seen_area_ids: set[str] = set()
-        seen_room_names: set[str] = set()
-        for o in self.rooms:
-            if o.area_id:
-                if o.area_id in seen_area_ids:
-                    raise ValueError(
-                        f"duplicate room override for area_id={o.area_id!r}"
-                    )
-                seen_area_ids.add(o.area_id)
-            elif o.room:
-                key = o.room.lower()
-                if key in seen_room_names:
-                    raise ValueError(
-                        f"duplicate room override for room={o.room!r}"
-                    )
-                seen_room_names.add(key)
+        _validate_unique_room_overrides(self.rooms, context="rooms")
         return self
+
+
+class EntityIdRoomOverride(BaseModel):
+    """Entity-id room override — opt-out only.
+
+    Unlike friendly-name overrides, the entity-id convention (snake_case) is
+    fixed, so rooms can only turn it off wholesale. Preset/pattern/starts_with_room
+    are not accepted here — the schema rejects them to prevent confusing
+    'my room uses kebab-case for entity_ids' authoring."""
+    model_config = ConfigDict(extra="forbid")
+    room: str | None = None
+    area_id: str | None = None
+    enabled: bool = True
+
+    @model_validator(mode="after")
+    def _needs_reference(self):
+        if not self.room and not self.area_id:
+            raise ValueError("room override needs 'room' or 'area_id'")
+        return self
+
+
+class EntityNameBlock(BaseModel):
+    """Friendly-name block — structurally identical to the device naming
+    convention policy (preset + pattern + starts_with_room + rooms)."""
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    global_: NamingPatternConfig = Field(alias="global")
+    starts_with_room: bool = False
+    rooms: list[RoomOverride] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _unique_rooms(self):
+        _validate_unique_room_overrides(self.rooms, context="name.rooms")
+        return self
+
+
+class EntityIdBlock(BaseModel):
+    """Entity-id block — preset is fixed to snake_case and NOT settable.
+
+    Users who want to control the friendly name should edit the `name` block
+    instead. We reject a `preset` key here with a hint pointing at `name`."""
+    model_config = ConfigDict(extra="forbid")
+
+    starts_with_room: bool = False
+    rooms: list[EntityIdRoomOverride] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_preset(cls, data):
+        if isinstance(data, dict) and "preset" in data:
+            raise ValueError(
+                "'preset' is not settable on entity_id — the convention is "
+                "fixed to snake_case. If you meant the friendly name, set "
+                "it on the 'name' block instead."
+            )
+        if isinstance(data, dict) and "pattern" in data:
+            raise ValueError("'pattern' is not settable on entity_id")
+        return data
+
+    @model_validator(mode="after")
+    def _unique_rooms(self):
+        _validate_unique_room_overrides(self.rooms, context="entity_id.rooms")
+        return self
+
+
+class EntityNamingConventionPolicy(_PolicyBase):
+    type: Literal["entity_naming_convention"]
+    name: EntityNameBlock
+    entity_id: EntityIdBlock = Field(default_factory=EntityIdBlock)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
 
 class CustomPolicy(_PolicyBase):
     type: Literal["custom"]
-    scope: CustomScope
+    # Default "devices" so new device-scope rules don't need to spell it out.
+    # Existing on-disk files that carry an explicit scope still load unchanged.
+    scope: CustomScope = "devices"
     when_: str = Field(alias="when", default="true")
     assert_: str = Field(alias="assert")
     message: str
@@ -120,6 +209,8 @@ Policy = Annotated[
     MissingAreaPolicy
     | ReappearedAfterDeletePolicy
     | NamingConventionPolicy
+    | EntityNamingConventionPolicy
+    | EntityMissingAreaPolicy
     | CustomPolicy,
     Field(discriminator="type"),
 ]

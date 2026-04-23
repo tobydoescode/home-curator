@@ -20,8 +20,8 @@ def test_device_shape():
 
 
 def test_issue_equality_and_hashability():
-    a = Issue("p1", "missing_area", "warning", "msg", "abc")
-    b = Issue("p1", "missing_area", "warning", "msg", "abc")
+    a = Issue("p1", "missing_area", "warning", "msg", "device", "abc")
+    b = Issue("p1", "missing_area", "warning", "msg", "device", "abc")
     assert a == b
     assert hash(a) == hash(b)
     assert len({a, b}) == 1
@@ -37,6 +37,49 @@ def test_evaluation_context():
     assert ctx.resolve_area_id_from_name("Unknown") is None
     assert ("device", "d1", "p1") in ctx.exceptions
     assert ("device", "d1", "p2") not in ctx.exceptions
+
+
+def test_entity_to_cel_context_shape():
+    """Entity.to_cel_context produces the shape custom_cel consumes."""
+    from home_curator.rules.base import Entity
+
+    e = Entity(
+        entity_id="light.kitchen",
+        name="Kitchen Light",
+        original_name="Hue Bulb",
+        icon=None,
+        domain="light",
+        platform="hue",
+        device_id="d1",
+        area_id="k",
+        area_name=None,
+        disabled_by=None,
+        hidden_by=None,
+        unique_id="hue-xyz",
+        created_at=None,
+        modified_at=None,
+        state={"reappeared_after_delete": True},
+    )
+    ctx = e.to_cel_context(device_context=None, area_name="Kitchen")
+    assert ctx["entity_id"] == "light.kitchen"
+    assert ctx["name"] == "Kitchen Light"
+    assert ctx["original_name"] == "Hue Bulb"
+    assert ctx["domain"] == "light"
+    assert ctx["platform"] == "hue"
+    assert ctx["device_id"] == "d1"
+    assert ctx["area_id"] == "k"
+    # Caller passes area_name (resolved via ctx.area_id_to_name); context
+    # surfaces that rather than the Entity's own area_name field so ad-hoc
+    # device-owned area resolution wins.
+    assert ctx["area_name"] == "Kitchen"
+    assert ctx["disabled_by"] is None
+    assert ctx["hidden_by"] is None
+    assert ctx["icon"] is None
+    # device is wired in by the caller — None for this standalone-style call.
+    assert ctx["device"] is None
+    # state surfaces under `_state` so computed flags (reappeared_after_delete)
+    # are namespace-separated from registry fields.
+    assert ctx["_state"]["reappeared_after_delete"] is True
 
 
 def test_to_cel_context_keys_and_state_prefix():
