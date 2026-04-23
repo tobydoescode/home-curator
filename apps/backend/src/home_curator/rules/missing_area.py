@@ -23,7 +23,8 @@ class CompiledMissingArea:
                 rule_type=self.rule_type,
                 severity=self.severity,
                 message="Device Not Assigned To A Room",
-                device_id=device.id,
+                target_kind="device",
+                target_id=device.id,
             )
         return None
 

@@ -129,14 +129,16 @@ class CompiledNamingConvention:
         if not pattern.match(device.display_name):
             return Issue(
                 policy_id=self.id, rule_type=self.rule_type, severity=self.severity,
-                message="Name Doesn't Match Convention", device_id=device.id,
+                message="Name Doesn't Match Convention",
+                target_kind="device", target_id=device.id,
             )
         if swr and device.area_id:
             prefix = _room_prefix(preset, device.area_id, device.area_name)
             if prefix is not None and not device.display_name.startswith(prefix):
                 return Issue(
                     policy_id=self.id, rule_type=self.rule_type, severity=self.severity,
-                    message="Name Doesn't Start With Its Room", device_id=device.id,
+                    message="Name Doesn't Start With Its Room",
+                    target_kind="device", target_id=device.id,
                 )
         return None
 

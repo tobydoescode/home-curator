@@ -20,8 +20,8 @@ def test_device_shape():
 
 
 def test_issue_equality_and_hashability():
-    a = Issue("p1", "missing_area", "warning", "msg", "abc")
-    b = Issue("p1", "missing_area", "warning", "msg", "abc")
+    a = Issue("p1", "missing_area", "warning", "msg", "device", "abc")
+    b = Issue("p1", "missing_area", "warning", "msg", "device", "abc")
     assert a == b
     assert hash(a) == hash(b)
     assert len({a, b}) == 1

@@ -103,7 +103,12 @@ class Issue:
     rule_type: str
     severity: Severity
     message: str
-    device_id: str
+    # Discriminated target: device rules emit ("device", device.id), entity
+    # rules emit ("entity", entity.entity_id). Mirrors the exception 3-tuple
+    # shape so downstream consumers (API, SSE) can route issues without
+    # inferring kind from rule_type.
+    target_kind: TargetKind
+    target_id: str
 
 
 @dataclass

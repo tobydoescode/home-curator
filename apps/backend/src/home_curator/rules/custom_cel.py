@@ -62,7 +62,8 @@ class CompiledCustom:
             rule_type=self.rule_type,
             severity=self.severity,
             message=self.message,
-            device_id=device.id,
+            target_kind="device",
+            target_id=device.id,
         )
 
 

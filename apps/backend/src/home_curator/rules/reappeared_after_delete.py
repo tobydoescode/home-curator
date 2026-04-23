@@ -26,7 +26,8 @@ class CompiledReappeared:
                 rule_type=self.rule_type,
                 severity=self.severity,
                 message="Device Reappeared After Being Deleted",
-                device_id=device.id,
+                target_kind="device",
+                target_id=device.id,
             )
         return None
 
