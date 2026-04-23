@@ -14,6 +14,7 @@ import {
 } from "@/hooks/useEntities";
 
 import { ActionRow } from "./ActionRow";
+import { EditEntityDrawer } from "./EditEntityDrawer";
 import { EntitiesTable, type EntityRow } from "./EntitiesTable";
 import { FilterBar, type Filters } from "./FilterBar";
 import { PaginationFooter } from "./PaginationFooter";
@@ -87,9 +88,29 @@ function paramsFromFiltersAndPagination(
 
 export function EntitiesPage() {
   const [selection, setSelection] = useState<RowSelectionState>({});
-  // Plan 5 wires this into EditEntityDrawer; Plan 4 leaves the placeholder.
-  const [, setDrawerEntityId] = useState<string | null>(null);
+  const [drawerEntityId, setDrawerEntityId] = useState<string | null>(null);
   const [params, setParams] = useSearchParams();
+
+  // Deep-link support: /entities?entity=<id> opens the drawer on mount and
+  // keeps the URL in sync with the drawer state while the page is open.
+  useEffect(() => {
+    const q = params.get("entity");
+    if (q && q !== drawerEntityId) setDrawerEntityId(q);
+  }, [params, drawerEntityId]);
+
+  useEffect(() => {
+    const current = params.get("entity");
+    if (drawerEntityId && current !== drawerEntityId) {
+      const next = new URLSearchParams(params);
+      next.set("entity", drawerEntityId);
+      setParams(next, { replace: true });
+    } else if (!drawerEntityId && current) {
+      const next = new URLSearchParams(params);
+      next.delete("entity");
+      setParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawerEntityId]);
 
   const filters = useMemo(() => filtersFromParams(params), [params]);
   const page = Number(params.get("page") ?? 1);
@@ -261,6 +282,36 @@ export function EntitiesPage() {
         onPageSizeChange={(s) =>
           setParams(paramsFromFiltersAndPagination(filters, 1, s, params))
         }
+      />
+      <EditEntityDrawer
+        opened={drawerEntityId !== null}
+        onClose={() => setDrawerEntityId(null)}
+        entity={
+          drawerEntityId
+            ? (() => {
+                const e = data.entities.find(
+                  (x) => x.entity_id === drawerEntityId,
+                );
+                if (!e) return null;
+                return {
+                  entity_id: e.entity_id,
+                  name: e.name ?? null,
+                  original_name: e.original_name ?? null,
+                  domain: e.domain,
+                  platform: e.platform ?? "",
+                  device_id: e.device_id ?? null,
+                  device_name: e.device_name ?? null,
+                  area_id: e.area_id ?? null,
+                  area_name: e.area_name ?? null,
+                  disabled_by: e.disabled_by ?? null,
+                  hidden_by: e.hidden_by ?? null,
+                  icon: e.icon ?? null,
+                  issues: e.issues ?? [],
+                };
+              })()
+            : null
+        }
+        areas={roomsForAssign}
       />
     </Stack>
   );

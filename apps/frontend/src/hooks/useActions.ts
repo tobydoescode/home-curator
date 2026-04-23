@@ -64,10 +64,17 @@ export function useRenamePattern() {
     },
     onSuccess: (res, vars) => {
       if (vars.dry_run) return;
+      // RenamePatternResult.ok is optional (dry-run rows lack it); coerce to
+      // boolean and map to DetailedResult (keyed by id, not device_id).
+      const normalised = (res.results ?? []).map((r) => ({
+        id: r.device_id,
+        ok: r.ok === true,
+        error: r.error ?? undefined,
+      }));
       showDetailedResultToast({
         kind: "Device",
         action: "Renamed",
-        results: toDetailedDevice(res.results ?? []),
+        results: normalised,
       });
       invalidateDevices(qc);
     },
