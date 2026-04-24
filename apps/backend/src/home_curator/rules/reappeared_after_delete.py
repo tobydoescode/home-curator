@@ -1,7 +1,14 @@
 from dataclasses import dataclass
 
 from home_curator.policies.schema import ReappearedAfterDeletePolicy
-from home_curator.rules.base import Device, Entity, EvaluationContext, Issue, Severity
+from home_curator.rules.base import (
+    Device,
+    Entity,
+    EvaluationContext,
+    Issue,
+    Severity,
+    TargetScope,
+)
 
 # Shared contract between deletion tracker (writer) and this rule (reader).
 STATE_KEY_REAPPEARED = "reappeared_after_delete"
@@ -13,7 +20,7 @@ class CompiledReappeared:
     enabled: bool
     severity: Severity
     rule_type: str = "reappeared_after_delete"
-    scope: str = "devices"
+    scope: TargetScope = "devices"
     compile_error: str | None = None
 
     def evaluate(self, thing: object, ctx: EvaluationContext) -> Issue | None:
