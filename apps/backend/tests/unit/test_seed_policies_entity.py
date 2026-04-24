@@ -3,6 +3,32 @@ baseline — the 3 pre-existing device policies plus 3 new entity policies."""
 from pathlib import Path
 
 from home_curator.policies.loader import load_policies_file
+from home_curator.policies.schema import (
+    EntityMissingAreaPolicy,
+    EntityNamingConventionPolicy,
+    ReappearedAfterDeletePolicy,
+)
+
+
+def _entity_naming(result) -> EntityNamingConventionPolicy:
+    assert result.file is not None
+    policy = next(p for p in result.file.policies if p.id == "entity-naming-convention")
+    assert isinstance(policy, EntityNamingConventionPolicy)
+    return policy
+
+
+def _entity_missing_area(result) -> EntityMissingAreaPolicy:
+    assert result.file is not None
+    policy = next(p for p in result.file.policies if p.id == "entity-missing-area")
+    assert isinstance(policy, EntityMissingAreaPolicy)
+    return policy
+
+
+def _entity_reappeared(result) -> ReappearedAfterDeletePolicy:
+    assert result.file is not None
+    policy = next(p for p in result.file.policies if p.id == "entity-reappeared")
+    assert isinstance(policy, ReappearedAfterDeletePolicy)
+    return policy
 
 
 def test_default_policies_seed_contains_device_and_entity_baseline(tmp_path: Path):
@@ -27,10 +53,7 @@ def test_entity_naming_convention_seed_defaults():
     """Name: title-case + starts_with_room=False. Entity_id: starts_with_room=False.
     Warning severity, enabled by default."""
     result = load_policies_file(Path("/nope"))
-    assert result.file is not None
-    p = next(
-        pol for pol in result.file.policies if pol.id == "entity-naming-convention"
-    )
+    p = _entity_naming(result)
     assert p.severity == "warning"
     assert p.enabled is True
     assert p.name.global_.preset == "title-case"
@@ -41,8 +64,7 @@ def test_entity_naming_convention_seed_defaults():
 
 def test_entity_missing_area_seed_disabled_info():
     result = load_policies_file(Path("/nope"))
-    assert result.file is not None
-    p = next(pol for pol in result.file.policies if pol.id == "entity-missing-area")
+    p = _entity_missing_area(result)
     assert p.severity == "info"
     assert p.enabled is False
     assert p.require_own_area is False
@@ -50,8 +72,7 @@ def test_entity_missing_area_seed_disabled_info():
 
 def test_entity_reappeared_seed_disabled_info():
     result = load_policies_file(Path("/nope"))
-    assert result.file is not None
-    p = next(pol for pol in result.file.policies if pol.id == "entity-reappeared")
+    p = _entity_reappeared(result)
     assert p.severity == "info"
     assert p.enabled is False
     assert p.scope == "entities"

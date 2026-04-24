@@ -1,10 +1,16 @@
 """Mixed device + entity policies must survive a write → disk → reload cycle
 without drift. Guarantees the schema extensions compose with the existing
 YAML writer and that the discriminated union resolves both scopes."""
+from collections.abc import Mapping
 from pathlib import Path
 
 from home_curator.policies.loader import load_policies_file
-from home_curator.policies.schema import PoliciesFile
+from home_curator.policies.schema import (
+    CustomPolicy,
+    EntityMissingAreaPolicy,
+    EntityNamingConventionPolicy,
+    PoliciesFile,
+)
 from home_curator.policies.writer import write_policies_file
 
 
@@ -62,6 +68,12 @@ def _mixed_policies() -> PoliciesFile:
     })
 
 
+def _policy_as[T](mapping: Mapping[str, object], policy_id: str, cls: type[T]) -> T:
+    policy = mapping[policy_id]
+    assert isinstance(policy, cls)
+    return policy
+
+
 def test_mixed_policies_yaml_roundtrip(tmp_path: Path):
     original = _mixed_policies()
     path = tmp_path / "policies.yaml"
@@ -87,16 +99,16 @@ def test_mixed_policies_yaml_roundtrip(tmp_path: Path):
 
     # Spot-check entity-specific fields survive.
     by_id = {p.id: p for p in reloaded.policies}
-    en = by_id["en"]
+    en = _policy_as(by_id, "en", EntityNamingConventionPolicy)
     assert en.name.global_.preset == "title-case"
     assert en.name.starts_with_room is True
     assert en.entity_id.starts_with_room is True
     assert en.entity_id.rooms[0].enabled is False
 
-    ema = by_id["ema"]
+    ema = _policy_as(by_id, "ema", EntityMissingAreaPolicy)
     assert ema.require_own_area is True
 
-    c_ent = by_id["c-ent"]
+    c_ent = _policy_as(by_id, "c-ent", CustomPolicy)
     assert c_ent.scope == "entities"
 
 

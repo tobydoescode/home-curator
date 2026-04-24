@@ -60,7 +60,15 @@ def test_unreadable_file_returns_error(tmp_path):
 
 def test_invalid_schema(tmp_path):
     p = tmp_path / "bad.yaml"
-    p.write_text("version: 1\npolicies:\n  - id: x\n    type: unknown_type\n    severity: info\n    enabled: true\n")
+    p.write_text(
+        "version: 1\n"
+        "policies:\n"
+        "  - id: x\n"
+        "    type: unknown_type\n"
+        "    severity: info\n"
+        "    enabled: true\n"
+    )
     r = load_policies_file(p)
     assert r.file is None
+    assert r.error is not None
     assert "type" in r.error.lower()
