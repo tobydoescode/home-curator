@@ -4,7 +4,19 @@ Block `name` mirrors the device `naming_convention` rule verbatim (preset,
 pattern, starts_with_room, per-room overrides). Block `entity_id` is a
 locked-snake_case variant — rooms may opt out, but can't pick a different
 preset. Both blocks fire independently; evaluate() returns the first issue
-(protocol conformance), evaluate_all() returns every failing block."""
+(protocol conformance), evaluate_all() returns every failing block.
+
+Starts-with semantics for owned entities anchor on the owning DEVICE's
+name (not the room). The room prefix flows transitively through the
+device's own naming rule: `entity name → device name → room`. When the
+device's name doesn't itself start with the room, the entity-level issue
+is suppressed — the device rule will surface the problem once, instead of
+N times (once per child entity).
+
+Standalone entities (no owning device) fall back to checking the room
+prefix directly — they have no other anchor.
+"""
+import re
 from dataclasses import dataclass, field
 from re import Pattern
 
@@ -28,6 +40,15 @@ from home_curator.rules.naming_convention import (
 _ENTITY_ID_OBJECT_PATTERN: Pattern[str] = pattern_from_config(
     NamingPatternConfig(preset="snake_case"),
 )
+
+
+def _to_snake(s: str) -> str:
+    """Snake-case a human string the same way `_room_prefix` does for
+    snake_case presets — lowercase, spaces→underscores, strip everything
+    except [a-z0-9_], collapse runs of underscores. Used to compare an
+    entity_id's object part against its owning device's snaked name."""
+    source = s.lower().replace(" ", "_")
+    return re.sub(r"_+", "_", re.sub(r"[^a-z0-9_]", "", source))
 
 
 @dataclass
@@ -78,6 +99,10 @@ class CompiledEntityNaming:
             and entity.area_id in self.entity_id_cfg.overrides_by_area_id
             and self.entity_id_cfg.overrides_by_area_id[entity.area_id] is False
         )
+        device = (
+            ctx.devices_by_id.get(entity.device_id) if entity.device_id else None
+        )
+
         if not eid_opted_out:
             # entity_id is "<domain>.<object>". Domain part is always snake
             # in HA; we assert the object part (what the user controls via
@@ -90,16 +115,50 @@ class CompiledEntityNaming:
             if not _ENTITY_ID_OBJECT_PATTERN.match(object_id):
                 out.append(self._issue(entity, "Entity ID Doesn't Match Convention"))
             elif self.entity_id_cfg.global_starts_with_room and entity.area_id:
-                prefix = room_prefix(
-                    "snake_case", entity.area_id,
-                    ctx.area_id_to_name.get(entity.area_id),
+                area_name = ctx.area_id_to_name.get(entity.area_id)
+                snake_room_prefix = room_prefix(
+                    "snake_case", entity.area_id, area_name,
                 )
-                if prefix and not object_id.startswith(prefix):
-                    out.append(self._issue(
-                        entity, "Entity ID Doesn't Start With Its Room",
-                    ))
+                if device is not None:
+                    # Owned: anchor is the snake-cased device display name,
+                    # not the room directly. Room flows transitively.
+                    snake_device = _to_snake(device.display_name)
+                    if object_id.startswith(snake_device):
+                        pass  # inherited or user-extended — OK
+                    elif (
+                        snake_room_prefix
+                        and not snake_device.startswith(snake_room_prefix)
+                    ):
+                        # Device itself doesn't start with room — device rule
+                        # will fire; suppress entity-level complaint to avoid
+                        # duplicate noise.
+                        pass
+                    else:
+                        out.append(self._issue(
+                            entity, "Entity ID Doesn't Start With Device",
+                        ))
+                else:
+                    # Standalone: room is the only anchor.
+                    if (
+                        snake_room_prefix
+                        and not object_id.startswith(snake_room_prefix)
+                    ):
+                        out.append(self._issue(
+                            entity, "Entity ID Doesn't Start With Its Room",
+                        ))
 
         # ---- name block ----
+        # Entity inherits its friendly name from the owning device when it
+        # has neither `name` nor `original_name` — there's nothing
+        # entity-authored to judge. The device's own naming rule already
+        # covers both the preset and the prefix for the device's name, so
+        # skip the entity-level name block entirely.
+        if (
+            entity.name is None
+            and entity.original_name is None
+            and device is not None
+        ):
+            return out
         override = (
             self.name_cfg.overrides_by_area_id.get(entity.area_id)
             if entity.area_id else None
@@ -123,12 +182,31 @@ class CompiledEntityNaming:
         if not pattern.match(display):
             out.append(self._issue(entity, "Name Doesn't Match Convention"))
         elif swr and entity.area_id:
-            prefix = room_prefix(
-                preset, entity.area_id,
-                ctx.area_id_to_name.get(entity.area_id),
-            )
-            if prefix and not display.startswith(prefix):
-                out.append(self._issue(entity, "Name Doesn't Start With Its Room"))
+            area_name = ctx.area_id_to_name.get(entity.area_id)
+            room_pref = room_prefix(preset, entity.area_id, area_name)
+            # Inherited-from-device: entity has no own name, so display IS
+            # the device name. Device rule handles the prefix; skip.
+            inherited = entity.name is None and entity.original_name is None
+            if inherited:
+                return out
+            if device is not None:
+                anchor = device.display_name
+                if display.startswith(anchor):
+                    pass  # extended device name — OK
+                elif area_name and not anchor.lower().startswith(area_name.lower()):
+                    # Device name itself doesn't start with the room's
+                    # display name — device rule will fire; dedupe.
+                    pass
+                else:
+                    out.append(self._issue(
+                        entity, "Name Doesn't Start With Device",
+                    ))
+            else:
+                # Standalone: room is the only anchor.
+                if room_pref and not display.startswith(room_pref):
+                    out.append(self._issue(
+                        entity, "Name Doesn't Start With Its Room",
+                    ))
 
         return out
 

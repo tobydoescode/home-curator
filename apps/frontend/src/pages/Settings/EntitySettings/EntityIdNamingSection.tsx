@@ -76,7 +76,7 @@ export function EntityIdNamingSection({ block, onChange }: Props) {
         description="Fixed snake_case; use the Friendly Name block to change friendly naming."
       />
       <Switch
-        label="Starts with room name"
+        label="Starts with device name (or room if standalone)"
         checked={!!block.starts_with_room}
         onChange={(e) => {
           const v = e.currentTarget.checked;

@@ -21,10 +21,10 @@ const POLICIES_FILE = {
       severity: "warning",
       name: {
         global: { preset: "title-case" },
-        starts_with_room: true,
+        starts_with_room: false,
         rooms: [],
       },
-      entity_id: { starts_with_room: true, rooms: [] },
+      entity_id: { starts_with_room: false, rooms: [] },
     },
     {
       id: "entity-missing-area",
@@ -163,5 +163,39 @@ describe("EntitySettingsPage", () => {
       );
       expect(put).toBeDefined();
     });
+  });
+
+  it("Friendly Name toggle preserves nested `name.global` shape on save (no flat preset leak)", async () => {
+    const user = userEvent.setup();
+    wrap();
+    await screen.findByRole("heading", { name: /Friendly Name/i });
+
+    // Toggle the Friendly Name starts-with switch. The entity-side label
+    // is verbose: "Starts with device name (or room if standalone)".
+    const startsSwitches = await screen.findAllByRole("switch", {
+      name: /starts with device name/i,
+    });
+    // First occurrence is inside the Friendly Name accordion panel.
+    await user.click(startsSwitches[0]);
+
+    await user.click(screen.getByRole("button", { name: /Save/i }));
+    await waitFor(() => {
+      const put = (globalThis.fetch as any).mock.calls.find(
+        (c: any[]) => (c[0] as Request).method === "PUT",
+      );
+      expect(put).toBeDefined();
+    });
+    const put = (globalThis.fetch as any).mock.calls.find(
+      (c: any[]) => (c[0] as Request).method === "PUT",
+    )[0] as Request;
+    const body = await put.json();
+    const policy = body.policies.find(
+      (p: any) => p.type === "entity_naming_convention",
+    );
+    // Nested shape preserved: name.global.preset, not name.preset.
+    expect(policy.name.global.preset).toBe("title-case");
+    expect(policy.name).not.toHaveProperty("preset");
+    // Toggle reached the payload.
+    expect(policy.name.starts_with_room).toBe(true);
   });
 });

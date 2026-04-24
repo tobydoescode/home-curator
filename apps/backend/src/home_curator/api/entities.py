@@ -89,6 +89,10 @@ def list_entities(
         area_name_to_id=state.cache.area_name_to_id(),
         area_id_to_name=state.cache.area_id_to_name(),
         exceptions=exceptions,
+        # entity_naming_convention's "starts with device" check needs to
+        # resolve the owning device's display name, so devices must be on
+        # the ctx that's passed per-evaluation.
+        devices_by_id=devices_by_id,
     )
 
     # Apply gating toggles first so they also influence the filter option

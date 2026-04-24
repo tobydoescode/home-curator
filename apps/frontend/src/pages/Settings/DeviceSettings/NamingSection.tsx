@@ -69,6 +69,10 @@ export interface NamingBlockSectionProps {
   showPreset?: boolean;
   /** When false, the custom-pattern field is hidden (entity_id shape). */
   allowCustomPattern?: boolean;
+  /** Label for the starts-with-room switch. Entity-side callers override
+   *  with verbose "starts with device name (or room if standalone)" wording
+   *  since the semantics differ on the entity side. */
+  startsWithRoomLabel?: string;
 }
 
 export function NamingBlockSection({
@@ -76,6 +80,7 @@ export function NamingBlockSection({
   onBlockChange,
   showPreset = true,
   allowCustomPattern = true,
+  startsWithRoomLabel = "Starts with room name",
 }: NamingBlockSectionProps) {
   const areas = useQuery({
     queryKey: ["areas"],
@@ -156,8 +161,8 @@ export function NamingBlockSection({
       </Group>
       <Switch
         role="switch"
-        aria-label="Starts with room name"
-        label="Starts with room name"
+        aria-label={startsWithRoomLabel}
+        label={startsWithRoomLabel}
         checked={!!block.starts_with_room}
         onChange={(e) => {
           const v = e.currentTarget.checked;

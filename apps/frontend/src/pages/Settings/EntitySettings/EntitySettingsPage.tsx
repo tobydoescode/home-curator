@@ -90,8 +90,22 @@ export function EntitySettingsPage() {
     namingIdx >= 0
       ? (draft.policies[namingIdx] as Record<string, unknown>)
       : null;
-  const nameBlock: NamingBlock =
-    (naming?.name as NamingBlock | undefined) ?? { preset: "title-case" };
+  // Backend's EntityNameBlock is nested: `{global: {preset, pattern}, starts_with_room, rooms}`.
+  // NamingBlockSection edits the flat shape `{preset, pattern, starts_with_room, rooms}`.
+  // Lift on read, lower on write — same pattern as the device-side NamingSection
+  // wrapper. Without this lower, the Select's onChange pushes a top-level
+  // `preset` into `name`, which EntityNameBlock's extra="forbid" rejects at save.
+  const rawName = (naming?.name ?? {}) as {
+    global?: { preset?: NamingBlock["preset"]; pattern?: string | null };
+    starts_with_room?: boolean;
+    rooms?: NamingBlock["rooms"];
+  };
+  const nameBlock: NamingBlock = {
+    preset: rawName.global?.preset ?? "title-case",
+    pattern: rawName.global?.pattern ?? null,
+    starts_with_room: !!rawName.starts_with_room,
+    rooms: rawName.rooms ?? [],
+  };
   const idBlock: EntityIdBlock =
     (naming?.entity_id as EntityIdBlock | undefined) ?? {
       starts_with_room: false,
@@ -99,7 +113,13 @@ export function EntitySettingsPage() {
     };
 
   function onNameBlockChange(next: NamingBlock): void {
-    patchPolicy(namingIdx, { name: next });
+    patchPolicy(namingIdx, {
+      name: {
+        global: { preset: next.preset, pattern: next.pattern ?? undefined },
+        starts_with_room: !!next.starts_with_room,
+        rooms: next.rooms ?? [],
+      },
+    });
   }
   function onIdBlockChange(next: EntityIdBlock): void {
     patchPolicy(namingIdx, { entity_id: next });
@@ -145,6 +165,7 @@ export function EntitySettingsPage() {
                 <NamingBlockSection
                   block={nameBlock}
                   onBlockChange={onNameBlockChange}
+                  startsWithRoomLabel="Starts with device name (or room if standalone)"
                 />
               </Accordion.Panel>
             </Accordion.Item>

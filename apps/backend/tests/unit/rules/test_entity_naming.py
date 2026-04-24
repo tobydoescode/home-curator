@@ -191,3 +191,234 @@ def test_issue_target_fields():
     assert issue is not None
     assert issue.target_kind == "entity"
     assert issue.target_id == "light.BadName"
+
+
+# ---------------------------------------------------------------------------
+# starts-with-device logic (name + entity_id blocks)
+#
+# Anchor for owned entities is the DEVICE's display name (transitively
+# room-prefixed by the device rule). Fall back to the room prefix only for
+# standalone entities. Dedupe: when the device's name itself doesn't start
+# with the room, suppress the entity issue — device rule handles it.
+# ---------------------------------------------------------------------------
+from home_curator.rules.base import Device  # noqa: E402
+
+
+def _dev(
+    id="d1",
+    name="Living Room Lamp",
+    area_id="lr",
+    area_name="Living Room",
+):
+    return Device(
+        id=id, name=name, name_by_user=None,
+        manufacturer=None, model=None,
+        area_id=area_id, area_name=area_name,
+        integration=None, disabled_by=None,
+        entities=[],
+    )
+
+
+def _swr_policy():
+    """Both blocks have starts_with_room=True."""
+    return _policy(
+        name={"global": {"preset": "title-case"}, "starts_with_room": True},
+        entity_id={"starts_with_room": True},
+    )
+
+
+# ---- name block ----
+
+def test_name_owned_display_starts_with_device_passes():
+    rule = compile_entity_naming(_swr_policy())
+    ctx = _ctx(
+        area_id_to_name={"lr": "Living Room"},
+        devices_by_id={"d1": _dev()},
+    )
+    entity = _e(
+        entity_id="light.living_room_lamp_ambient",
+        name="Living Room Lamp Ambient",
+        device_id="d1", area_id="lr",
+    )
+    assert rule.evaluate_all(entity, ctx) == []
+
+
+def test_name_owned_display_not_starting_with_device_emits_device_issue():
+    rule = compile_entity_naming(_swr_policy())
+    ctx = _ctx(
+        area_id_to_name={"lr": "Living Room"},
+        devices_by_id={"d1": _dev()},
+    )
+    entity = _e(
+        entity_id="light.living_room_lamp_ambient",
+        name="Ambient",  # title-case passes pattern but not prefix
+        device_id="d1", area_id="lr",
+    )
+    messages = [i.message for i in rule.evaluate_all(entity, ctx)]
+    assert "Name Doesn't Start With Device" in messages
+
+
+def test_name_owned_device_itself_wrong_dedupes_entity_issue():
+    """Device 'Lounge Lamp' in room 'Living Room' — device rule will fire;
+    suppress entity issue to avoid duplicate complaints."""
+    rule = compile_entity_naming(_swr_policy())
+    ctx = _ctx(
+        area_id_to_name={"lr": "Living Room"},
+        devices_by_id={"d1": _dev(name="Lounge Lamp")},
+    )
+    entity = _e(
+        entity_id="light.living_room_lamp_ambient",
+        name="Ambient",
+        device_id="d1", area_id="lr",
+    )
+    messages = [i.message for i in rule.evaluate_all(entity, ctx)]
+    assert "Name Doesn't Start With Device" not in messages
+    assert "Name Doesn't Start With Its Room" not in messages
+
+
+def test_name_standalone_display_starts_with_room_passes():
+    rule = compile_entity_naming(_swr_policy())
+    ctx = _ctx(
+        area_id_to_name={"lr": "Living Room"},
+        devices_by_id={},
+    )
+    entity = _e(
+        entity_id="light.living_room_ambient",
+        name="Living Room Ambient",
+        device_id=None, area_id="lr",
+    )
+    assert rule.evaluate_all(entity, ctx) == []
+
+
+def test_name_standalone_display_not_starting_with_room_emits_room_issue():
+    rule = compile_entity_naming(_swr_policy())
+    ctx = _ctx(
+        area_id_to_name={"lr": "Living Room"},
+        devices_by_id={},
+    )
+    entity = _e(
+        entity_id="light.living_room_ambient",
+        name="Ambient",
+        device_id=None, area_id="lr",
+    )
+    messages = [i.message for i in rule.evaluate_all(entity, ctx)]
+    assert "Name Doesn't Start With Its Room" in messages
+
+
+def test_name_inherited_from_device_passes():
+    """name=None and original_name=None → entity inherits device's name.
+    Skip the starts_with check; device rule handles the prefix."""
+    rule = compile_entity_naming(_swr_policy())
+    ctx = _ctx(
+        area_id_to_name={"lr": "Living Room"},
+        devices_by_id={"d1": _dev()},
+    )
+    entity = _e(
+        entity_id="light.living_room_lamp",
+        name=None, original_name=None,
+        device_id="d1", area_id="lr",
+    )
+    assert rule.evaluate_all(entity, ctx) == []
+
+
+def test_name_entity_no_area_skips_prefix_check():
+    rule = compile_entity_naming(_swr_policy())
+    ctx = _ctx(devices_by_id={"d1": _dev(area_id=None, area_name=None)})
+    entity = _e(
+        entity_id="light.living_room_lamp_ambient",
+        name="Living Room Lamp Ambient",
+        device_id="d1", area_id=None,
+    )
+    assert rule.evaluate_all(entity, ctx) == []
+
+
+# ---- entity_id block ----
+
+def test_entity_id_owned_object_starts_with_snake_device_passes():
+    rule = compile_entity_naming(_swr_policy())
+    ctx = _ctx(
+        area_id_to_name={"lr": "Living Room"},
+        devices_by_id={"d1": _dev()},
+    )
+    entity = _e(
+        entity_id="light.living_room_lamp_ambient",
+        name="Living Room Lamp Ambient",
+        device_id="d1", area_id="lr",
+    )
+    assert rule.evaluate_all(entity, ctx) == []
+
+
+def test_entity_id_owned_object_not_starting_with_device_emits_device_issue():
+    rule = compile_entity_naming(_swr_policy())
+    ctx = _ctx(
+        area_id_to_name={"lr": "Living Room"},
+        devices_by_id={"d1": _dev()},
+    )
+    entity = _e(
+        entity_id="light.ambient",
+        name="Living Room Lamp Ambient",
+        device_id="d1", area_id="lr",
+    )
+    messages = [i.message for i in rule.evaluate_all(entity, ctx)]
+    assert "Entity ID Doesn't Start With Device" in messages
+
+
+def test_entity_id_owned_device_snake_wrong_dedupes():
+    rule = compile_entity_naming(_swr_policy())
+    ctx = _ctx(
+        area_id_to_name={"lr": "Living Room"},
+        devices_by_id={"d1": _dev(name="Lounge Lamp")},  # snake "lounge_lamp"
+    )
+    entity = _e(
+        entity_id="light.ambient",
+        name="Living Room Lamp Ambient",
+        device_id="d1", area_id="lr",
+    )
+    messages = [i.message for i in rule.evaluate_all(entity, ctx)]
+    assert "Entity ID Doesn't Start With Device" not in messages
+    assert "Entity ID Doesn't Start With Its Room" not in messages
+
+
+def test_entity_id_standalone_object_starts_with_snake_room_passes():
+    rule = compile_entity_naming(_swr_policy())
+    ctx = _ctx(
+        area_id_to_name={"lr": "Living Room"},
+        devices_by_id={},
+    )
+    entity = _e(
+        entity_id="light.living_room_ambient",
+        name="Living Room Ambient",
+        device_id=None, area_id="lr",
+    )
+    assert rule.evaluate_all(entity, ctx) == []
+
+
+def test_entity_id_standalone_object_wrong_emits_room_issue():
+    rule = compile_entity_naming(_swr_policy())
+    ctx = _ctx(
+        area_id_to_name={"lr": "Living Room"},
+        devices_by_id={},
+    )
+    entity = _e(
+        entity_id="light.ambient",
+        name="Living Room Ambient",
+        device_id=None, area_id="lr",
+    )
+    messages = [i.message for i in rule.evaluate_all(entity, ctx)]
+    assert "Entity ID Doesn't Start With Its Room" in messages
+
+
+def test_entity_id_exactly_matches_snake_device_passes():
+    """HA's default entity_id (object_id == snake(device)) is treated as
+    inherited — no custom suffix, so 'starts_with_device' is satisfied."""
+    rule = compile_entity_naming(_swr_policy())
+    ctx = _ctx(
+        area_id_to_name={"lr": "Living Room"},
+        devices_by_id={"d1": _dev()},
+    )
+    entity = _e(
+        entity_id="light.living_room_lamp",
+        name="Living Room Lamp",
+        device_id="d1", area_id="lr",
+    )
+    assert rule.evaluate_all(entity, ctx) == []
