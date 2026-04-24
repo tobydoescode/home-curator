@@ -7,9 +7,29 @@ caller typos would otherwise silently fail to update anything. Event
 types form a discriminated union on the `kind` Literal field.
 """
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
+
+
+def _stringify_identifier_parts(v: Any) -> Any:
+    """Coerce HA device identifier parts to strings.
+
+    Most integrations emit `[domain, id]` as `[str, str]`, but some
+    (zwave_js, zigbee) emit an integer node_id. Downstream code hashes
+    identifiers via f-string interpolation, so mixing types was always
+    benign at the storage layer — we just make the typed boundary
+    honest by stringifying inner scalars at ingest.
+    """
+    if not isinstance(v, list):
+        return v
+    out: list[Any] = []
+    for inner in v:
+        if isinstance(inner, list):
+            out.append([str(x) if not isinstance(x, str) else x for x in inner])
+        else:
+            out.append(inner)
+    return out
 
 
 class HAArea(BaseModel):
@@ -35,7 +55,9 @@ class HADevice(BaseModel):
     area_id: str | None = None
     integration: str | None = None
     disabled_by: str | None = None
-    identifiers: list[list[str]] = Field(default_factory=list)
+    identifiers: Annotated[
+        list[list[str]], BeforeValidator(_stringify_identifier_parts)
+    ] = Field(default_factory=list)
     config_entries: list[str] = Field(default_factory=list)
     entities: list[HADeviceEntityRef] = Field(default_factory=list)
     created_at: str | None = None

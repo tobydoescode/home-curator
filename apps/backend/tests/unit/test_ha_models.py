@@ -94,6 +94,16 @@ def test_ha_device_ignores_extra_fields():
     assert not hasattr(d, "new_ha_field")
 
 
+def test_ha_device_coerces_int_identifier_parts_to_str():
+    # Some HA integrations (zwave_js, zigbee) emit int node_ids in the
+    # identifier tuple. Coerce at ingest so the downstream list[list[str]]
+    # shape holds and the existing identifier hashing behavior is preserved.
+    d = HADevice.model_validate(
+        {"id": "d1", "identifiers": [["zwave_js", 395025], ["hue", "abc"]]}
+    )
+    assert d.identifiers == [["zwave_js", "395025"], ["hue", "abc"]]
+
+
 def test_ha_entity_requires_entity_id():
     with pytest.raises(ValidationError):
         HAEntity()  # type: ignore[call-arg]
