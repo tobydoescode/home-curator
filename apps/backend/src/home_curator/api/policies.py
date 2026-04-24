@@ -22,10 +22,11 @@ from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
 
 router = APIRouter(prefix="/api/policies", tags=["policies"])
+_APP_STATE_DEPENDENCY = Depends(app_state)
 
 
 @router.get("", response_model=PoliciesListResponse)
-def list_policies(state: AppState = Depends(app_state)) -> PoliciesListResponse:
+def list_policies(state: AppState = _APP_STATE_DEPENDENCY) -> PoliciesListResponse:
     """List all policies currently loaded by the engine.
 
     The `error` field is non-null if the YAML file is invalid; in that case
@@ -50,7 +51,7 @@ def list_policies(state: AppState = Depends(app_state)) -> PoliciesListResponse:
 
 
 @router.get("/file", response_model=PoliciesFile)
-def get_policies_file(state: AppState = Depends(app_state)) -> PoliciesFile:
+def get_policies_file(state: AppState = _APP_STATE_DEPENDENCY) -> PoliciesFile:
     """Return the fully-typed policies file (all fields, not a summary).
 
     Used by the authoring UI so it can round-trip every field without loss.
@@ -63,7 +64,10 @@ def get_policies_file(state: AppState = Depends(app_state)) -> PoliciesFile:
 
 
 @router.put("", response_model=UpdatePoliciesResponse)
-async def update_policies(body: PoliciesFile, state: AppState = Depends(app_state)) -> UpdatePoliciesResponse:
+async def update_policies(
+    body: PoliciesFile,
+    state: AppState = _APP_STATE_DEPENDENCY,
+) -> UpdatePoliciesResponse:
     """Replace policies.yaml.
 
     After writing, cascade-delete any exceptions that reference a policy_id
@@ -100,7 +104,8 @@ def compile_policy(body: Policy) -> PolicyCompileResponse:
 
 @router.post("/simulate", response_model=SimulateResponse)
 def simulate_policy(
-    body: SimulateRequest, state: AppState = Depends(app_state)
+    body: SimulateRequest,
+    state: AppState = _APP_STATE_DEPENDENCY,
 ) -> SimulateResponse:
     """Run a custom rule against the full device OR entity set depending
     on the policy's `scope`. Non-custom rule types return ok=True with
