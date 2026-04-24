@@ -9,12 +9,26 @@ from fastapi.staticfiles import StaticFiles
 
 from home_curator.api import (
     actions as actions_api,
+)
+from home_curator.api import (
     areas as areas_api,
+)
+from home_curator.api import (
     config_api,
+)
+from home_curator.api import (
     devices as devices_api,
+)
+from home_curator.api import (
     entities as entities_api,
+)
+from home_curator.api import (
     events as events_api,
+)
+from home_curator.api import (
     exceptions as exceptions_api,
+)
+from home_curator.api import (
     policies as policies_api,
 )
 from home_curator.api.deps import AppState

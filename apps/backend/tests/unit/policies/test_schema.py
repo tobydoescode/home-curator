@@ -1,7 +1,12 @@
 import pytest
 from pydantic import ValidationError
 
-from home_curator.policies.schema import NamingConventionPolicy, PoliciesFile, CustomPolicy, RoomOverride
+from home_curator.policies.schema import (
+    CustomPolicy,
+    NamingConventionPolicy,
+    PoliciesFile,
+    RoomOverride,
+)
 
 
 def test_minimal_file():

@@ -2,7 +2,14 @@ from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, model_validator
 
 from home_curator.api.deps import AppState, app_state
-from home_curator.api.schemas import AcknowledgeResponse, BulkDeleteRequest, BulkDeleteResponse, ExceptionOut, ExceptionRow, ExceptionsListResponse
+from home_curator.api.schemas import (
+    AcknowledgeResponse,
+    BulkDeleteRequest,
+    BulkDeleteResponse,
+    ExceptionOut,
+    ExceptionRow,
+    ExceptionsListResponse,
+)
 from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
 
