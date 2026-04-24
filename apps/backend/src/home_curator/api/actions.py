@@ -22,6 +22,7 @@ from home_curator.api.schemas import (
     RenamePatternResult,
     RenameResponse,
 )
+from home_curator.ha_client.models import HADeviceUpdate, HAEntityUpdate
 
 router = APIRouter(prefix="/api/actions", tags=["actions"])
 
@@ -108,7 +109,7 @@ async def assign_room(body: AssignRoomBody, state: AppState = Depends(app_state)
     results = []
     for did in body.device_ids:
         try:
-            await state.ha.update_device(did, {"area_id": body.area_id})
+            await state.ha.update_device(did, HADeviceUpdate(area_id=body.area_id))
             results.append(AssignRoomResult(device_id=did, ok=True))
         except Exception as e:
             results.append(AssignRoomResult(device_id=did, ok=False, error=str(e)))
@@ -118,7 +119,7 @@ async def assign_room(body: AssignRoomBody, state: AppState = Depends(app_state)
 @router.post("/rename", response_model=RenameResponse)
 async def rename(body: RenameBody, state: AppState = Depends(app_state)) -> RenameResponse:
     """Rename a single device via `name_by_user`."""
-    await state.ha.update_device(body.device_id, {"name_by_user": body.name_by_user})
+    await state.ha.update_device(body.device_id, HADeviceUpdate(name_by_user=body.name_by_user))
     return RenameResponse(ok=True)
 
 
@@ -144,7 +145,7 @@ async def rename_pattern(body: RenamePatternBody, state: AppState = Depends(app_
             results.append(RenamePatternResult(device_id=did, matched=True, new_name=new, dry_run=True))
         else:
             try:
-                await state.ha.update_device(did, {"name_by_user": new})
+                await state.ha.update_device(did, HADeviceUpdate(name_by_user=new))
                 results.append(RenamePatternResult(device_id=did, matched=True, new_name=new, ok=True))
             except Exception as e:
                 results.append(RenamePatternResult(device_id=did, matched=True, ok=False, error=str(e)))
@@ -163,9 +164,9 @@ async def update_device(
     if not payload:
         raise HTTPException(status_code=400, detail="no fields to update")
     try:
-        await state.ha.update_device(device_id, payload)
+        await state.ha.update_device(device_id, HADeviceUpdate.model_validate(payload))
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"ha update failed: {e}")
+        raise HTTPException(status_code=502, detail=f"ha update failed: {e}") from e
     return RenameResponse(ok=True)
 
 
@@ -184,9 +185,9 @@ async def update_entity(
     if not payload:
         raise HTTPException(status_code=400, detail="no fields to update")
     try:
-        await state.ha.update_entity(entity_id, payload)
+        await state.ha.update_entity(entity_id, HAEntityUpdate.model_validate(payload))
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"ha update failed: {e}")
+        raise HTTPException(status_code=502, detail=f"ha update failed: {e}") from e
     return RenameResponse(ok=True)
 
 
@@ -202,7 +203,7 @@ async def assign_room_entities(
     results: list[AssignRoomEntityResult] = []
     for eid in body.entity_ids:
         try:
-            await state.ha.update_entity(eid, {"area_id": body.area_id})
+            await state.ha.update_entity(eid, HAEntityUpdate(area_id=body.area_id))
             results.append(AssignRoomEntityResult(entity_id=eid, ok=True))
         except Exception as e:
             results.append(AssignRoomEntityResult(entity_id=eid, ok=False, error=str(e)))
@@ -308,13 +309,12 @@ async def rename_pattern_entities(
             )
             continue
 
-        payload: dict[str, str] = {}
-        if id_changed and new_id is not None:
-            payload["new_entity_id"] = new_id
-        if name_changed and new_name is not None:
-            payload["name"] = new_name
+        changes = HAEntityUpdate(
+            **({"new_entity_id": new_id} if id_changed and new_id is not None else {}),
+            **({"name": new_name} if name_changed and new_name is not None else {}),
+        )
         try:
-            await state.ha.update_entity(eid, payload)
+            await state.ha.update_entity(eid, changes)
             results.append(
                 RenamePatternEntityResult(
                     entity_id=eid,
@@ -361,7 +361,7 @@ async def entity_state(
     results: list[EntityStateResult] = []
     for eid in body.entity_ids:
         try:
-            await state.ha.update_entity(eid, {body.field: body.value})
+            await state.ha.update_entity(eid, HAEntityUpdate(**{body.field: body.value}))
             results.append(EntityStateResult(entity_id=eid, ok=True))
         except Exception as e:
             results.append(EntityStateResult(entity_id=eid, ok=False, error=str(e)))
