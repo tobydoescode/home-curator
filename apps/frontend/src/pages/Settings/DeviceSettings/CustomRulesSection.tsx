@@ -1,7 +1,7 @@
 import { ActionIcon, Badge, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
 import { IconEdit, IconFlask, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 import { applyCustomRuleEdit } from "@/pages/Settings/applyCustomRuleEdit";
 import { CustomRuleEditor, type CustomRule } from "@/pages/Settings/CustomRuleEditor";
