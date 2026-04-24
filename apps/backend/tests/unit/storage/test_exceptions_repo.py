@@ -1,9 +1,12 @@
+from datetime import UTC, datetime
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
-from home_curator.storage.models import Base
+from home_curator.storage.models import Base, Exemption
 
 
 @pytest.fixture
@@ -101,17 +104,29 @@ def test_all_acknowledged_keys_reflects_clear(session):
     assert repo.all_acknowledged_keys() == {("device", "d1", "p2")}
 
 
-from datetime import UTC, datetime
-
-from home_curator.storage.db import session_scope
-from home_curator.storage.models import Exemption
-
-
 def test_list_paginated_orders_newest_first(session_factory):
     with session_scope(session_factory) as s:
-        s.add(Exemption(device_id="d1", policy_id="p1", acknowledged_at=datetime(2026, 1, 1, tzinfo=UTC)))
-        s.add(Exemption(device_id="d2", policy_id="p1", acknowledged_at=datetime(2026, 2, 1, tzinfo=UTC)))
-        s.add(Exemption(device_id="d3", policy_id="p2", acknowledged_at=datetime(2026, 3, 1, tzinfo=UTC)))
+        s.add(
+            Exemption(
+                device_id="d1",
+                policy_id="p1",
+                acknowledged_at=datetime(2026, 1, 1, tzinfo=UTC),
+            )
+        )
+        s.add(
+            Exemption(
+                device_id="d2",
+                policy_id="p1",
+                acknowledged_at=datetime(2026, 2, 1, tzinfo=UTC),
+            )
+        )
+        s.add(
+            Exemption(
+                device_id="d3",
+                policy_id="p2",
+                acknowledged_at=datetime(2026, 3, 1, tzinfo=UTC),
+            )
+        )
     with session_scope(session_factory) as s:
         rows, total = ExceptionsRepo(s).list_paginated(page=1, page_size=2)
     assert total == 3

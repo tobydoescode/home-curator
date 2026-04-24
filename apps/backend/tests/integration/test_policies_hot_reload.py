@@ -19,7 +19,11 @@ def test_policy_edit_triggers_reload(client, tmp_path):
     deadline = time.time() + 3
     while time.time() < deadline:
         r = client.get("/api/policies")
-        disabled = [p for p in r.json()["policies"] if p["id"] == "missing-room" and not p["enabled"]]
+        disabled = [
+            p
+            for p in r.json()["policies"]
+            if p["id"] == "missing-room" and not p["enabled"]
+        ]
         if disabled:
             return
         time.sleep(0.2)
