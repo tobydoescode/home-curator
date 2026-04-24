@@ -23,6 +23,7 @@ from home_curator.config import Settings
 from home_curator.deletion_tracker import DeletionTracker
 from home_curator.events.broker import EventBroker
 from home_curator.ha_client.base import HAClient
+from home_curator.ha_client.models import HAEvent
 from home_curator.ha_client.websocket import WebSocketHAClient
 from home_curator.policies.loader import load_policies_file
 from home_curator.registry_cache.cache import RegistryCache
@@ -137,22 +138,26 @@ def create_app(
                     await broker.publish({"kind": kind, "entity_id": entity_id})
                 await broker.publish({"kind": "entities_changed"})
 
-            def on_event(e):
+            def on_event(e: HAEvent) -> None:
                 loop = asyncio.get_running_loop()
-                kind = e.get("kind")
-                if kind == "device_updated":
-                    loop.create_task(_refresh_and_publish_devices())
-                elif kind in ("entity_updated", "entity_deleted"):
-                    loop.create_task(
-                        _refresh_and_publish_entity(e.get("entity_id"), kind)
-                    )
-                elif kind == "area_updated":
-                    loop.create_task(_refresh_and_publish_devices())
-                elif kind == "reconnected":
-                    loop.create_task(_refresh_and_publish_devices())
-                    loop.create_task(
-                        _refresh_and_publish_entity(None, "entities_changed")
-                    )
+                match e.kind:
+                    case "device_updated":
+                        loop.create_task(_refresh_and_publish_devices())
+                    case "entity_updated":
+                        loop.create_task(
+                            _refresh_and_publish_entity(e.entity_id, "entity_updated")
+                        )
+                    case "entity_deleted":
+                        loop.create_task(
+                            _refresh_and_publish_entity(e.entity_id, "entity_deleted")
+                        )
+                    case "area_updated":
+                        loop.create_task(_refresh_and_publish_devices())
+                    case "reconnected":
+                        loop.create_task(_refresh_and_publish_devices())
+                        loop.create_task(
+                            _refresh_and_publish_entity(None, "entities_changed")
+                        )
 
             unsub = client.subscribe(on_event)
             task = asyncio.create_task(
