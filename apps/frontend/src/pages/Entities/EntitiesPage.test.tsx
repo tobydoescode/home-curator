@@ -207,7 +207,9 @@ describe("EntitiesPage", () => {
     const idInput = (await screen.findByLabelText(
       "Entity ID",
     )) as HTMLInputElement;
-    expect(idInput.value).toBe("light.kitchen_lamp");
+    // Drawer's Entity ID input holds only the object_id portion; the
+    // domain is shown as a readonly leftSection.
+    expect(idInput.value).toBe("kitchen_lamp");
 
     // Close via the drawer's Cancel button (form is pristine so no dirty-guard).
     await user.click(screen.getByRole("button", { name: /^Cancel$/ }));

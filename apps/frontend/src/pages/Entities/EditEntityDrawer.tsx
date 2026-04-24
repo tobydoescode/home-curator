@@ -28,7 +28,16 @@ import {
 } from "@/hooks/useExceptions";
 import { openRenameConfirmModal } from "./modals/RenameConfirmModal";
 
-const SLUG_RE = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
+// Domain (e.g. "light", "sensor") is baked into what kind of entity this is
+// in HA. Changing it would usually be a mistake, so only the object_id part
+// is editable in the drawer. Object_id must be snake_case.
+const OBJECT_ID_RE = /^[a-z][a-z0-9_]*$/;
+
+function splitEntityId(id: string): { domain: string; object: string } {
+  const dot = id.indexOf(".");
+  if (dot < 0) return { domain: "", object: id };
+  return { domain: id.slice(0, dot), object: id.slice(dot + 1) };
+}
 
 export interface EditEntityDrawerEntity {
   entity_id: string;
@@ -68,7 +77,9 @@ export function EditEntityDrawer({ opened, onClose, entity, areas }: Props) {
   // Track the "identity" of the entity we're editing — shifts after a
   // successful rename so subsequent saves PATCH the new slug.
   const [editingId, setEditingId] = useState<string>(entity?.entity_id ?? "");
-  const [slug, setSlug] = useState<string>(entity?.entity_id ?? "");
+  const initialDomain = entity ? splitEntityId(entity.entity_id).domain : "";
+  const initialObject = entity ? splitEntityId(entity.entity_id).object : "";
+  const [objectId, setObjectId] = useState<string>(initialObject);
   const [name, setName] = useState<string>(entity?.name ?? "");
   const [areaId, setAreaId] = useState<string | null>(entity?.area_id ?? null);
   const [enabled, setEnabled] = useState<boolean>(entity?.disabled_by === null);
@@ -79,7 +90,7 @@ export function EditEntityDrawer({ opened, onClose, entity, areas }: Props) {
   useEffect(() => {
     if (!entity) return;
     setEditingId(entity.entity_id);
-    setSlug(entity.entity_id);
+    setObjectId(splitEntityId(entity.entity_id).object);
     setName(entity.name ?? "");
     setAreaId(entity.area_id);
     setEnabled(entity.disabled_by === null);
@@ -90,19 +101,20 @@ export function EditEntityDrawer({ opened, onClose, entity, areas }: Props) {
   if (!entity) return null;
 
   const initialName = entity.name ?? "";
-  const slugValid = SLUG_RE.test(slug);
-  const slugDirty = slug !== entity.entity_id;
+  const objectIdValid = OBJECT_ID_RE.test(objectId);
+  const newSlug = `${initialDomain}.${objectId}`;
+  const slugDirty = newSlug !== entity.entity_id;
   const nameDirty = name !== initialName;
   const areaDirty = areaId !== entity.area_id;
   const enabledDirty = enabled !== (entity.disabled_by === null);
   const visibleDirty = visible !== (entity.hidden_by === null);
   const isDirty =
     slugDirty || nameDirty || areaDirty || enabledDirty || visibleDirty;
-  const canSave = isDirty && slugValid && !update.isPending;
+  const canSave = isDirty && objectIdValid && !update.isPending;
 
   function buildChanges(): UpdateEntityChanges {
     const c: UpdateEntityChanges = {};
-    if (slugDirty) c.new_entity_id = slug;
+    if (slugDirty) c.new_entity_id = newSlug;
     if (nameDirty) c.name = name === "" ? null : name;
     if (areaDirty) c.area_id = areaId;
     if (enabledDirty) c.disabled_by = enabled ? null : "user";
@@ -116,7 +128,7 @@ export function EditEntityDrawer({ opened, onClose, entity, areas }: Props) {
       { entity_id: editingId, changes },
       {
         onSuccess: () => {
-          if (slugDirty) setEditingId(slug);
+          if (slugDirty) setEditingId(newSlug);
         },
       },
     );
@@ -127,7 +139,7 @@ export function EditEntityDrawer({ opened, onClose, entity, areas }: Props) {
     if (slugDirty) {
       openRenameConfirmModal({
         oldId: entity.entity_id,
-        newId: slug,
+        newId: newSlug,
         onConfirm: doSave,
       });
       return;
@@ -187,9 +199,23 @@ export function EditEntityDrawer({ opened, onClose, entity, areas }: Props) {
         </Alert>
         <TextInput
           label="Entity ID"
-          value={slug}
-          onChange={(e) => setSlug(e.currentTarget.value)}
-          error={!slugValid ? "Invalid slug (expected domain.object_id)" : undefined}
+          // Domain is readonly — changing it would repurpose the entity's
+          // type (e.g. light→switch) which is almost always a mistake.
+          // Show it as a dimmed leftSection so the user still sees the full
+          // slug but can only edit the object_id portion.
+          leftSection={
+            <Text size="sm" c="dimmed" pl={4}>
+              {initialDomain}.
+            </Text>
+          }
+          leftSectionWidth={`calc(${initialDomain.length}ch + 1.25rem)`}
+          value={objectId}
+          onChange={(e) => setObjectId(e.currentTarget.value)}
+          error={
+            !objectIdValid
+              ? "Invalid object ID (lowercase letters, digits, underscores)"
+              : undefined
+          }
         />
         <TextInput
           label="Name"

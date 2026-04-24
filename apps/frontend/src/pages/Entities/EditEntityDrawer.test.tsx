@@ -61,8 +61,10 @@ describe("EditEntityDrawer", () => {
     render(
       wrap(<EditEntityDrawer opened onClose={() => {}} entity={ENTITY} areas={AREAS} />),
     );
+    // The Entity ID input holds only the object_id portion; the domain is
+    // shown as a readonly leftSection.
     expect((screen.getByLabelText("Entity ID") as HTMLInputElement).value).toBe(
-      "light.office_lamp",
+      "office_lamp",
     );
     expect(
       screen.getByText(/Renaming the entity ID can break references/i),
@@ -85,7 +87,7 @@ describe("EditEntityDrawer", () => {
       ),
     );
     expect((screen.getByLabelText("Entity ID") as HTMLInputElement).value).toBe(
-      "light.other",
+      "other",
     );
   });
 
@@ -96,7 +98,8 @@ describe("EditEntityDrawer", () => {
     );
     const slugInput = screen.getByLabelText("Entity ID");
     await user.clear(slugInput);
-    await user.type(slugInput, "Light.Bad_Case");
+    // Uppercase not allowed in object_id (snake_case only).
+    await user.type(slugInput, "Bad_Case");
     expect(slugInput).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
@@ -130,7 +133,9 @@ describe("EditEntityDrawer", () => {
     );
     const slugInput = screen.getByLabelText("Entity ID");
     await user.clear(slugInput);
-    await user.type(slugInput, "light.study_lamp");
+    // Domain "light." is rendered as a non-editable leftSection; user
+    // types only the new object_id.
+    await user.type(slugInput, "study_lamp");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     const title = await screen.findByText(/Rename Entity ID\?/i);
@@ -154,7 +159,9 @@ describe("EditEntityDrawer", () => {
     );
     const slugInput = screen.getByLabelText("Entity ID");
     await user.clear(slugInput);
-    await user.type(slugInput, "light.study_lamp");
+    // Domain "light." is rendered as a non-editable leftSection; user
+    // types only the new object_id.
+    await user.type(slugInput, "study_lamp");
     await user.click(screen.getByRole("button", { name: "Save" }));
     const title = await screen.findByText(/Rename Entity ID\?/i);
     const modalRoot = title.closest('[role="dialog"]') as HTMLElement;
