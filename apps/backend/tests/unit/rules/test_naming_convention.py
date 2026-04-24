@@ -1,45 +1,37 @@
+from typing import Any
+
 from home_curator.policies.schema import (
     NamingConventionPolicy,
     NamingPatternConfig,
+    NamingPreset,
     RoomOverride,
 )
-from home_curator.rules.base import Device, EvaluationContext
+from home_curator.rules.base import Device
 from home_curator.rules.naming_convention import compile_naming_convention
+from tests.unit.rules.factories import make_context, make_device
 
 
-def _d(**kw):
-    defaults = dict(
-        id="d1",
-        name="snake_case_name",
-        name_by_user=None,
-        manufacturer=None,
-        model=None,
-        area_id=None,
-        area_name=None,
-        integration=None,
-        disabled_by=None,
-        entities=[],
-    )
-    defaults.update(kw)
-    return Device(**defaults)
+def _d(**kwargs: Any):
+    return make_device(name=kwargs.pop("name", "snake_case_name"), **kwargs)
 
 
-def _ctx(**kw):
-    defaults = dict(area_name_to_id={}, area_id_to_name={}, exceptions=set())
-    defaults.update(kw)
-    return EvaluationContext(**defaults)
+def _ctx(**kwargs: Any):
+    return make_context(**kwargs)
 
 
-def _policy(global_preset="snake_case", rooms=None):
-    return NamingConventionPolicy(
-        id="nc",
-        type="naming_convention",
-        enabled=True,
-        severity="warning",
-        **{
+def _policy(
+    global_preset: NamingPreset = "snake_case",
+    rooms: list[RoomOverride] | None = None,
+) -> NamingConventionPolicy:
+    return NamingConventionPolicy.model_validate(
+        {
+            "id": "nc",
+            "type": "naming_convention",
+            "enabled": True,
+            "severity": "warning",
             "global": NamingPatternConfig(preset=global_preset),
-        },
-        rooms=rooms or [],
+            "rooms": rooms or [],
+        }
     )
 
 
@@ -85,13 +77,15 @@ def test_exception_suppresses():
 
 
 def test_custom_global_pattern():
-    pol = NamingConventionPolicy(
-        id="nc",
-        type="naming_convention",
-        enabled=True,
-        severity="warning",
-        **{"global": NamingPatternConfig(preset="custom", pattern=r"^X_[0-9]+$")},
-        rooms=[],
+    pol = NamingConventionPolicy.model_validate(
+        {
+            "id": "nc",
+            "type": "naming_convention",
+            "enabled": True,
+            "severity": "warning",
+            "global": NamingPatternConfig(preset="custom", pattern=r"^X_[0-9]+$"),
+            "rooms": [],
+        }
     )
     rule = compile_naming_convention(pol)
     assert rule.evaluate(_d(name="X_42"), _ctx()) is None
@@ -129,7 +123,10 @@ def test_starts_with_room_snake_case():
         "id": "nc", "type": "naming_convention", "severity": "warning",
         "global": {"preset": "snake_case"}, "starts_with_room": True, "rooms": [],
     })
-    ctx = _ctx(area_name_to_id={"living_room": "living_room"}, area_id_to_name={"living_room": "Living Room"})
+    ctx = _ctx(
+        area_name_to_id={"living_room": "living_room"},
+        area_id_to_name={"living_room": "Living Room"},
+    )
     rule = compile_naming_convention(p, ctx)
     assert rule.evaluate(_dev("living_room_lamp", "living_room", "Living Room"), ctx) is None
     issue = rule.evaluate(_dev("kitchen_lamp", "living_room", "Living Room"), ctx)
@@ -223,11 +220,7 @@ def test_disabled_override_opts_room_out():
 
 
 def _dev(name: str, area_id: str | None, area_name: str | None) -> Device:
-    return Device(
-        id="d1", name=name, name_by_user=None, manufacturer=None, model=None,
-        area_id=area_id, area_name=area_name, integration=None, disabled_by=None,
-        entities=[], state={},
-    )
+    return make_device(name=name, area_id=area_id, area_name=area_name)
 
 
 def test_title_case_allows_apostrophes_and_hyphenated_words():

@@ -1,13 +1,18 @@
 """Repository for policy exemptions acknowledged on devices or entities."""
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Literal, cast
 
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, func, or_, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from home_curator.storage.models import Exemption
 
 TargetKind = Literal["device", "entity"]
+
+
+def _deleted_count(result: CursorResult[object]) -> int:
+    return result.rowcount or 0
 
 
 class ExceptionsRepo:
@@ -167,13 +172,17 @@ class ExceptionsRepo:
 
         Returns the count deleted. Used for cascade-on-policy-removal.
         """
+        result: CursorResult[object]
         if policy_ids:
-            result = self.session.execute(
-                delete(Exemption).where(Exemption.policy_id.notin_(policy_ids))
+            result = cast(
+                CursorResult[object],
+                self.session.execute(
+                    delete(Exemption).where(Exemption.policy_id.notin_(policy_ids))
+                ),
             )
         else:
-            result = self.session.execute(delete(Exemption))
-        return result.rowcount or 0
+            result = cast(CursorResult[object], self.session.execute(delete(Exemption)))
+        return _deleted_count(result)
 
     def list_paginated(
         self,
@@ -208,7 +217,6 @@ class ExceptionsRepo:
                     Exemption.entity_id.is_not(None) & Exemption.entity_id.ilike(like),
                 )
             )
-        from sqlalchemy import func
         total = self.session.execute(
             select(func.count()).select_from(stmt.subquery())
         ).scalar_one()
@@ -221,5 +229,8 @@ class ExceptionsRepo:
     def bulk_delete(self, ids: set[int]) -> int:
         if not ids:
             return 0
-        result = self.session.execute(delete(Exemption).where(Exemption.id.in_(ids)))
-        return result.rowcount or 0
+        result = cast(
+            CursorResult[object],
+            self.session.execute(delete(Exemption).where(Exemption.id.in_(ids))),
+        )
+        return _deleted_count(result)

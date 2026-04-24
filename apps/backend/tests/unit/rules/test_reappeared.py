@@ -51,6 +51,8 @@ def test_exception_suppresses():
 
 
 def test_disabled_rule_does_not_fire():
-    p = ReappearedAfterDeletePolicy(id="r", type="reappeared_after_delete", enabled=False, severity="info")
+    p = ReappearedAfterDeletePolicy(
+        id="r", type="reappeared_after_delete", enabled=False, severity="info"
+    )
     r = compile_reappeared(p)
     assert r.evaluate(_d(state={"reappeared_after_delete": True}), _ctx()) is None

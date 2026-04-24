@@ -11,7 +11,6 @@ from home_curator.policies.schema import (
     ReappearedAfterDeletePolicy,
 )
 
-
 # ---- EntityMissingAreaPolicy ----
 
 def test_entity_missing_area_minimal():

@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from home_curator.storage.models import Base, DeletionEvent, Exemption, EntityRole
+from home_curator.storage.models import Base, DeletionEvent, EntityRole, Exemption
 
 
 def _engine():

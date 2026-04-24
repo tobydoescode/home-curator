@@ -21,6 +21,13 @@ from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
 
 router = APIRouter(prefix="/api", tags=["entities"])
+_APP_STATE_DEPENDENCY = Depends(app_state)
+_DOMAIN_QUERY = Query(default_factory=list)
+_ROOM_QUERY = Query(default_factory=list)
+_INTEGRATION_QUERY = Query(default_factory=list)
+_ISSUE_TYPE_QUERY = Query(default_factory=list)
+_PAGE_QUERY = Query(default=1, ge=1)
+_PAGE_SIZE_QUERY = Query(default=50, ge=1, le=500)
 
 _SEVERITY_RANK: dict[Severity, int] = {"info": 1, "warning": 2, "error": 3}
 _RANK_TO_SEVERITY: dict[int, Severity] = {v: k for k, v in _SEVERITY_RANK.items()}
@@ -53,21 +60,21 @@ def _highest_severity(issues: list[Issue]) -> Severity | None:
 def list_entities(
     q: str = "",
     regex: bool = False,
-    domain: list[str] = Query(default_factory=list),
-    room: list[str] = Query(default_factory=list),
-    integration: list[str] = Query(default_factory=list),
-    issue_type: list[str] = Query(default_factory=list),
+    domain: list[str] = _DOMAIN_QUERY,
+    room: list[str] = _ROOM_QUERY,
+    integration: list[str] = _INTEGRATION_QUERY,
+    issue_type: list[str] = _ISSUE_TYPE_QUERY,
     with_issues: bool = False,
     show_disabled: bool = False,
     show_hidden: bool = False,
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=500),
+    page: int = _PAGE_QUERY,
+    page_size: int = _PAGE_SIZE_QUERY,
     sort_by: Literal[
         "entity_id", "name", "domain", "room", "device",
         "integration", "severity", "created", "modified",
     ] | None = None,
     sort_dir: Literal["asc", "desc"] = "asc",
-    state: AppState = Depends(app_state),
+    state: AppState = _APP_STATE_DEPENDENCY,
 ) -> EntitiesListResponse:
     """List entities with evaluated policy issues.
 

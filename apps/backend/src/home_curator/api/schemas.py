@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field, model_validator
 
 from home_curator.policies.schema import Policy
 
-
 Severity = Literal["info", "warning", "error"]
 
 

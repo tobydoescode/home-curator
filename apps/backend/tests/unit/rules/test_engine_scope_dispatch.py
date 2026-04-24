@@ -1,35 +1,22 @@
 """Scope isolation: device-scoped rules never run against entities, and
 vice versa. Uses custom rules (easiest to scope-label) as the probe."""
+from typing import Any
+
 from home_curator.policies.schema import PoliciesFile
-from home_curator.rules.base import Device, Entity, EvaluationContext
 from home_curator.rules.engine import RuleEngine
+from tests.unit.rules.factories import make_context, make_device, make_entity
 
 
-def _device(**kw):
-    defaults = dict(
-        id="d1", name="d1", name_by_user=None, manufacturer=None,
-        model=None, area_id=None, area_name=None, integration=None,
-        disabled_by=None, entities=[],
-    )
-    defaults.update(kw)
-    return Device(**defaults)
+def _device(**kwargs: Any):
+    return make_device(name="d1", **kwargs)
 
 
-def _entity(**kw):
-    defaults = dict(
-        entity_id="light.x", name="x", original_name=None, icon=None,
-        domain="light", platform="hue", device_id=None, area_id=None,
-        area_name=None, disabled_by=None, hidden_by=None, unique_id=None,
-        created_at=None, modified_at=None, state={},
-    )
-    defaults.update(kw)
-    return Entity(**defaults)
+def _entity(**kwargs: Any):
+    return make_entity(**kwargs)
 
 
 def _ctx():
-    return EvaluationContext(
-        area_name_to_id={}, area_id_to_name={}, exceptions=set(),
-    )
+    return make_context()
 
 
 def test_device_scoped_rule_not_run_on_entity():

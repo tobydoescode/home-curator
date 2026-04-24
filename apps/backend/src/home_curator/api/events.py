@@ -7,10 +7,11 @@ from sse_starlette.sse import EventSourceResponse
 from home_curator.api.deps import AppState, app_state
 
 router = APIRouter(prefix="/api", tags=["events"])
+_APP_STATE_DEPENDENCY = Depends(app_state)
 
 
 @router.get("/events")
-async def events(request: Request, state: AppState = Depends(app_state)):
+async def events(request: Request, state: AppState = _APP_STATE_DEPENDENCY):
     """Server-Sent Events stream of registry change notifications.
 
     Each `message` event carries JSON `{kind}` where kind is

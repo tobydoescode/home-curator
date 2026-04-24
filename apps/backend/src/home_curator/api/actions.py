@@ -25,6 +25,7 @@ from home_curator.api.schemas import (
 from home_curator.ha_client.models import HADeviceUpdate, HAEntityUpdate
 
 router = APIRouter(prefix="/api/actions", tags=["actions"])
+_APP_STATE_DEPENDENCY = Depends(app_state)
 
 
 class AssignRoomBody(BaseModel):
@@ -104,7 +105,10 @@ class DeleteEntityBody(BaseModel):
 
 
 @router.post("/assign-room", response_model=AssignRoomResponse, response_model_exclude_none=True)
-async def assign_room(body: AssignRoomBody, state: AppState = Depends(app_state)) -> AssignRoomResponse:
+async def assign_room(
+    body: AssignRoomBody,
+    state: AppState = _APP_STATE_DEPENDENCY,
+) -> AssignRoomResponse:
     """Assign the given `area_id` to each device."""
     results = []
     for did in body.device_ids:
@@ -117,14 +121,17 @@ async def assign_room(body: AssignRoomBody, state: AppState = Depends(app_state)
 
 
 @router.post("/rename", response_model=RenameResponse)
-async def rename(body: RenameBody, state: AppState = Depends(app_state)) -> RenameResponse:
+async def rename(body: RenameBody, state: AppState = _APP_STATE_DEPENDENCY) -> RenameResponse:
     """Rename a single device via `name_by_user`."""
     await state.ha.update_device(body.device_id, HADeviceUpdate(name_by_user=body.name_by_user))
     return RenameResponse(ok=True)
 
 
 @router.post("/rename-pattern", response_model=RenamePatternResponse)
-async def rename_pattern(body: RenamePatternBody, state: AppState = Depends(app_state)) -> RenamePatternResponse:
+async def rename_pattern(
+    body: RenamePatternBody,
+    state: AppState = _APP_STATE_DEPENDENCY,
+) -> RenamePatternResponse:
     """Regex find-and-replace across device names. Use `dry_run=true` to preview."""
     try:
         pat = re.compile(body.pattern)
@@ -142,13 +149,34 @@ async def rename_pattern(body: RenamePatternBody, state: AppState = Depends(app_
             results.append(RenamePatternResult(device_id=did, matched=False))
             continue
         if body.dry_run:
-            results.append(RenamePatternResult(device_id=did, matched=True, new_name=new, dry_run=True))
+            results.append(
+                RenamePatternResult(
+                    device_id=did,
+                    matched=True,
+                    new_name=new,
+                    dry_run=True,
+                )
+            )
         else:
             try:
                 await state.ha.update_device(did, HADeviceUpdate(name_by_user=new))
-                results.append(RenamePatternResult(device_id=did, matched=True, new_name=new, ok=True))
+                results.append(
+                    RenamePatternResult(
+                        device_id=did,
+                        matched=True,
+                        new_name=new,
+                        ok=True,
+                    )
+                )
             except Exception as e:
-                results.append(RenamePatternResult(device_id=did, matched=True, ok=False, error=str(e)))
+                results.append(
+                    RenamePatternResult(
+                        device_id=did,
+                        matched=True,
+                        ok=False,
+                        error=str(e),
+                    )
+                )
     return RenamePatternResponse(results=results)
 
 
@@ -156,7 +184,7 @@ async def rename_pattern(body: RenamePatternBody, state: AppState = Depends(app_
 async def update_device(
     device_id: str,
     body: UpdateDeviceBody,
-    state: AppState = Depends(app_state),
+    state: AppState = _APP_STATE_DEPENDENCY,
 ) -> RenameResponse:
     """Partial update of a single device. Forwards only the fields the client
     sent as a single HA `update_device` call, so one Save = one HA write."""
@@ -174,7 +202,7 @@ async def update_device(
 async def update_entity(
     entity_id: str,
     body: UpdateEntityBody,
-    state: AppState = Depends(app_state),
+    state: AppState = _APP_STATE_DEPENDENCY,
 ) -> RenameResponse:
     """Partial update of a single entity.
 
@@ -197,7 +225,8 @@ async def update_entity(
     response_model_exclude_none=True,
 )
 async def assign_room_entities(
-    body: AssignRoomEntitiesBody, state: AppState = Depends(app_state),
+    body: AssignRoomEntitiesBody,
+    state: AppState = _APP_STATE_DEPENDENCY,
 ) -> AssignRoomEntityResponse:
     """Bulk-assign an area_id to one or more entities."""
     results: list[AssignRoomEntityResult] = []
@@ -216,7 +245,8 @@ async def assign_room_entities(
     response_model_exclude_none=False,
 )
 async def rename_pattern_entities(
-    body: RenamePatternEntitiesBody, state: AppState = Depends(app_state),
+    body: RenamePatternEntitiesBody,
+    state: AppState = _APP_STATE_DEPENDENCY,
 ) -> RenamePatternEntityResponse:
     """Dual-regex rename across entity_id and / or friendly name.
 
@@ -349,7 +379,8 @@ async def rename_pattern_entities(
     response_model_exclude_none=True,
 )
 async def entity_state(
-    body: EntityStateBody, state: AppState = Depends(app_state),
+    body: EntityStateBody,
+    state: AppState = _APP_STATE_DEPENDENCY,
 ) -> EntityStateResponse:
     """Bulk flip `disabled_by` / `hidden_by` to `"user"` or `None`.
 
@@ -369,7 +400,7 @@ async def entity_state(
 
 
 @router.post("/delete", response_model=DeleteResponse, response_model_exclude_none=True)
-async def delete(body: DeleteBody, state: AppState = Depends(app_state)) -> DeleteResponse:
+async def delete(body: DeleteBody, state: AppState = _APP_STATE_DEPENDENCY) -> DeleteResponse:
     """Delete one or more devices via HA's remove_config_entry path.
 
     Returns per-device results so the UI can report partial success.
@@ -395,7 +426,8 @@ async def delete(body: DeleteBody, state: AppState = Depends(app_state)) -> Dele
     response_model_exclude_none=True,
 )
 async def delete_entity(
-    body: DeleteEntityBody, state: AppState = Depends(app_state),
+    body: DeleteEntityBody,
+    state: AppState = _APP_STATE_DEPENDENCY,
 ) -> DeleteEntityResponse:
     """Delete one or more entities via HA's entity_registry/remove.
 

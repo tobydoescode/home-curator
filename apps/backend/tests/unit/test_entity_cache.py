@@ -51,7 +51,11 @@ async def test_load_indexes_entities_by_id_and_hydrates_area_name():
     )
     dev_cache = RegistryCache(fake)
     await dev_cache.load()
-    cache = EntityRegistryCache(fake, area_lookup=dev_cache.area_id_to_name, device_lookup=dev_cache.device)
+    cache = EntityRegistryCache(
+        fake,
+        area_lookup=dev_cache.area_id_to_name,
+        device_lookup=dev_cache.device,
+    )
     await cache.load()
 
     ents = cache.entities()

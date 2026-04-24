@@ -8,7 +8,6 @@ from ruamel.yaml import YAML, YAMLError
 
 from home_curator.policies.schema import PoliciesFile
 
-
 # Baseline policies shipped by the addon. Three device + three entity.
 # When `policies.yaml` doesn't exist, the whole list is written on first run.
 # When it does exist, missing entries (by id) are merged in on load so users
