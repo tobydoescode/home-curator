@@ -11,6 +11,8 @@ import httpx
 import pytest
 import uvicorn
 
+from home_curator.ha_client.models import DeviceUpdatedEvent, HADevice, HADeviceEntityRef
+
 
 def _free_port() -> int:
     with socket.socket() as s:
@@ -66,35 +68,32 @@ async def test_device_rename_propagates_via_registry_event(app_with_fake, fake_h
             # Change the fake's underlying data, then emit the HA event.
             async def _simulate_rename():
                 fake_ha.set_devices([
-                    {**d, "name_by_user": "kitchen_light_1"} if d["id"] == "d1" else d
-                    for d in [
-                        {
-                            "id": "d1",
-                            "name": "living_room_lamp",
-                            "name_by_user": None,
-                            "manufacturer": "Signify",
-                            "model": "m",
-                            "area_id": "living",
-                            "integration": "hue",
-                            "disabled_by": None,
-                            "identifiers": [["hue", "a"]],
-                            "entities": [{"id": "light.lamp", "domain": "light"}],
-                        },
-                        {
-                            "id": "d2",
-                            "name": "BadCase",
-                            "name_by_user": None,
-                            "manufacturer": "Aqara",
-                            "model": "m",
-                            "area_id": None,
-                            "integration": "aqara",
-                            "disabled_by": None,
-                            "identifiers": [["aqara", "b"]],
-                            "entities": [],
-                        },
-                    ]
+                    HADevice(
+                        id="d1",
+                        name="living_room_lamp",
+                        name_by_user="kitchen_light_1",
+                        manufacturer="Signify",
+                        model="m",
+                        area_id="living",
+                        integration="hue",
+                        disabled_by=None,
+                        identifiers=[["hue", "a"]],
+                        entities=[HADeviceEntityRef(id="light.lamp", domain="light")],
+                    ),
+                    HADevice(
+                        id="d2",
+                        name="BadCase",
+                        name_by_user=None,
+                        manufacturer="Aqara",
+                        model="m",
+                        area_id=None,
+                        integration="aqara",
+                        disabled_by=None,
+                        identifiers=[["aqara", "b"]],
+                        entities=[],
+                    ),
                 ])
-                await fake_ha.emit({"kind": "device_updated", "device_id": "d1"})
+                await fake_ha.emit(DeviceUpdatedEvent(device_id="d1"))
 
             asyncio.run_coroutine_threadsafe(
                 _simulate_rename(), server.server_loop
