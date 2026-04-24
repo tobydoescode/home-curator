@@ -12,7 +12,7 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Link } from "react-router";
+import { Link } from "react-router-dom";
 
 import { SeverityBadge } from "@/components/SeverityBadge";
 import type { EntitiesSortBy, EntitiesSortDir } from "@/hooks/useEntities";

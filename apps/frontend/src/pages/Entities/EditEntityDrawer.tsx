@@ -14,7 +14,7 @@ import {
 } from "@mantine/core";
 import { modals } from "@mantine/modals";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 
 import { SeverityBadge } from "@/components/SeverityBadge";
 import {

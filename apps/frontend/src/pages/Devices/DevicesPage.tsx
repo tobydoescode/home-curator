@@ -1,7 +1,7 @@
 import { Alert, Stack, Text, Title } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
+import { useSearchParams } from "react-router-dom";
 import type { RowSelectionState } from "@tanstack/react-table";
 
 import { ColumnVisibilityGear } from "@/components/ColumnVisibility/ColumnVisibilityGear";

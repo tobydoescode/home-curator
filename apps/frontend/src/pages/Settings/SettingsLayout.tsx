@@ -1,5 +1,5 @@
 import { Group, NavLink, Stack, Title } from "@mantine/core";
-import { Outlet, useLocation, useNavigate } from "react-router";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 const ITEMS = [
   { label: "Device Settings", to: "/settings/devices" },
