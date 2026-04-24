@@ -18,6 +18,15 @@ import httpx
 import pytest
 import uvicorn
 
+pytestmark = [
+    pytest.mark.filterwarnings(
+        "ignore:websockets\\.legacy is deprecated:DeprecationWarning"
+    ),
+    pytest.mark.filterwarnings(
+        "ignore:websockets\\.server\\.WebSocketServerProtocol is deprecated:DeprecationWarning"
+    ),
+]
+
 
 def _free_port() -> int:
     with socket.socket() as s:
