@@ -3,8 +3,9 @@ import asyncio
 import copy
 from dataclasses import dataclass, field
 
-from home_curator.ha_client.base import HAAreaDict, HAClient, HADeviceDict
-from home_curator.rules.base import Device
+from home_curator.ha_client.base import HAClient
+from home_curator.ha_client.models import HAArea, HADevice
+from home_curator.rules.base import Device, EntitySummary
 
 
 @dataclass(frozen=True)
@@ -20,20 +21,25 @@ class Diff:
     updated: list[str] = field(default_factory=list)
 
 
-def _to_device(d: HADeviceDict, area_lookup: dict[str, str]) -> Device:
+def _to_device(d: HADevice, area_lookup: dict[str, str]) -> Device:
     return Device(
-        id=d["id"],
-        name=d.get("name") or d["id"],
-        name_by_user=d.get("name_by_user"),
-        manufacturer=d.get("manufacturer"),
-        model=d.get("model"),
-        area_id=d.get("area_id"),
-        area_name=area_lookup.get(d.get("area_id") or "", None),
-        integration=d.get("integration"),
-        disabled_by=d.get("disabled_by"),
-        entities=list(d.get("entities", [])),
-        created_at=d.get("created_at"),
-        modified_at=d.get("modified_at"),
+        id=d.id,
+        name=d.name or d.id,
+        name_by_user=d.name_by_user,
+        manufacturer=d.manufacturer,
+        model=d.model,
+        area_id=d.area_id,
+        area_name=area_lookup.get(d.area_id or "", None),
+        integration=d.integration,
+        disabled_by=d.disabled_by,
+        # EntitySummary is a TypedDict {id: str, domain: str}; construct
+        # via the TypedDict constructor so pyright infers
+        # list[EntitySummary] rather than list[dict[str, Any]].
+        entities=[
+            EntitySummary(id=ref.id, domain=ref.domain) for ref in d.entities
+        ],
+        created_at=d.created_at,
+        modified_at=d.modified_at,
     )
 
 
@@ -70,13 +76,13 @@ class RegistryCache:
             await self._load_unlocked()
 
     async def _load_unlocked(self) -> None:
-        raw_areas: list[HAAreaDict] = await self._client.get_areas()
-        self._areas = {a["id"]: Area(id=a["id"], name=a["name"]) for a in raw_areas}
-        raw_devices = await self._client.get_devices()
+        raw_areas: list[HAArea] = await self._client.get_areas()
+        self._areas = {a.id: Area(id=a.id, name=a.name) for a in raw_areas}
+        raw_devices: list[HADevice] = await self._client.get_devices()
         lookup = self.area_id_to_name()
-        self._devices = {d["id"]: _to_device(d, lookup) for d in raw_devices}
+        self._devices = {d.id: _to_device(d, lookup) for d in raw_devices}
         self._identifiers = {
-            d["id"]: tuple((i[0], i[1]) for i in d.get("identifiers", []))
+            d.id: tuple((i[0], i[1]) for i in d.identifiers if len(i) >= 2)
             for d in raw_devices
         }
 
