@@ -1,7 +1,20 @@
 import pytest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
-from home_curator.ha_client.models import HAArea
+from home_curator.ha_client.models import (
+    AreaUpdatedEvent,
+    DeviceUpdatedEvent,
+    EntityDeletedEvent,
+    EntityUpdatedEvent,
+    HAArea,
+    HADevice,
+    HADeviceEntityRef,
+    HADeviceUpdate,
+    HAEntity,
+    HAEntityUpdate,
+    HAEvent,
+    ReconnectedEvent,
+)
 
 
 def test_ha_area_requires_id_and_name():
@@ -28,9 +41,6 @@ def test_ha_area_ignores_extra_fields():
     assert not hasattr(a, "aliases")
 
 
-from home_curator.ha_client.models import HADeviceEntityRef
-
-
 def test_ha_device_entity_ref_requires_id_and_domain():
     with pytest.raises(ValidationError):
         HADeviceEntityRef(id="light.lamp")  # type: ignore[call-arg]
@@ -42,9 +52,6 @@ def test_ha_device_entity_ref_accepts_valid():
     r = HADeviceEntityRef(id="light.lamp", domain="light")
     assert r.id == "light.lamp"
     assert r.domain == "light"
-
-
-from home_curator.ha_client.models import HADevice
 
 
 def test_ha_device_requires_id():
@@ -87,9 +94,6 @@ def test_ha_device_ignores_extra_fields():
     assert not hasattr(d, "new_ha_field")
 
 
-from home_curator.ha_client.models import HAEntity
-
-
 def test_ha_entity_requires_entity_id():
     with pytest.raises(ValidationError):
         HAEntity()  # type: ignore[call-arg]
@@ -126,9 +130,6 @@ def test_ha_entity_ignores_extra_fields():
     assert not hasattr(e, "new_field")
 
 
-from home_curator.ha_client.models import HADeviceUpdate, HAEntityUpdate
-
-
 def test_ha_device_update_unset_fields_absent_from_dump():
     u = HADeviceUpdate(area_id="kitchen")
     assert u.model_dump(exclude_unset=True) == {"area_id": "kitchen"}
@@ -161,18 +162,6 @@ def test_ha_entity_update_multiple_fields():
 def test_ha_entity_update_forbids_extra_fields():
     with pytest.raises(ValidationError):
         HAEntityUpdate(bogus=True)  # type: ignore[call-arg]
-
-
-from pydantic import TypeAdapter
-
-from home_curator.ha_client.models import (
-    AreaUpdatedEvent,
-    DeviceUpdatedEvent,
-    EntityDeletedEvent,
-    EntityUpdatedEvent,
-    HAEvent,
-    ReconnectedEvent,
-)
 
 
 def test_event_discriminator_parses_each_variant():

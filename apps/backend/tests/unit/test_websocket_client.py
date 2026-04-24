@@ -4,7 +4,7 @@ import json
 import pytest
 import websockets
 
-from home_curator.ha_client.models import HAEntityUpdate
+from home_curator.ha_client.models import HAEntityUpdate, HAEvent
 from home_curator.ha_client.websocket import WebSocketHAClient
 
 HA_AUTH_OK = {"type": "auth_ok", "ha_version": "2026.4.0"}
@@ -75,7 +75,7 @@ async def test_reconnects_and_emits_reconnected_event(monkeypatch):
         client = WebSocketHAClient(url=f"ws://localhost:{port}", token="tok")
         await client.start()
 
-        events: list[dict] = []
+        events: list[HAEvent] = []
         client.subscribe(lambda e: events.append(e))
 
         try:
@@ -269,7 +269,7 @@ async def test_delete_entity_sends_remove_command():
 async def test_entity_registry_updated_dispatches_updated_and_deleted():
     """Two server-pushed events: an update and a remove. Subscriber sees
     entity_updated first, then entity_deleted."""
-    events: list[dict] = []
+    events: list[HAEvent] = []
 
     async def _fake(ws):
         await ws.send(json.dumps(HA_AUTH_REQUIRED))
