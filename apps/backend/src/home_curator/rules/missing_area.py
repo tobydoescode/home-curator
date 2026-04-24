@@ -1,7 +1,14 @@
 from dataclasses import dataclass
 
 from home_curator.policies.schema import EntityMissingAreaPolicy, MissingAreaPolicy
-from home_curator.rules.base import Device, Entity, EvaluationContext, Issue, Severity
+from home_curator.rules.base import (
+    Device,
+    Entity,
+    EvaluationContext,
+    Issue,
+    Severity,
+    TargetScope,
+)
 
 
 @dataclass
@@ -10,12 +17,14 @@ class CompiledMissingArea:
     enabled: bool
     severity: Severity
     rule_type: str = "missing_area"
-    scope: str = "devices"
+    scope: TargetScope = "devices"
     compile_error: str | None = None
 
-    def evaluate(self, device: Device, ctx: EvaluationContext) -> Issue | None:
+    def evaluate(self, thing: object, ctx: EvaluationContext) -> Issue | None:
         if not self.enabled:
             return None
+        assert isinstance(thing, Device)
+        device = thing
         if ("device", device.id, self.id) in ctx.exceptions:
             return None
         if device.area_id is None:
@@ -41,7 +50,7 @@ class CompiledEntityMissingArea:
     severity: Severity
     require_own_area: bool
     rule_type: str = "entity_missing_area"
-    scope: str = "entities"
+    scope: TargetScope = "entities"
     compile_error: str | None = None
 
     def evaluate(self, thing: object, ctx: EvaluationContext) -> Issue | None:

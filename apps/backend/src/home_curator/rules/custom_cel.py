@@ -1,12 +1,19 @@
 """User-authored policy rule backed by the CEL expression language."""
 from dataclasses import dataclass, field
-from typing import Any, ClassVar
+from typing import Any
 
 import celpy
+from celpy.adapter import json_to_cel
 
 from home_curator.policies.schema import CustomPolicy
 from home_curator.rules.base import (
-    Device, Entity, EvaluationContext, Issue, Severity, TargetKind,
+    Device,
+    Entity,
+    EvaluationContext,
+    Issue,
+    Severity,
+    TargetKind,
+    TargetScope,
 )
 
 _ENV = celpy.Environment()
@@ -30,11 +37,10 @@ class CompiledCustom:
     severity: Severity
     message: str
 
-    # Class-level identifier, not per-instance data:
-    rule_type: ClassVar[str] = "custom"
+    rule_type: str = "custom"
 
     # "devices" by default; compile_custom sets "entities" from policy.scope.
-    scope: str = field(default="devices")
+    scope: TargetScope = field(default="devices")
 
     # Populated by `compile_custom`; not part of the public constructor.
     _when: Any = field(default=None, init=False, repr=False)
@@ -58,7 +64,7 @@ class CompiledCustom:
                 ctx.area_id_to_name.get(entity.area_id) if entity.area_id else None
             )
             cel_ctx = {
-                "entity": celpy.json_to_cel(
+                "entity": json_to_cel(
                     entity.to_cel_context(
                         device_context=owning_device_ctx, area_name=area_name,
                     )
@@ -71,7 +77,7 @@ class CompiledCustom:
             device = thing
             if ("device", device.id, self.id) in ctx.exceptions:
                 return None
-            cel_ctx = {"device": celpy.json_to_cel(device.to_cel_context())}
+            cel_ctx = {"device": json_to_cel(device.to_cel_context())}
             target_kind = "device"
             target_id = device.id
 

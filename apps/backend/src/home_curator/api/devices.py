@@ -14,14 +14,23 @@ from home_curator.api.schemas import (
     IssueOut,
     ResyncResponse,
 )
-from home_curator.rules.base import Device, EvaluationContext, Issue
+from home_curator.rules.base import Device, EvaluationContext, Issue, Severity
 from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
 
 router = APIRouter(prefix="/api", tags=["devices"])
 
-_SEVERITY_RANK = {"info": 1, "warning": 2, "error": 3}
-_RANK_TO_SEVERITY = {v: k for k, v in _SEVERITY_RANK.items()}
+SortBy = Literal["name", "room", "severity", "integration", "created", "modified"]
+
+_ROOM_QUERY = Query(default_factory=list)
+_ISSUE_TYPE_QUERY = Query(default_factory=list)
+_INTEGRATION_QUERY = Query(default_factory=list)
+_PAGE_QUERY = Query(default=1, ge=1)
+_PAGE_SIZE_QUERY = Query(default=50, ge=1, le=500)
+_APP_STATE_DEPENDENCY = Depends(app_state)
+
+_SEVERITY_RANK: dict[Severity, int] = {"info": 1, "warning": 2, "error": 3}
+_RANK_TO_SEVERITY: dict[int, Severity] = {v: k for k, v in _SEVERITY_RANK.items()}
 
 
 def _matches_query(name: str, q: str, regex: bool) -> bool:
@@ -35,7 +44,7 @@ def _matches_query(name: str, q: str, regex: bool) -> bool:
     return q.lower() in name.lower()
 
 
-def _highest_severity(issues: list[Issue]) -> str | None:
+def _highest_severity(issues: list[Issue]) -> Severity | None:
     if not issues:
         return None
     highest = max(_SEVERITY_RANK[i.severity] for i in issues)
@@ -46,15 +55,15 @@ def _highest_severity(issues: list[Issue]) -> str | None:
 def list_devices(
     q: str = "",
     regex: bool = False,
-    room: list[str] = Query(default_factory=list),
-    issue_type: list[str] = Query(default_factory=list),
-    integration: list[str] = Query(default_factory=list),
+    room: list[str] = _ROOM_QUERY,
+    issue_type: list[str] = _ISSUE_TYPE_QUERY,
+    integration: list[str] = _INTEGRATION_QUERY,
     with_issues: bool = False,
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=500),
-    sort_by: Literal["name", "room", "severity", "integration", "created", "modified"] | None = None,
+    page: int = _PAGE_QUERY,
+    page_size: int = _PAGE_SIZE_QUERY,
+    sort_by: SortBy | None = None,
     sort_dir: Literal["asc", "desc"] = "asc",
-    state: AppState = Depends(app_state),
+    state: AppState = _APP_STATE_DEPENDENCY,
 ) -> DevicesListResponse:
     """List devices with evaluated policy issues.
 
@@ -219,7 +228,7 @@ def list_devices(
 
 
 @router.post("/devices/resync", response_model=ResyncResponse)
-async def resync(state: AppState = Depends(app_state)) -> ResyncResponse:
+async def resync(state: AppState = _APP_STATE_DEPENDENCY) -> ResyncResponse:
     """Force a re-pull of devices, areas and entities from Home Assistant.
 
     Escape hatch for when the UI looks stale. Refreshes both registry
@@ -230,11 +239,11 @@ async def resync(state: AppState = Depends(app_state)) -> ResyncResponse:
     try:
         dev_diff = await state.cache.refresh()
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"device resync failed: {e}")
+        raise HTTPException(status_code=502, detail=f"device resync failed: {e}") from e
     try:
         ent_diff = await state.entity_cache.refresh()
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"entity resync failed: {e}")
+        raise HTTPException(status_code=502, detail=f"entity resync failed: {e}") from e
     state.tracker.handle_diff_from_cache()
     state.tracker.handle_entity_diff_from_cache()
     state.tracker.commit()

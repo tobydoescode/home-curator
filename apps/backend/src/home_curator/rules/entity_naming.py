@@ -27,7 +27,13 @@ from home_curator.policies.schema import (
     NamingPatternConfig,
     NamingPreset,
 )
-from home_curator.rules.base import Entity, EvaluationContext, Issue, Severity
+from home_curator.rules.base import (
+    Entity,
+    EvaluationContext,
+    Issue,
+    Severity,
+    TargetScope,
+)
 from home_curator.rules.naming_convention import (
     _OverrideEntry,
     pattern_from_config,
@@ -74,7 +80,7 @@ class CompiledEntityNaming:
     name_cfg: _NameCompiled
     entity_id_cfg: _EntityIdCompiled
     rule_type: str = "entity_naming_convention"
-    scope: str = "entities"
+    scope: TargetScope = "entities"
     compile_error: str | None = None
 
     def evaluate(self, thing: object, ctx: EvaluationContext) -> Issue | None:

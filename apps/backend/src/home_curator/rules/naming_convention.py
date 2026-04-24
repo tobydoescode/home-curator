@@ -8,7 +8,13 @@ from home_curator.policies.schema import (
     NamingPreset,
     RoomOverride,
 )
-from home_curator.rules.base import Device, EvaluationContext, Issue, Severity
+from home_curator.rules.base import (
+    Device,
+    EvaluationContext,
+    Issue,
+    Severity,
+    TargetScope,
+)
 
 PRESET_TO_PATTERN: dict[str, str] = {
     "snake_case": r"^[a-z0-9]+(_[a-z0-9]+)*$",
@@ -64,7 +70,11 @@ def _room_prefix(preset: NamingPreset, area_id: str, area_name: str | None) -> s
         # the collapse the prefix itself would be invalid snake_case and
         # every device in a punctuated-name room would fail the
         # starts-with-room check.
-        source = area_name.lower().replace(" ", "_") if area_name else area_id.lower().replace("-", "_")
+        source = (
+            area_name.lower().replace(" ", "_")
+            if area_name
+            else area_id.lower().replace("-", "_")
+        )
         return re.sub(r"_+", "_", re.sub(r"[^a-z0-9_]", "", source))
     if preset == "kebab-case":
         # Prefer area_name → lower + spaces-to-hyphens for readable prefixes;
@@ -99,7 +109,7 @@ class CompiledNamingConvention:
     pending_room_overrides: list[tuple[str, _OverrideEntry]] = field(default_factory=list)
     unresolved_room_names: list[str] = field(default_factory=list)
     rule_type: str = "naming_convention"
-    scope: str = "devices"
+    scope: TargetScope = "devices"
 
     @property
     def compile_error(self) -> str | None:
@@ -107,9 +117,11 @@ class CompiledNamingConvention:
             return f"unresolved rooms: {', '.join(self.unresolved_room_names)}"
         return None
 
-    def evaluate(self, device: Device, ctx: EvaluationContext) -> Issue | None:
+    def evaluate(self, thing: object, ctx: EvaluationContext) -> Issue | None:
         if not self.enabled:
             return None
+        assert isinstance(thing, Device)
+        device = thing
         if ("device", device.id, self.id) in ctx.exceptions:
             return None
         if self.pending_room_overrides:

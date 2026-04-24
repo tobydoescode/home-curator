@@ -9,9 +9,7 @@ from home_curator.policies.schema import (
     PoliciesFile,
     ReappearedAfterDeletePolicy,
 )
-from home_curator.rules.base import (
-    CompiledPolicy, Device, Entity, EvaluationContext, Issue,
-)
+from home_curator.rules.base import CompiledPolicy, Device, Entity, EvaluationContext, Issue
 from home_curator.rules.custom_cel import compile_custom
 from home_curator.rules.entity_naming import compile_entity_naming
 from home_curator.rules.missing_area import (

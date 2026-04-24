@@ -4,6 +4,7 @@ from typing import Any, Literal, Protocol, TypedDict, runtime_checkable
 
 Severity = Literal["info", "warning", "error"]
 TargetKind = Literal["device", "entity"]
+TargetScope = Literal["devices", "entities"]
 
 
 class EntitySummary(TypedDict, total=True):
@@ -162,15 +163,19 @@ class EvaluationContext:
 @runtime_checkable
 class CompiledPolicy(Protocol):
     id: str
-    rule_type: str
     enabled: bool
     severity: Severity
-    # Dispatch filter used by RuleEngine.evaluate. Device rules default to
-    # "devices" to preserve existing behaviour; entity rules override to
-    # "entities". The engine skips compiled rules whose scope doesn't match
-    # the thing being evaluated.
-    scope: Literal["devices", "entities"]
-    compile_error: str | None
+
+    @property
+    def rule_type(self) -> str: ...
+
+    @property
+    def scope(self) -> TargetScope:
+        """Dispatch filter used by RuleEngine.evaluate."""
+        ...
+
+    @property
+    def compile_error(self) -> str | None: ...
 
     # `thing` is widened from Device because entity-scoped rules evaluate
     # against Entity. The engine guarantees each compiled class sees only
