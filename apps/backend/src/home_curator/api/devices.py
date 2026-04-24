@@ -4,16 +4,24 @@ from collections import Counter
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from home_curator.api.deps import AppState, app_state
 from home_curator.api.schemas import (
     AreaOut,
+    AssignRoomResponse,
+    AssignRoomResult,
+    DeleteResponse,
+    DeleteResult,
     DeviceOut,
     DevicesListResponse,
     EntitySummary,
     IssueOut,
-    ResyncResponse,
+    RenamePatternResponse,
+    RenamePatternResult,
+    RenameResponse,
 )
+from home_curator.ha_client.models import HADeviceUpdate
 from home_curator.rules.base import Device, EvaluationContext, Issue, Severity
 from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
@@ -31,6 +39,29 @@ _APP_STATE_DEPENDENCY = Depends(app_state)
 
 _SEVERITY_RANK: dict[Severity, int] = {"info": 1, "warning": 2, "error": 3}
 _RANK_TO_SEVERITY: dict[int, Severity] = {v: k for k, v in _SEVERITY_RANK.items()}
+
+
+class UpdateDeviceBody(BaseModel):
+    name_by_user: str | None = None
+    area_id: str | None = None
+
+    model_config = {"extra": "forbid"}
+
+
+class AssignRoomBody(BaseModel):
+    device_ids: list[str]
+    area_id: str
+
+
+class RenamePatternBody(BaseModel):
+    device_ids: list[str]
+    pattern: str
+    replacement: str
+    dry_run: bool = True
+
+
+class DeleteBody(BaseModel):
+    device_ids: list[str]
 
 
 def _matches_query(name: str, q: str, regex: bool) -> bool:
@@ -227,35 +258,127 @@ def list_devices(
     )
 
 
-@router.post("/devices/resync", response_model=ResyncResponse)
-async def resync(state: AppState = _APP_STATE_DEPENDENCY) -> ResyncResponse:
-    """Force a re-pull of devices, areas and entities from Home Assistant.
+@router.patch("/devices/{device_id}", response_model=RenameResponse)
+async def update_device(
+    device_id: str,
+    body: UpdateDeviceBody,
+    state: AppState = _APP_STATE_DEPENDENCY,
+) -> RenameResponse:
+    """Partial update of a single device."""
+    payload = body.model_dump(exclude_unset=True)
+    if not payload:
+        raise HTTPException(status_code=400, detail="no fields to update")
+    try:
+        await state.ha.update_device(device_id, HADeviceUpdate.model_validate(payload))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"ha update failed: {e}") from e
+    return RenameResponse(ok=True)
 
-    Escape hatch for when the UI looks stale. Refreshes both registry
-    caches, updates the deletion tracker's in-memory state, commits its
-    pending DB writes, and publishes SSE events for every cache that
-    actually changed.
-    """
+
+@router.delete("/devices/{device_id}", response_model=RenameResponse)
+async def delete_device(
+    device_id: str,
+    state: AppState = _APP_STATE_DEPENDENCY,
+) -> RenameResponse:
+    """Delete a single device via HA's remove_config_entry path."""
+    if state.cache.device(device_id) is None:
+        raise HTTPException(status_code=404, detail="device not found")
     try:
-        dev_diff = await state.cache.refresh()
+        await state.ha.delete_device(device_id)
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"device resync failed: {e}") from e
+        raise HTTPException(status_code=502, detail=f"ha delete failed: {e}") from e
+    return RenameResponse(ok=True)
+
+
+@router.post("/devices/bulk-delete", response_model=DeleteResponse, response_model_exclude_none=True)
+async def delete_devices_bulk(
+    body: DeleteBody,
+    state: AppState = _APP_STATE_DEPENDENCY,
+) -> DeleteResponse:
+    """Delete one or more devices. Returns per-device results for partial success."""
+    if not body.device_ids:
+        raise HTTPException(status_code=400, detail="device_ids must not be empty")
+    results: list[DeleteResult] = []
+    for did in body.device_ids:
+        if state.cache.device(did) is None:
+            results.append(DeleteResult(device_id=did, ok=False, error="device not found"))
+            continue
+        try:
+            await state.ha.delete_device(did)
+            results.append(DeleteResult(device_id=did, ok=True))
+        except Exception as e:
+            results.append(DeleteResult(device_id=did, ok=False, error=str(e)))
+    return DeleteResponse(results=results)
+
+
+@router.post(
+    "/devices/assign-room",
+    response_model=AssignRoomResponse,
+    response_model_exclude_none=True,
+)
+async def assign_room(
+    body: AssignRoomBody,
+    state: AppState = _APP_STATE_DEPENDENCY,
+) -> AssignRoomResponse:
+    """Assign the given area_id to each device."""
+    results: list[AssignRoomResult] = []
+    for did in body.device_ids:
+        try:
+            await state.ha.update_device(did, HADeviceUpdate(area_id=body.area_id))
+            results.append(AssignRoomResult(device_id=did, ok=True))
+        except Exception as e:
+            results.append(AssignRoomResult(device_id=did, ok=False, error=str(e)))
+    return AssignRoomResponse(results=results)
+
+
+@router.post("/devices/rename-pattern", response_model=RenamePatternResponse)
+async def rename_pattern(
+    body: RenamePatternBody,
+    state: AppState = _APP_STATE_DEPENDENCY,
+) -> RenamePatternResponse:
+    """Regex find-and-replace across device names. Use dry_run=true to preview."""
     try:
-        ent_diff = await state.entity_cache.refresh()
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"entity resync failed: {e}") from e
-    state.tracker.handle_diff_from_cache()
-    state.tracker.handle_entity_diff_from_cache()
-    state.tracker.commit()
-    if dev_diff.added or dev_diff.removed or dev_diff.updated:
-        await state.broker.publish({"kind": "devices_changed"})
-    if ent_diff.added or ent_diff.removed or ent_diff.updated:
-        await state.broker.publish({"kind": "entities_changed"})
-    return ResyncResponse(
-        added=len(dev_diff.added),
-        removed=len(dev_diff.removed),
-        updated=len(dev_diff.updated),
-        entity_added=len(ent_diff.added),
-        entity_removed=len(ent_diff.removed),
-        entity_updated=len(ent_diff.updated),
-    )
+        pat = re.compile(body.pattern)
+    except re.error as e:
+        return RenamePatternResponse(error=f"invalid regex: {e}", results=[])
+    results: list[RenamePatternResult] = []
+    for did in body.device_ids:
+        d = state.cache.device(did)
+        if d is None:
+            results.append(RenamePatternResult(device_id=did, matched=False, reason="not in cache"))
+            continue
+        current = d.name_by_user or d.name
+        new = pat.sub(body.replacement, current)
+        if new == current:
+            results.append(RenamePatternResult(device_id=did, matched=False))
+            continue
+        if body.dry_run:
+            results.append(
+                RenamePatternResult(
+                    device_id=did,
+                    matched=True,
+                    new_name=new,
+                    dry_run=True,
+                )
+            )
+            continue
+        try:
+            await state.ha.update_device(did, HADeviceUpdate(name_by_user=new))
+            results.append(
+                RenamePatternResult(
+                    device_id=did,
+                    matched=True,
+                    new_name=new,
+                    ok=True,
+                )
+            )
+        except Exception as e:
+            results.append(
+                RenamePatternResult(
+                    device_id=did,
+                    matched=True,
+                    ok=False,
+                    error=str(e),
+                )
+            )
+    return RenamePatternResponse(results=results)

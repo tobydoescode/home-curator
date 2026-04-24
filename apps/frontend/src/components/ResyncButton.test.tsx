@@ -35,7 +35,7 @@ describe("ResyncButton", () => {
     ).toBeInTheDocument();
   });
 
-  it("POSTs to /api/devices/resync when clicked", async () => {
+  it("POSTs to /api/cache/resync when clicked", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ added: 0, removed: 0, updated: 0 }), {
         status: 200,
@@ -50,7 +50,7 @@ describe("ResyncButton", () => {
 
     await waitFor(() => {
       const req = fetchSpy.mock.calls[0]?.[0] as Request | undefined;
-      expect(req?.url).toContain("/api/devices/resync");
+      expect(req?.url).toContain("/api/cache/resync");
       expect(req?.method).toBe("POST");
     });
   });

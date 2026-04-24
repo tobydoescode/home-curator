@@ -65,7 +65,7 @@ def acknowledge(
     return AcknowledgeResponse(ok=True)
 
 
-@router.delete("/{device_id}/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/device/{device_id}/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
 def clear(device_id: str, policy_id: str, state: AppState = _APP_STATE_DEPENDENCY):
     """Remove an acknowledged exception for (device_id, policy_id)."""
     with session_scope(state.session_factory) as s:

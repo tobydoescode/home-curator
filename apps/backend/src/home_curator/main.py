@@ -8,10 +8,10 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from home_curator.api import (
-    actions as actions_api,
+    areas as areas_api,
 )
 from home_curator.api import (
-    areas as areas_api,
+    cache as cache_api,
 )
 from home_curator.api import (
     config_api,
@@ -246,7 +246,7 @@ def create_app(
     app.include_router(devices_api.router)
     app.include_router(entities_api.router)
     app.include_router(exceptions_api.router)
-    app.include_router(actions_api.router)
+    app.include_router(cache_api.router)
     app.include_router(policies_api.router)
     app.include_router(events_api.router)
     app.include_router(areas_api.router)

@@ -1,7 +1,7 @@
 import { Button, Group, Stack, TextInput } from "@mantine/core";
 import { useState } from "react";
 
-import { useRename } from "@/hooks/useActions";
+import { useUpdateDevice } from "@/hooks/useActions";
 
 interface Props {
   deviceId: string;
@@ -11,7 +11,7 @@ interface Props {
 
 export function RenameModal({ deviceId, currentName, onClose }: Props) {
   const [name, setName] = useState(currentName);
-  const rename = useRename();
+  const rename = useUpdateDevice();
   return (
     <Stack>
       <TextInput
@@ -28,7 +28,10 @@ export function RenameModal({ deviceId, currentName, onClose }: Props) {
           disabled={!name || name === currentName || rename.isPending}
           loading={rename.isPending}
           onClick={async () => {
-            await rename.mutateAsync({ device_id: deviceId, name_by_user: name });
+            await rename.mutateAsync({
+              device_id: deviceId,
+              changes: { name_by_user: name },
+            });
             onClose();
           }}
         >

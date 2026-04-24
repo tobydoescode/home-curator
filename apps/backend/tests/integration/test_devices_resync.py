@@ -1,4 +1,4 @@
-"""POST /api/devices/resync — user-triggered force refresh."""
+"""POST /api/cache/resync — user-triggered force refresh."""
 
 from home_curator.ha_client.models import HADevice, HADeviceEntityRef
 
@@ -6,7 +6,7 @@ from home_curator.ha_client.models import HADevice, HADeviceEntityRef
 def test_resync_no_changes_returns_zero_diff(client, fake_ha):
     """When HA state matches the cache, every counter is 0."""
     before_calls = len(fake_ha.update_calls)
-    r = client.post("/api/devices/resync")
+    r = client.post("/api/cache/resync")
     assert r.status_code == 200
     body = r.json()
     assert body["added"] == 0
@@ -50,7 +50,7 @@ def test_resync_reflects_added_removed_updated(client, fake_ha):
             entities=[],
         ),
     ])
-    r = client.post("/api/devices/resync")
+    r = client.post("/api/cache/resync")
     assert r.status_code == 200
     body = r.json()
     assert body["added"] == 1
@@ -66,7 +66,7 @@ def test_resync_ha_error_returns_502(client, fake_ha):
         raise RuntimeError("ha unavailable")
 
     fake_ha.get_devices = boom  # type: ignore[method-assign]
-    r = client.post("/api/devices/resync")
+    r = client.post("/api/cache/resync")
     assert r.status_code == 502
     assert "resync failed" in r.json()["detail"]
     assert "ha unavailable" in r.json()["detail"]

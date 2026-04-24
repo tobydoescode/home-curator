@@ -39,7 +39,7 @@ export function useUpdateEntity() {
       entity_id: string;
       changes: UpdateEntityChanges;
     }) => {
-      const { data, error } = await api.PATCH("/api/actions/entity/{entity_id}", {
+      const { data, error } = await api.PATCH("/api/entities/{entity_id}", {
         params: { path: { entity_id } },
         body: changes,
       });
@@ -70,7 +70,7 @@ export function useDeleteEntities() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (entity_ids: string[]) => {
-      const { data, error } = await api.POST("/api/actions/delete-entity", {
+      const { data, error } = await api.POST("/api/entities/bulk-delete", {
         body: { entity_ids },
       });
       if (error) throw new Error(String(error));
@@ -104,7 +104,7 @@ export function useAssignRoomEntities() {
       area_id: string | null;
     }) => {
       const { data, error } = await api.POST(
-        "/api/actions/assign-room-entities",
+        "/api/entities/assign-room",
         { body },
       );
       if (error) throw new Error(String(error));
@@ -136,7 +136,7 @@ export function useRenameEntityPattern() {
   return useMutation({
     mutationFn: async (body: RenameEntityPatternBody) => {
       const { data, error } = await api.POST(
-        "/api/actions/rename-pattern-entities",
+        "/api/entities/rename-pattern",
         { body },
       );
       if (error) throw new Error(String(error));
@@ -171,7 +171,7 @@ export function useEntityState() {
       field: "disabled_by" | "hidden_by";
       value: "user" | null;
     }) => {
-      const { data, error } = await api.POST("/api/actions/entity-state", {
+      const { data, error } = await api.POST("/api/entities/state", {
         body,
       });
       if (error) throw new Error(String(error));

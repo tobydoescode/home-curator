@@ -57,7 +57,7 @@ curl -N http://localhost:8099/api/events
 
 Interactive OpenAPI UI: <http://localhost:8099/docs>.
 
-### Actions (writes to HA — be deliberate)
+### Resource actions (writes to HA — be deliberate)
 
 ```bash
 # Acknowledge an exception
@@ -66,12 +66,12 @@ curl -X POST http://localhost:8099/api/exceptions \
   -d '{"device_id":"<id>","policy_id":"missing-room","acknowledged_by":"me"}'
 
 # Bulk assign a room
-curl -X POST http://localhost:8099/api/actions/assign-room \
+curl -X POST http://localhost:8099/api/devices/assign-room \
   -H 'Content-Type: application/json' \
   -d '{"device_ids":["<id>"],"area_id":"<area-id>"}'
 
 # Pattern rename — use dry_run:true first to preview
-curl -X POST http://localhost:8099/api/actions/rename-pattern \
+curl -X POST http://localhost:8099/api/devices/rename-pattern \
   -H 'Content-Type: application/json' \
   -d '{"device_ids":["<id1>","<id2>"],"pattern":"^old_","replacement":"new_","dry_run":true}'
 ```

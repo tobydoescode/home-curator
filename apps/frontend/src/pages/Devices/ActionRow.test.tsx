@@ -150,7 +150,7 @@ describe("ActionRow", () => {
 
     const deletePost = fetchSpy.mock.calls
       .map((c) => c[0] as Request)
-      .find((r) => r.url.includes("/api/actions/delete"));
+      .find((r) => r.url.includes("/api/devices/bulk-delete"));
     expect(deletePost).toBeDefined();
     expect(await deletePost!.json()).toEqual({ device_ids: ["d1", "d2"] });
     await waitFor(() => expect(onClearSelection).toHaveBeenCalledTimes(1));
