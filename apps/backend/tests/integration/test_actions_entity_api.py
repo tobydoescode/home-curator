@@ -1,6 +1,20 @@
 from home_curator.ha_client.models import HAEntityUpdate
 
 
+def _wire(call: tuple[str, HAEntityUpdate]) -> tuple[str, dict]:
+    """Render a recorded update call as the dict the WS client would send to HA.
+
+    Pydantic model equality compares `__dict__` (values), not
+    `model_fields_set`, so `HAEntityUpdate(icon=None)` equals
+    `HAEntityUpdate()` — a regression that drops an explicit `None` from the
+    wire payload wouldn't fail an assertion that compared models directly.
+    `model_dump(exclude_unset=True)` mirrors what the WS client actually sends,
+    so asserting on it catches set-ness regressions.
+    """
+    entity_id, patch = call
+    return entity_id, patch.model_dump(exclude_unset=True)
+
+
 def test_patch_entity_name_only(client, fake_ha):
     r = client.patch(
         "/api/actions/entity/light.kitchen_ceiling",
@@ -8,9 +22,9 @@ def test_patch_entity_name_only(client, fake_ha):
     )
     assert r.status_code == 200
     assert r.json() == {"ok": True}
-    assert fake_ha.update_entity_calls[-1] == (
+    assert _wire(fake_ha.update_entity_calls[-1]) == (
         "light.kitchen_ceiling",
-        HAEntityUpdate(name="Main Ceiling"),
+        {"name": "Main Ceiling"},
     )
 
 
@@ -20,9 +34,9 @@ def test_patch_entity_rename_slug(client, fake_ha):
         json={"new_entity_id": "light.study_lamp"},
     )
     assert r.status_code == 200
-    assert fake_ha.update_entity_calls[-1] == (
+    assert _wire(fake_ha.update_entity_calls[-1]) == (
         "light.kitchen_ceiling",
-        HAEntityUpdate(new_entity_id="light.study_lamp"),
+        {"new_entity_id": "light.study_lamp"},
     )
 
 
@@ -34,9 +48,9 @@ def test_patch_entity_batches_fields_into_one_call(client, fake_ha):
     )
     assert r.status_code == 200
     assert len(fake_ha.update_entity_calls) == before + 1
-    assert fake_ha.update_entity_calls[-1] == (
+    assert _wire(fake_ha.update_entity_calls[-1]) == (
         "light.kitchen_ceiling",
-        HAEntityUpdate(name="Main Ceiling", area_id="living", icon=None),
+        {"name": "Main Ceiling", "area_id": "living", "icon": None},
     )
 
 
@@ -85,9 +99,9 @@ def test_assign_room_entities_bulk(client, fake_ha):
         {"entity_id": "light.kitchen_ceiling", "ok": True},
         {"entity_id": "sensor.temperature", "ok": True},
     ]
-    assert fake_ha.update_entity_calls[-2:] == [
-        ("light.kitchen_ceiling", HAEntityUpdate(area_id="living")),
-        ("sensor.temperature", HAEntityUpdate(area_id="living")),
+    assert [_wire(c) for c in fake_ha.update_entity_calls[-2:]] == [
+        ("light.kitchen_ceiling", {"area_id": "living"}),
+        ("sensor.temperature", {"area_id": "living"}),
     ]
 
 
@@ -166,9 +180,9 @@ def test_rename_pattern_apply_sends_changed_fields_only(client, fake_ha):
     assert row["id_changed"] is True
     assert row["name_changed"] is False
     assert len(fake_ha.update_entity_calls) == before + 1
-    assert fake_ha.update_entity_calls[-1] == (
+    assert _wire(fake_ha.update_entity_calls[-1]) == (
         "light.kitchen_ceiling",
-        HAEntityUpdate(new_entity_id="light.main_ceiling"),
+        {"new_entity_id": "light.main_ceiling"},
     )
 
 
@@ -183,9 +197,9 @@ def test_rename_pattern_name_only_apply(client, fake_ha):
         },
     )
     assert r.status_code == 200
-    assert fake_ha.update_entity_calls[-1] == (
+    assert _wire(fake_ha.update_entity_calls[-1]) == (
         "light.kitchen_ceiling",
-        HAEntityUpdate(name="Main Ceiling"),
+        {"name": "Main Ceiling"},
     )
 
 
@@ -289,9 +303,9 @@ def test_entity_state_disable(client, fake_ha):
     )
     assert r.status_code == 200
     assert r.json()["results"] == [{"entity_id": "light.kitchen_ceiling", "ok": True}]
-    assert fake_ha.update_entity_calls[-1] == (
+    assert _wire(fake_ha.update_entity_calls[-1]) == (
         "light.kitchen_ceiling",
-        HAEntityUpdate(disabled_by="user"),
+        {"disabled_by": "user"},
     )
 
 
@@ -305,9 +319,9 @@ def test_entity_state_enable(client, fake_ha):
         },
     )
     assert r.status_code == 200
-    assert fake_ha.update_entity_calls[-1] == (
+    assert _wire(fake_ha.update_entity_calls[-1]) == (
         "switch.garage_door",
-        HAEntityUpdate(disabled_by=None),
+        {"disabled_by": None},
     )
 
 
@@ -321,9 +335,9 @@ def test_entity_state_hide(client, fake_ha):
         },
     )
     assert r.status_code == 200
-    assert fake_ha.update_entity_calls[-1] == (
+    assert _wire(fake_ha.update_entity_calls[-1]) == (
         "light.kitchen_ceiling",
-        HAEntityUpdate(hidden_by="user"),
+        {"hidden_by": "user"},
     )
 
 
@@ -337,9 +351,9 @@ def test_entity_state_show(client, fake_ha):
         },
     )
     assert r.status_code == 200
-    assert fake_ha.update_entity_calls[-1] == (
+    assert _wire(fake_ha.update_entity_calls[-1]) == (
         "binary_sensor.kitchen_motion",
-        HAEntityUpdate(hidden_by=None),
+        {"hidden_by": None},
     )
 
 
