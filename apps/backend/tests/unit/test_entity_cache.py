@@ -1,7 +1,7 @@
 import pytest
 
-from home_curator.ha_client.base import HADeviceDict, HAEntityDict
 from home_curator.ha_client.fake import FakeHAClient
+from home_curator.ha_client.models import HAArea, HADevice, HAEntity
 from home_curator.registry_cache.cache import RegistryCache
 from home_curator.registry_cache.entity_cache import EntityRegistryCache
 
@@ -12,41 +12,41 @@ def _ent(
     area_id: str | None = None,
     platform: str = "hue",
     unique_id: str | None = "x",
-) -> HAEntityDict:
-    return {
-        "entity_id": eid,
-        "name": None,
-        "original_name": eid,
-        "icon": None,
-        "platform": platform,
-        "device_id": device_id,
-        "area_id": area_id,
-        "disabled_by": None,
-        "hidden_by": None,
-        "unique_id": unique_id,
-    }
+) -> HAEntity:
+    return HAEntity(
+        entity_id=eid,
+        name=None,
+        original_name=eid,
+        icon=None,
+        platform=platform,
+        device_id=device_id,
+        area_id=area_id,
+        disabled_by=None,
+        hidden_by=None,
+        unique_id=unique_id,
+    )
 
 
-def _dev(did: str, area_id: str | None = None) -> HADeviceDict:
-    return {
-        "id": did,
-        "name": did,
-        "name_by_user": None,
-        "manufacturer": None,
-        "model": None,
-        "area_id": area_id,
-        "integration": None,
-        "disabled_by": None,
-        "identifiers": [[did, "x"]],
-        "entities": [],
-    }
+def _dev(did: str, area_id: str | None = None) -> HADevice:
+    return HADevice(
+        id=did,
+        name=did,
+        name_by_user=None,
+        manufacturer=None,
+        model=None,
+        area_id=area_id,
+        integration=None,
+        disabled_by=None,
+        identifiers=[[did, "x"]],
+        entities=[],
+    )
 
 
 @pytest.mark.asyncio
 async def test_load_indexes_entities_by_id_and_hydrates_area_name():
     fake = FakeHAClient(
         devices=[_dev("d1", area_id="kitchen")],
-        areas=[{"id": "kitchen", "name": "Kitchen"}],
+        areas=[HAArea(id="kitchen", name="Kitchen")],
         entities=[_ent("light.kitchen_lamp", device_id="d1", area_id=None)],
     )
     dev_cache = RegistryCache(fake)
@@ -88,7 +88,7 @@ async def test_refresh_computes_diff_add_remove_update():
 
     # Mutate: rename light.b, add light.c, remove light.a.
     fake.set_entities([
-        {**_ent("light.b", device_id=None, unique_id="b"), "name": "B Renamed"},
+        _ent("light.b", device_id=None, unique_id="b").model_copy(update={"name": "B Renamed"}),
         _ent("light.c", device_id=None, unique_id="c"),
     ])
     diff = await cache.refresh()
