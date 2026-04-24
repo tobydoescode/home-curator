@@ -161,3 +161,71 @@ def test_ha_entity_update_multiple_fields():
 def test_ha_entity_update_forbids_extra_fields():
     with pytest.raises(ValidationError):
         HAEntityUpdate(bogus=True)  # type: ignore[call-arg]
+
+
+from pydantic import TypeAdapter
+
+from home_curator.ha_client.models import (
+    AreaUpdatedEvent,
+    DeviceUpdatedEvent,
+    EntityDeletedEvent,
+    EntityUpdatedEvent,
+    HAEvent,
+    ReconnectedEvent,
+)
+
+
+def test_event_discriminator_parses_each_variant():
+    adapter = TypeAdapter(HAEvent)
+    assert isinstance(
+        adapter.validate_python({"kind": "reconnected"}), ReconnectedEvent
+    )
+    assert isinstance(
+        adapter.validate_python({"kind": "area_updated"}), AreaUpdatedEvent
+    )
+    assert isinstance(
+        adapter.validate_python({"kind": "device_updated", "device_id": "d1"}),
+        DeviceUpdatedEvent,
+    )
+    assert isinstance(
+        adapter.validate_python({"kind": "entity_updated", "entity_id": "e1"}),
+        EntityUpdatedEvent,
+    )
+    assert isinstance(
+        adapter.validate_python({"kind": "entity_deleted", "entity_id": "e1"}),
+        EntityDeletedEvent,
+    )
+
+
+def test_event_unknown_kind_rejected():
+    with pytest.raises(ValidationError):
+        TypeAdapter(HAEvent).validate_python({"kind": "mystery"})
+
+
+def test_device_updated_event_allows_none_device_id():
+    # HA's device_registry_updated event may arrive without a device_id (broad
+    # registry change). Preserving the None case keeps current broad-refresh
+    # behavior in on_event.
+    e = DeviceUpdatedEvent()
+    assert e.device_id is None
+    e = DeviceUpdatedEvent(device_id="d1")
+    assert e.device_id == "d1"
+
+
+def test_entity_events_allow_none_entity_id():
+    # Broad entity_registry_updated events may arrive without an entity_id.
+    # Preserving the None case keeps current broad-refresh behavior in
+    # _refresh_and_publish_entity (which still triggers entities_changed).
+    e = EntityUpdatedEvent()
+    assert e.entity_id is None
+    d = EntityDeletedEvent()
+    assert d.entity_id is None
+    # And they still accept specific ids.
+    assert EntityUpdatedEvent(entity_id="e1").entity_id == "e1"
+    assert EntityDeletedEvent(entity_id="e1").entity_id == "e1"
+
+
+def test_events_are_frozen():
+    e = DeviceUpdatedEvent(device_id="d1")
+    with pytest.raises(ValidationError):
+        e.device_id = "d2"  # type: ignore[misc]

@@ -7,6 +7,8 @@ caller typos would otherwise silently fail to update anything. Event
 types form a discriminated union on the `kind` Literal field.
 """
 
+from typing import Annotated, Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -75,3 +77,46 @@ class HAEntityUpdate(BaseModel):
     disabled_by: str | None = None
     hidden_by: str | None = None
     icon: str | None = None
+
+
+class _EventBase(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+
+class ReconnectedEvent(_EventBase):
+    kind: Literal["reconnected"] = "reconnected"
+
+
+class DeviceUpdatedEvent(_EventBase):
+    kind: Literal["device_updated"] = "device_updated"
+    # HA may emit device_registry_updated without a device_id (broad registry
+    # change); None means "refresh all devices".
+    device_id: str | None = None
+
+
+class AreaUpdatedEvent(_EventBase):
+    kind: Literal["area_updated"] = "area_updated"
+
+
+class EntityUpdatedEvent(_EventBase):
+    kind: Literal["entity_updated"] = "entity_updated"
+    # HA may emit entity_registry_updated without an entity_id (broad
+    # registry change); None means "refresh the entity cache broadly".
+    entity_id: str | None = None
+
+
+class EntityDeletedEvent(_EventBase):
+    kind: Literal["entity_deleted"] = "entity_deleted"
+    # Same rationale as EntityUpdatedEvent.entity_id — preserve broad
+    # refresh behavior when HA omits the id.
+    entity_id: str | None = None
+
+
+HAEvent = Annotated[
+    ReconnectedEvent
+    | DeviceUpdatedEvent
+    | AreaUpdatedEvent
+    | EntityUpdatedEvent
+    | EntityDeletedEvent,
+    Field(discriminator="kind"),
+]
