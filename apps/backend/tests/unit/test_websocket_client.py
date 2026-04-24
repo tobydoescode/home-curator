@@ -11,6 +11,19 @@ HA_AUTH_OK = {"type": "auth_ok", "ha_version": "2026.4.0"}
 HA_AUTH_REQUIRED = {"type": "auth_required", "ha_version": "2026.4.0"}
 
 
+async def _send_result(ws, msg: dict, result):
+    await ws.send(
+        json.dumps(
+            {
+                "id": msg["id"],
+                "type": "result",
+                "success": True,
+                "result": result,
+            }
+        )
+    )
+
+
 async def _fake_ha(ws):
     # Expect auth
     await ws.send(json.dumps(HA_AUTH_REQUIRED))
@@ -22,25 +35,36 @@ async def _fake_ha(ws):
     async for raw in ws:
         msg = json.loads(raw)
         if msg.get("type") == "config/device_registry/list":
-            await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": [
-                {"id": "d1", "name": "lamp", "area_id": None, "disabled_by": None,
-                 "manufacturer": None, "model": None, "name_by_user": None,
-                 "identifiers": [["hue", "x"]], "entry_type": None, "config_entries": []}
-            ]}))
+            await _send_result(
+                ws,
+                msg,
+                [
+                    {
+                        "id": "d1",
+                        "name": "lamp",
+                        "area_id": None,
+                        "disabled_by": None,
+                        "manufacturer": None,
+                        "model": None,
+                        "name_by_user": None,
+                        "identifiers": [["hue", "x"]],
+                        "entry_type": None,
+                        "config_entries": [],
+                    }
+                ],
+            )
         elif msg.get("type") == "config/area_registry/list":
-            await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": [
-                {"area_id": "living", "name": "Living Room"}
-            ]}))
+            await _send_result(ws, msg, [{"area_id": "living", "name": "Living Room"}])
         elif msg.get("type") == "config/entity_registry/list":
-            await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": [
-                {"entity_id": "light.lamp", "device_id": "d1", "platform": "hue"}
-            ]}))
+            await _send_result(
+                ws,
+                msg,
+                [{"entity_id": "light.lamp", "device_id": "d1", "platform": "hue"}],
+            )
         elif msg.get("type") == "config_entries/get":
-            await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": [
-                {"entry_id": "e1", "domain": "hue"}
-            ]}))
+            await _send_result(ws, msg, [{"entry_id": "e1", "domain": "hue"}])
         elif msg.get("type") == "subscribe_events":
-            await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": None}))
+            await _send_result(ws, msg, None)
 
 
 @pytest.mark.asyncio
@@ -114,23 +138,33 @@ async def test_delete_device_removes_each_config_entry():
         async for raw in ws:
             msg = json.loads(raw)
             if msg.get("type") == "config/device_registry/list":
-                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": [
-                    {"id": "d1", "name": "lamp", "area_id": None, "disabled_by": None,
-                     "manufacturer": None, "model": None, "name_by_user": None,
-                     "identifiers": [["hue", "x"]], "entry_type": None,
-                     "config_entries": ["e1", "e2"]}
-                ]}))
+                await _send_result(
+                    ws,
+                    msg,
+                    [
+                        {
+                            "id": "d1",
+                            "name": "lamp",
+                            "area_id": None,
+                            "disabled_by": None,
+                            "manufacturer": None,
+                            "model": None,
+                            "name_by_user": None,
+                            "identifiers": [["hue", "x"]],
+                            "entry_type": None,
+                            "config_entries": ["e1", "e2"],
+                        }
+                    ],
+                )
             elif msg.get("type") == "config/entity_registry/list":
-                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": []}))
+                await _send_result(ws, msg, [])
             elif msg.get("type") == "config_entries/get":
-                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": [
-                    {"entry_id": "e1", "domain": "hue"},
-                ]}))
+                await _send_result(ws, msg, [{"entry_id": "e1", "domain": "hue"}])
             elif msg.get("type") == "subscribe_events":
-                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": None}))
+                await _send_result(ws, msg, None)
             elif msg.get("type") == "config/device_registry/remove_config_entry":
                 calls.append(msg)
-                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": None}))
+                await _send_result(ws, msg, None)
 
     async with websockets.serve(_fake_ha_with_delete, "localhost", 0) as server:
         port = server.sockets[0].getsockname()[1]
@@ -159,11 +193,12 @@ async def test_get_entities_normalizes_payload():
         async for raw in ws:
             msg = json.loads(raw)
             if msg.get("type") == "subscribe_events":
-                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": None}))
+                await _send_result(ws, msg, None)
             elif msg.get("type") == "config/entity_registry/list":
-                await ws.send(json.dumps({
-                    "id": msg["id"], "type": "result", "success": True,
-                    "result": [
+                await _send_result(
+                    ws,
+                    msg,
+                    [
                         {
                             "entity_id": "light.kitchen_lamp",
                             "name": "Kitchen Lamp",
@@ -179,7 +214,7 @@ async def test_get_entities_normalizes_payload():
                             "modified_at": None,
                         }
                     ],
-                }))
+                )
 
     async with websockets.serve(_fake, "localhost", 0) as server:
         port = server.sockets[0].getsockname()[1]
@@ -212,10 +247,10 @@ async def test_update_entity_forwards_changes():
         async for raw in ws:
             msg = json.loads(raw)
             if msg.get("type") == "subscribe_events":
-                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": None}))
+                await _send_result(ws, msg, None)
             elif msg.get("type") == "config/entity_registry/update":
                 calls.append(msg)
-                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": None}))
+                await _send_result(ws, msg, None)
 
     async with websockets.serve(_fake, "localhost", 0) as server:
         port = server.sockets[0].getsockname()[1]
@@ -248,10 +283,10 @@ async def test_delete_entity_sends_remove_command():
         async for raw in ws:
             msg = json.loads(raw)
             if msg.get("type") == "subscribe_events":
-                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": None}))
+                await _send_result(ws, msg, None)
             elif msg.get("type") == "config/entity_registry/remove":
                 calls.append(msg)
-                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": None}))
+                await _send_result(ws, msg, None)
 
     async with websockets.serve(_fake, "localhost", 0) as server:
         port = server.sockets[0].getsockname()[1]
@@ -262,7 +297,13 @@ async def test_delete_entity_sends_remove_command():
         finally:
             await client.stop()
 
-    assert calls == [{"id": calls[0]["id"], "type": "config/entity_registry/remove", "entity_id": "light.lamp"}]
+    assert calls == [
+        {
+            "id": calls[0]["id"],
+            "type": "config/entity_registry/remove",
+            "entity_id": "light.lamp",
+        }
+    ]
 
 
 @pytest.mark.asyncio
@@ -280,7 +321,7 @@ async def test_entity_registry_updated_dispatches_updated_and_deleted():
         async for raw in ws:
             msg = json.loads(raw)
             if msg.get("type") == "subscribe_events":
-                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True, "result": None}))
+                await _send_result(ws, msg, None)
                 sub_acked += 1
                 # After the third sub ack (devices/areas/entities) push events.
                 if sub_acked == 3:
