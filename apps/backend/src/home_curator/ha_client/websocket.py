@@ -25,12 +25,19 @@ def _iso_or_none(v: Any) -> str | None:
 from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed
 
-from home_curator.ha_client.base import (
-    EventHandler,
-    HAAreaDict,
-    HADeviceDict,
-    HAEntityDict,
-    RegistryEvent,
+from home_curator.ha_client.base import EventHandler
+from home_curator.ha_client.models import (
+    AreaUpdatedEvent,
+    DeviceUpdatedEvent,
+    EntityDeletedEvent,
+    EntityUpdatedEvent,
+    HAArea,
+    HADevice,
+    HADeviceUpdate,
+    HAEntity,
+    HAEntityUpdate,
+    HAEvent,
+    ReconnectedEvent,
 )
 
 log = logging.getLogger(__name__)
@@ -227,16 +234,13 @@ class WebSocketHAClient:
             except Exception:
                 log.exception("subscriber raised")
 
-    async def get_devices(self) -> list[HADeviceDict]:
+    async def get_devices(self) -> list[HADevice]:
         devs: list[dict[str, Any]] = await self._send_cmd(
             {"type": "config/device_registry/list"}
         ) or []
         ents: list[dict[str, Any]] = await self._send_cmd(
             {"type": "config/entity_registry/list"}
         ) or []
-        # Map config_entry_id → integration domain (e.g. "hue", "aqara_ble").
-        # HA's device registry only carries config_entry ids; we want to show
-        # users the human-meaningful integration name instead.
         entries: list[dict[str, Any]] = await self._send_cmd(
             {"type": "config_entries/get"}
         ) or []
@@ -250,12 +254,12 @@ class WebSocketHAClient:
             index.setdefault(e["device_id"], []).append(
                 {"id": entity_id, "domain": entity_id.split(".")[0]}
             )
-        out: list[HADeviceDict] = []
+        built: list[dict[str, Any]] = []
         for d in devs:
             did: str = d["id"]
             device_entries: list[str] = list(d.get("config_entries") or [])
             primary_entry_id = device_entries[0] if device_entries else None
-            out.append({
+            built.append({
                 "id": did,
                 "name": d.get("name_by_user") or d.get("name") or did,
                 "name_by_user": d.get("name_by_user"),
@@ -270,13 +274,18 @@ class WebSocketHAClient:
                 "created_at": _iso_or_none(d.get("created_at")),
                 "modified_at": _iso_or_none(d.get("modified_at")),
             })
-        return out
+        # Validate at the boundary: a missing required field (e.g. `id`)
+        # surfaces as ValidationError with a field path rather than KeyError.
+        return [HADevice.model_validate(d) for d in built]
 
-    async def get_areas(self) -> list[HAAreaDict]:
+    async def get_areas(self) -> list[HAArea]:
         res: list[dict[str, Any]] = await self._send_cmd(
             {"type": "config/area_registry/list"}
         ) or []
-        return [{"id": a["area_id"], "name": a["name"]} for a in res]
+        return [
+            HAArea.model_validate({"id": a["area_id"], "name": a["name"]})
+            for a in res
+        ]
 
     async def update_device(self, device_id: str, changes: dict[str, Any]) -> None:
         await self._send_cmd({"type": "config/device_registry/update", "device_id": device_id, **changes})
@@ -317,13 +326,12 @@ class WebSocketHAClient:
                 "device_id": device_id,
             })
 
-    async def get_entities(self) -> list[HAEntityDict]:
+    async def get_entities(self) -> list[HAEntity]:
         res: list[dict[str, Any]] = await self._send_cmd(
             {"type": "config/entity_registry/list"}
         ) or []
-        out: list[HAEntityDict] = []
-        for e in res:
-            out.append({
+        built = [
+            {
                 "entity_id": e["entity_id"],
                 "name": e.get("name"),
                 "original_name": e.get("original_name"),
@@ -336,8 +344,10 @@ class WebSocketHAClient:
                 "unique_id": e.get("unique_id"),
                 "created_at": _iso_or_none(e.get("created_at")),
                 "modified_at": _iso_or_none(e.get("modified_at")),
-            })
-        return out
+            }
+            for e in res
+        ]
+        return [HAEntity.model_validate(e) for e in built]
 
     async def update_entity(self, entity_id: str, changes: dict[str, Any]) -> None:
         """Forward a partial entity update through HA's entity_registry/update
