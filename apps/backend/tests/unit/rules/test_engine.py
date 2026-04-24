@@ -1,27 +1,17 @@
+from typing import Any
+
 from home_curator.policies.schema import PoliciesFile
-from home_curator.rules.base import Device, EvaluationContext
+from home_curator.rules.base import EvaluationContext
 from home_curator.rules.engine import RuleEngine
+from tests.unit.rules.factories import make_context, make_device
 
 
-def _device(**kw):
-    d = dict(
-        id="d",
-        name="bad-name",
-        name_by_user=None,
-        manufacturer=None,
-        model=None,
-        area_id=None,
-        area_name=None,
-        integration=None,
-        disabled_by=None,
-        entities=[],
-    )
-    d.update(kw)
-    return Device(**d)
+def _device(**kwargs: Any):
+    return make_device(id="d", name="bad-name", **kwargs)
 
 
 def _empty_ctx():
-    return EvaluationContext(area_name_to_id={}, area_id_to_name={}, exceptions=set())
+    return make_context()
 
 
 def test_engine_evaluates_all_policies():

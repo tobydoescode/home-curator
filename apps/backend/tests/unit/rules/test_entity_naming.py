@@ -5,28 +5,23 @@
   - per-room entity_id opt-out
   - both blocks fire independently for the same entity
 """
+from typing import Any
+
 from home_curator.policies.schema import EntityNamingConventionPolicy
-from home_curator.rules.base import Entity, EvaluationContext
 from home_curator.rules.entity_naming import compile_entity_naming
+from tests.unit.rules.factories import make_context, make_device, make_entity
 
 
-def _e(entity_id="light.kitchen_lamp", name="Kitchen Lamp", **kw):
-    defaults = dict(
-        entity_id=entity_id, name=name, original_name=None, icon=None,
-        domain="light", platform="hue", device_id=None, area_id=None,
-        area_name=None, disabled_by=None, hidden_by=None, unique_id=None,
-        created_at=None, modified_at=None, state={},
-    )
-    defaults.update(kw)
-    return Entity(**defaults)
+def _e(
+    entity_id: str = "light.kitchen_lamp",
+    name: str | None = "Kitchen Lamp",
+    **kwargs: Any,
+):
+    return make_entity(entity_id=entity_id, name=name, **kwargs)
 
 
-def _ctx(**kw):
-    defaults = dict(
-        area_name_to_id={}, area_id_to_name={}, exceptions=set(), devices_by_id={},
-    )
-    defaults.update(kw)
-    return EvaluationContext(**defaults)
+def _ctx(**kwargs: Any):
+    return make_context(**kwargs)
 
 
 def _policy(name=None, entity_id=None):
@@ -200,17 +195,13 @@ def test_issue_target_fields():
 # room-prefixed by the device rule). Fall back to the room prefix only for
 # standalone entities. Dedupe: when the device's name itself doesn't start
 # with the room, suppress the entity issue — device rule handles it.
-# ---------------------------------------------------------------------------
-from home_curator.rules.base import Device  # noqa: E402
-
-
 def _dev(
-    id="d1",
-    name="Living Room Lamp",
-    area_id="lr",
-    area_name="Living Room",
+    id: str = "d1",
+    name: str = "Living Room Lamp",
+    area_id: str | None = "lr",
+    area_name: str | None = "Living Room",
 ):
-    return Device(
+    return make_device(
         id=id, name=name, name_by_user=None,
         manufacturer=None, model=None,
         area_id=area_id, area_name=area_name,

@@ -1,27 +1,14 @@
+from typing import Any
+
 from home_curator.policies.schema import CustomPolicy
-from home_curator.rules.base import Device, EvaluationContext
 from home_curator.rules.custom_cel import compile_custom
+from tests.unit.rules.factories import make_context as _ctx
+from tests.unit.rules.factories import make_device
 
 
-def _d(**kw):
-    defaults = dict(
-        id="d1",
-        name="n",
-        name_by_user=None,
-        manufacturer="Aqara",
-        model=None,
-        area_id=None,
-        area_name=None,
-        integration=None,
-        disabled_by=None,
-        entities=[],
-    )
-    defaults.update(kw)
-    return Device(**defaults)
-
-
-def _ctx(exc=None):
-    return EvaluationContext(area_name_to_id={}, area_id_to_name={}, exceptions=exc or set())
+def _d(**kwargs: Any):
+    manufacturer = kwargs.pop("manufacturer", "Aqara")
+    return make_device(manufacturer=manufacturer, **kwargs)
 
 
 def test_custom_fires_when_assert_false():
