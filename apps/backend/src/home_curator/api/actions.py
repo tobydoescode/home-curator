@@ -149,13 +149,34 @@ async def rename_pattern(
             results.append(RenamePatternResult(device_id=did, matched=False))
             continue
         if body.dry_run:
-            results.append(RenamePatternResult(device_id=did, matched=True, new_name=new, dry_run=True))
+            results.append(
+                RenamePatternResult(
+                    device_id=did,
+                    matched=True,
+                    new_name=new,
+                    dry_run=True,
+                )
+            )
         else:
             try:
                 await state.ha.update_device(did, HADeviceUpdate(name_by_user=new))
-                results.append(RenamePatternResult(device_id=did, matched=True, new_name=new, ok=True))
+                results.append(
+                    RenamePatternResult(
+                        device_id=did,
+                        matched=True,
+                        new_name=new,
+                        ok=True,
+                    )
+                )
             except Exception as e:
-                results.append(RenamePatternResult(device_id=did, matched=True, ok=False, error=str(e)))
+                results.append(
+                    RenamePatternResult(
+                        device_id=did,
+                        matched=True,
+                        ok=False,
+                        error=str(e),
+                    )
+                )
     return RenamePatternResponse(results=results)
 
 
