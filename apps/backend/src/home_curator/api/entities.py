@@ -7,15 +7,26 @@ import re
 from collections import Counter
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from home_curator.api.deps import AppState, app_state
 from home_curator.api.schemas import (
     AreaOut,
+    AssignRoomEntityResponse,
+    AssignRoomEntityResult,
+    DeleteEntityResponse,
+    DeleteEntityResult,
     EntitiesListResponse,
     EntityOut,
+    EntityStateResponse,
+    EntityStateResult,
     IssueOut,
+    RenamePatternEntityResponse,
+    RenamePatternEntityResult,
+    RenameResponse,
 )
+from home_curator.ha_client.models import HAEntityUpdate
 from home_curator.rules.base import Entity, EvaluationContext, Issue, Severity
 from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
@@ -36,6 +47,45 @@ _RANK_TO_SEVERITY: dict[int, Severity] = {v: k for k, v in _SEVERITY_RANK.items(
 # any real area name (double-underscore + keyword) so users can still name a
 # room "None" without conflicts.
 NO_AREA_SENTINEL = "__none__"
+
+
+class UpdateEntityBody(BaseModel):
+    """Partial entity update."""
+
+    new_entity_id: str | None = None
+    name: str | None = None
+    area_id: str | None = None
+    disabled_by: str | None = None
+    hidden_by: str | None = None
+    icon: str | None = None
+
+    model_config = {"extra": "forbid"}
+
+
+class AssignRoomEntitiesBody(BaseModel):
+    entity_ids: list[str]
+    area_id: str | None
+
+
+class RenamePatternEntitiesBody(BaseModel):
+    entity_ids: list[str]
+    id_pattern: str | None = None
+    id_replacement: str | None = None
+    name_pattern: str | None = None
+    name_replacement: str | None = None
+    dry_run: bool = True
+
+
+class EntityStateBody(BaseModel):
+    """Bulk enable / disable / show / hide."""
+
+    entity_ids: list[str]
+    field: Literal["disabled_by", "hidden_by"]
+    value: Literal["user"] | None
+
+
+class DeleteEntityBody(BaseModel):
+    entity_ids: list[str]
 
 
 def _matches_query(text: str, q: str, regex: bool) -> bool:
@@ -268,3 +318,228 @@ def list_entities(
         all_integrations=all_integrations,
         all_issue_types=all_issue_types,
     )
+
+
+@router.patch("/entities/{entity_id}", response_model=RenameResponse)
+async def update_entity(
+    entity_id: str,
+    body: UpdateEntityBody,
+    state: AppState = _APP_STATE_DEPENDENCY,
+) -> RenameResponse:
+    """Partial update of a single entity."""
+    payload = body.model_dump(exclude_unset=True)
+    if not payload:
+        raise HTTPException(status_code=400, detail="no fields to update")
+    try:
+        await state.ha.update_entity(entity_id, HAEntityUpdate.model_validate(payload))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"ha update failed: {e}") from e
+    return RenameResponse(ok=True)
+
+
+@router.delete("/entities/{entity_id}", response_model=RenameResponse)
+async def delete_entity(
+    entity_id: str,
+    state: AppState = _APP_STATE_DEPENDENCY,
+) -> RenameResponse:
+    """Delete a single entity via HA's entity_registry/remove."""
+    if state.entity_cache.entity(entity_id) is None:
+        raise HTTPException(status_code=404, detail="entity not found")
+    try:
+        await state.ha.delete_entity(entity_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"ha delete failed: {e}") from e
+    return RenameResponse(ok=True)
+
+
+@router.post(
+    "/entities/bulk-delete",
+    response_model=DeleteEntityResponse,
+    response_model_exclude_none=True,
+)
+async def delete_entities_bulk(
+    body: DeleteEntityBody,
+    state: AppState = _APP_STATE_DEPENDENCY,
+) -> DeleteEntityResponse:
+    """Delete one or more entities. Returns per-entity results for partial success."""
+    if not body.entity_ids:
+        raise HTTPException(status_code=400, detail="entity_ids must not be empty")
+    results: list[DeleteEntityResult] = []
+    for eid in body.entity_ids:
+        if state.entity_cache.entity(eid) is None:
+            results.append(
+                DeleteEntityResult(entity_id=eid, ok=False, error="entity not found"),
+            )
+            continue
+        try:
+            await state.ha.delete_entity(eid)
+            results.append(DeleteEntityResult(entity_id=eid, ok=True))
+        except Exception as e:
+            results.append(DeleteEntityResult(entity_id=eid, ok=False, error=str(e)))
+    return DeleteEntityResponse(results=results)
+
+
+@router.post(
+    "/entities/assign-room",
+    response_model=AssignRoomEntityResponse,
+    response_model_exclude_none=True,
+)
+async def assign_room_entities(
+    body: AssignRoomEntitiesBody,
+    state: AppState = _APP_STATE_DEPENDENCY,
+) -> AssignRoomEntityResponse:
+    """Bulk-assign an area_id to one or more entities."""
+    results: list[AssignRoomEntityResult] = []
+    for eid in body.entity_ids:
+        try:
+            await state.ha.update_entity(eid, HAEntityUpdate(area_id=body.area_id))
+            results.append(AssignRoomEntityResult(entity_id=eid, ok=True))
+        except Exception as e:
+            results.append(AssignRoomEntityResult(entity_id=eid, ok=False, error=str(e)))
+    return AssignRoomEntityResponse(results=results)
+
+
+@router.post(
+    "/entities/rename-pattern",
+    response_model=RenamePatternEntityResponse,
+    response_model_exclude_none=False,
+)
+async def rename_pattern_entities(
+    body: RenamePatternEntitiesBody,
+    state: AppState = _APP_STATE_DEPENDENCY,
+) -> RenamePatternEntityResponse:
+    """Dual-regex rename across entity_id and / or friendly name."""
+    id_pat = None
+    name_pat = None
+    if body.id_pattern is not None:
+        try:
+            id_pat = re.compile(body.id_pattern)
+        except re.error as e:
+            return RenamePatternEntityResponse(
+                results=[], error=f"invalid id_pattern: {e}",
+            )
+    if body.name_pattern is not None:
+        try:
+            name_pat = re.compile(body.name_pattern)
+        except re.error as e:
+            return RenamePatternEntityResponse(
+                results=[], error=f"invalid name_pattern: {e}",
+            )
+    if id_pat is None and name_pat is None:
+        return RenamePatternEntityResponse(
+            results=[], error="provide at least one of id_pattern or name_pattern",
+        )
+
+    results: list[RenamePatternEntityResult] = []
+    for eid in body.entity_ids:
+        e = state.entity_cache.entity(eid)
+        if e is None:
+            results.append(
+                RenamePatternEntityResult(
+                    entity_id=eid,
+                    id_changed=False,
+                    name_changed=False,
+                    ok=False,
+                    dry_run=body.dry_run,
+                    error="entity not found",
+                )
+            )
+            continue
+
+        new_id: str | None = None
+        id_changed = False
+        if id_pat is not None and body.id_replacement is not None:
+            proposed = id_pat.sub(body.id_replacement, eid)
+            if proposed != eid:
+                new_id = proposed
+                id_changed = True
+
+        new_name: str | None = None
+        name_changed = False
+        if name_pat is not None and body.name_replacement is not None:
+            current = e.display_name
+            proposed_name = name_pat.sub(body.name_replacement, current)
+            if proposed_name != current:
+                new_name = proposed_name
+                name_changed = True
+
+        if not (id_changed or name_changed):
+            results.append(
+                RenamePatternEntityResult(
+                    entity_id=eid,
+                    id_changed=False,
+                    new_entity_id=None,
+                    name_changed=False,
+                    new_name=None,
+                    ok=True,
+                    dry_run=body.dry_run,
+                    error=None,
+                )
+            )
+            continue
+
+        if body.dry_run:
+            results.append(
+                RenamePatternEntityResult(
+                    entity_id=eid,
+                    id_changed=id_changed,
+                    new_entity_id=new_id,
+                    name_changed=name_changed,
+                    new_name=new_name,
+                    ok=True,
+                    dry_run=True,
+                    error=None,
+                )
+            )
+            continue
+
+        changes = HAEntityUpdate(
+            **({"new_entity_id": new_id} if id_changed and new_id is not None else {}),
+            **({"name": new_name} if name_changed and new_name is not None else {}),
+        )
+        try:
+            await state.ha.update_entity(eid, changes)
+            results.append(
+                RenamePatternEntityResult(
+                    entity_id=eid,
+                    id_changed=id_changed,
+                    new_entity_id=new_id,
+                    name_changed=name_changed,
+                    new_name=new_name,
+                    ok=True,
+                    dry_run=False,
+                    error=None,
+                )
+            )
+        except Exception as ex:
+            results.append(
+                RenamePatternEntityResult(
+                    entity_id=eid,
+                    id_changed=id_changed,
+                    new_entity_id=new_id,
+                    name_changed=name_changed,
+                    new_name=new_name,
+                    ok=False,
+                    dry_run=False,
+                    error=str(ex),
+                )
+            )
+    return RenamePatternEntityResponse(results=results, error=None)
+
+
+@router.post("/entities/state", response_model=EntityStateResponse, response_model_exclude_none=True)
+async def entity_state(
+    body: EntityStateBody,
+    state: AppState = _APP_STATE_DEPENDENCY,
+) -> EntityStateResponse:
+    """Bulk flip disabled_by / hidden_by to user or None."""
+    if not body.entity_ids:
+        raise HTTPException(status_code=400, detail="entity_ids must not be empty")
+    results: list[EntityStateResult] = []
+    for eid in body.entity_ids:
+        try:
+            await state.ha.update_entity(eid, HAEntityUpdate(**{body.field: body.value}))
+            results.append(EntityStateResult(entity_id=eid, ok=True))
+        except Exception as e:
+            results.append(EntityStateResult(entity_id=eid, ok=False, error=str(e)))
+    return EntityStateResponse(results=results)

@@ -104,12 +104,12 @@ describe("ActionRow (entities)", () => {
     await waitFor(() => {
       const post = fetchSpy.mock.calls
         .map((c) => c[0] as Request)
-        .find((r) => r.url.includes("/api/actions/entity-state"));
+        .find((r) => r.url.includes("/api/entities/state"));
       expect(post).toBeDefined();
     });
     const post = fetchSpy.mock.calls
       .map((c) => c[0] as Request)
-      .find((r) => r.url.includes("/api/actions/entity-state"))!;
+      .find((r) => r.url.includes("/api/entities/state"))!;
     expect(await post.json()).toEqual({
       entity_ids: ["light.a"],
       field: "disabled_by",
@@ -147,7 +147,7 @@ describe("ActionRow (entities)", () => {
 
     const post = fetchSpy.mock.calls
       .map((c) => c[0] as Request)
-      .find((r) => r.url.includes("/api/actions/delete-entity"));
+      .find((r) => r.url.includes("/api/entities/bulk-delete"));
     expect(post).toBeDefined();
     expect(await post!.json()).toEqual({ entity_ids: ["light.a", "light.b"] });
     await waitFor(() => expect(onClearSelection).toHaveBeenCalledTimes(1));

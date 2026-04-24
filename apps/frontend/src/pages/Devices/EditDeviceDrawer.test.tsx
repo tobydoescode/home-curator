@@ -83,7 +83,7 @@ describe("EditDeviceDrawer", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const req = fetchSpy.mock.calls[0][0] as Request;
     expect(req.method).toBe("PATCH");
-    expect(req.url).toContain("/api/actions/device/d1");
+    expect(req.url).toContain("/api/devices/d1");
     expect(await req.json()).toEqual({ name_by_user: "Hue Bulb 3" });
   });
 
@@ -347,7 +347,7 @@ describe("EditDeviceDrawer", () => {
     // The POST fired with a single-id payload.
     const deletePost = fetchSpy.mock.calls
       .map((c) => c[0] as Request)
-      .find((r) => r.url.includes("/api/actions/delete"));
+      .find((r) => r.url.includes("/api/devices/bulk-delete"));
     expect(deletePost).toBeDefined();
     expect(deletePost!.method).toBe("POST");
     expect(await deletePost!.json()).toEqual({ device_ids: ["d1"] });

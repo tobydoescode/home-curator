@@ -15,7 +15,14 @@ function wrap(qc: QueryClient) {
     React.createElement(QueryClientProvider, { client: qc }, children);
 }
 
-function mockOk(body: { added: number; removed: number; updated: number }) {
+function mockOk(body: {
+  added: number;
+  removed: number;
+  updated: number;
+  entity_added?: number;
+  entity_removed?: number;
+  entity_updated?: number;
+}) {
   return vi.spyOn(globalThis, "fetch").mockResolvedValue(
     new Response(JSON.stringify(body), {
       status: 200,
@@ -25,7 +32,7 @@ function mockOk(body: { added: number; removed: number; updated: number }) {
 }
 
 describe("useResync", () => {
-  it("POSTs /api/devices/resync with no body", async () => {
+  it("POSTs /api/cache/resync with no body", async () => {
     const fetchSpy = mockOk({ added: 0, removed: 0, updated: 0 });
     const qc = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -39,10 +46,10 @@ describe("useResync", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const req = fetchSpy.mock.calls[0][0] as Request;
     expect(req.method).toBe("POST");
-    expect(req.url).toContain("/api/devices/resync");
+    expect(req.url).toContain("/api/cache/resync");
   });
 
-  it("invalidates devices and policies on success", async () => {
+  it("invalidates devices, entities and policies on success", async () => {
     mockOk({ added: 0, removed: 0, updated: 0 });
     const qc = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -53,6 +60,7 @@ describe("useResync", () => {
       await result.current.mutateAsync();
     });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["devices"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["entities"] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["policies"] });
   });
 
@@ -84,12 +92,12 @@ describe("useResync", () => {
     expect(showSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         color: "green",
-        message: "Resynced — 3 devices changed",
+        message: "Resynced — 3 changes detected",
       }),
     );
   });
 
-  it("uses the singular 'device' when exactly one changed", async () => {
+  it("uses singular copy when exactly one changed", async () => {
     mockOk({ added: 1, removed: 0, updated: 0 });
     const showSpy = vi.spyOn(notifications, "show");
     const qc = new QueryClient({
@@ -102,7 +110,7 @@ describe("useResync", () => {
     expect(showSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         color: "green",
-        message: "Resynced — 1 device changed",
+        message: "Resynced — 1 change detected",
       }),
     );
   });

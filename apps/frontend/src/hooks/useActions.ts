@@ -23,7 +23,7 @@ export function useAssignRoom() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: { device_ids: string[]; area_id: string }) => {
-      const { data, error } = await api.POST("/api/actions/assign-room", { body });
+      const { data, error } = await api.POST("/api/devices/assign-room", { body });
       if (error) throw new Error(String(error));
       return data!;
     },
@@ -38,17 +38,6 @@ export function useAssignRoom() {
   });
 }
 
-export function useRename() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (body: { device_id: string; name_by_user: string }) => {
-      const { error } = await api.POST("/api/actions/rename", { body });
-      if (error) throw new Error(String(error));
-    },
-    onSuccess: () => invalidateDevices(qc),
-  });
-}
-
 export function useRenamePattern() {
   const qc = useQueryClient();
   return useMutation({
@@ -58,7 +47,7 @@ export function useRenamePattern() {
       replacement: string;
       dry_run: boolean;
     }) => {
-      const { data, error } = await api.POST("/api/actions/rename-pattern", { body });
+      const { data, error } = await api.POST("/api/devices/rename-pattern", { body });
       if (error) throw new Error(String(error));
       return data!;
     },
@@ -91,7 +80,7 @@ export function useUpdateDevice() {
       device_id: string;
       changes: { name_by_user?: string | null; area_id?: string | null };
     }) => {
-      const { error } = await api.PATCH("/api/actions/device/{device_id}", {
+      const { error } = await api.PATCH("/api/devices/{device_id}", {
         params: { path: { device_id } },
         body: changes,
       });
@@ -119,7 +108,7 @@ export function useDeleteDevices() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (device_ids: string[]) => {
-      const { data, error } = await api.POST("/api/actions/delete", {
+      const { data, error } = await api.POST("/api/devices/bulk-delete", {
         body: { device_ids },
       });
       if (error) throw new Error(String(error));

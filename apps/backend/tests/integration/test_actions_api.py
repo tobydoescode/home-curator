@@ -17,7 +17,7 @@ def _wire(call: tuple[str, HADeviceUpdate]) -> tuple[str, dict]:
 
 def test_assign_room_bulk(client, fake_ha):
     r = client.post(
-        "/api/actions/assign-room",
+        "/api/devices/assign-room",
         json={"device_ids": ["d1", "d2"], "area_id": "living"},
     )
     assert r.status_code == 200
@@ -32,18 +32,9 @@ def test_assign_room_bulk(client, fake_ha):
     ]
 
 
-def test_rename_single(client, fake_ha):
-    r = client.post(
-        "/api/actions/rename",
-        json={"device_id": "d2", "name_by_user": "bad_name"},
-    )
-    assert r.status_code == 200
-    assert _wire(fake_ha.update_calls[-1]) == ("d2", {"name_by_user": "bad_name"})
-
-
 def test_rename_pattern_applies_to_multiple(client, fake_ha):
     r = client.post(
-        "/api/actions/rename-pattern",
+        "/api/devices/rename-pattern",
         json={
             "device_ids": ["d1", "d2"],
             "pattern": "^living_",
@@ -64,7 +55,7 @@ def test_rename_pattern_applies_to_multiple(client, fake_ha):
 
 def test_patch_device_name_only(client, fake_ha):
     r = client.patch(
-        "/api/actions/device/d1",
+        "/api/devices/d1",
         json={"name_by_user": "Lounge Lamp"},
     )
     assert r.status_code == 200
@@ -74,7 +65,7 @@ def test_patch_device_name_only(client, fake_ha):
 
 def test_patch_device_area_only(client, fake_ha):
     r = client.patch(
-        "/api/actions/device/d2",
+        "/api/devices/d2",
         json={"area_id": "living"},
     )
     assert r.status_code == 200
@@ -85,7 +76,7 @@ def test_patch_device_area_only(client, fake_ha):
 def test_patch_device_both_fields_single_call(client, fake_ha):
     before = len(fake_ha.update_calls)
     r = client.patch(
-        "/api/actions/device/d1",
+        "/api/devices/d1",
         json={"name_by_user": "Main Lamp", "area_id": None},
     )
     assert r.status_code == 200
@@ -100,7 +91,7 @@ def test_patch_device_both_fields_single_call(client, fake_ha):
 
 def test_patch_device_empty_body_rejected(client, fake_ha):
     before = len(fake_ha.update_calls)
-    r = client.patch("/api/actions/device/d1", json={})
+    r = client.patch("/api/devices/d1", json={})
     assert r.status_code == 400
     # No HA write when the body has nothing to apply.
     assert len(fake_ha.update_calls) == before
@@ -113,7 +104,7 @@ def test_patch_device_ha_error_surfaces_as_502(client, fake_ha):
 
     fake_ha.update_device = boom  # type: ignore[method-assign]
     r = client.patch(
-        "/api/actions/device/d1",
+        "/api/devices/d1",
         json={"name_by_user": "x"},
     )
     assert r.status_code == 502
@@ -121,7 +112,7 @@ def test_patch_device_ha_error_surfaces_as_502(client, fake_ha):
 
 def test_delete_single_device_ok(client, fake_ha):
     r = client.post(
-        "/api/actions/delete",
+        "/api/devices/bulk-delete",
         json={"device_ids": ["d1"]},
     )
     assert r.status_code == 200
@@ -141,7 +132,7 @@ def test_delete_bulk_partial_failure(client, fake_ha):
     fake_ha.delete_device = flaky  # type: ignore[method-assign]
 
     r = client.post(
-        "/api/actions/delete",
+        "/api/devices/bulk-delete",
         json={"device_ids": ["d1", "d2"]},
     )
     assert r.status_code == 200
@@ -153,14 +144,14 @@ def test_delete_bulk_partial_failure(client, fake_ha):
 
 def test_delete_empty_body_rejected(client, fake_ha):
     before = len(fake_ha.delete_calls)
-    r = client.post("/api/actions/delete", json={"device_ids": []})
+    r = client.post("/api/devices/bulk-delete", json={"device_ids": []})
     assert r.status_code == 400
     assert len(fake_ha.delete_calls) == before
 
 
 def test_delete_unknown_device_id(client, fake_ha):
     r = client.post(
-        "/api/actions/delete",
+        "/api/devices/bulk-delete",
         json={"device_ids": ["ghost"]},
     )
     assert r.status_code == 200

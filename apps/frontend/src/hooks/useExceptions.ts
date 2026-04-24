@@ -42,7 +42,7 @@ export function useClearException() {
     }) => {
       if (args.device_id) {
         const { error } = await api.DELETE(
-          "/api/exceptions/{device_id}/{policy_id}",
+          "/api/exceptions/device/{device_id}/{policy_id}",
           {
             params: {
               path: { device_id: args.device_id, policy_id: args.policy_id },
