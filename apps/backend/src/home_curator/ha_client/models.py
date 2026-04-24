@@ -38,3 +38,19 @@ class HADevice(BaseModel):
     entities: list[HADeviceEntityRef] = Field(default_factory=list)
     created_at: str | None = None
     modified_at: str | None = None
+
+
+class HAEntity(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="ignore")
+    entity_id: str
+    name: str | None = None
+    original_name: str | None = None
+    icon: str | None = None
+    platform: str = ""
+    device_id: str | None = None
+    area_id: str | None = None
+    disabled_by: str | None = None
+    hidden_by: str | None = None
+    unique_id: str | None = None
+    created_at: str | None = None
+    modified_at: str | None = None

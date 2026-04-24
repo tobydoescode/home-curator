@@ -85,3 +85,42 @@ def test_ha_device_full_payload():
 def test_ha_device_ignores_extra_fields():
     d = HADevice.model_validate({"id": "d1", "new_ha_field": 42})
     assert not hasattr(d, "new_ha_field")
+
+
+from home_curator.ha_client.models import HAEntity
+
+
+def test_ha_entity_requires_entity_id():
+    with pytest.raises(ValidationError):
+        HAEntity()  # type: ignore[call-arg]
+
+
+def test_ha_entity_minimum_valid_payload():
+    e = HAEntity(entity_id="light.lamp")
+    assert e.entity_id == "light.lamp"
+    assert e.name is None
+    assert e.platform == ""
+
+
+def test_ha_entity_full_payload():
+    e = HAEntity.model_validate({
+        "entity_id": "light.lamp",
+        "name": "Lamp",
+        "original_name": "Hue light",
+        "icon": "mdi:lamp",
+        "platform": "hue",
+        "device_id": "d1",
+        "area_id": "kitchen",
+        "disabled_by": None,
+        "hidden_by": None,
+        "unique_id": "hue:abc",
+        "created_at": "2026-04-01T00:00:00Z",
+        "modified_at": None,
+    })
+    assert e.platform == "hue"
+    assert e.unique_id == "hue:abc"
+
+
+def test_ha_entity_ignores_extra_fields():
+    e = HAEntity.model_validate({"entity_id": "light.lamp", "new_field": 1})
+    assert not hasattr(e, "new_field")
