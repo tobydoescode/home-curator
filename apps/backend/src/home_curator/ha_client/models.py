@@ -14,3 +14,10 @@ class HAArea(BaseModel):
     model_config = ConfigDict(frozen=True, extra="ignore")
     id: str
     name: str
+
+
+class HADeviceEntityRef(BaseModel):
+    """Lightweight entity reference carried on HADevice.entities."""
+    model_config = ConfigDict(frozen=True, extra="ignore")
+    id: str
+    domain: str
