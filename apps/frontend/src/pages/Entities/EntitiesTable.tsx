@@ -158,10 +158,15 @@ export function EntitiesTable({
       header: () => (
         <SortHeader label="Name" column="name" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
       ),
+      // Match HA's own display fallback: if the entity has no name of its
+      // own (name + original_name both null) it inherits the owning device's
+      // name. Dimmed to signal "inherited, not entity-authored".
       cell: ({ row }) => {
         if (row.original.name) return row.original.name;
         if (row.original.original_name)
           return <Text c="dimmed">{row.original.original_name}</Text>;
+        if (row.original.device_name)
+          return <Text c="dimmed">{row.original.device_name}</Text>;
         return "—";
       },
     },
