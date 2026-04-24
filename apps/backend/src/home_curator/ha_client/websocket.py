@@ -6,22 +6,6 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
-
-def _iso_or_none(v: Any) -> str | None:
-    """Accept the shape HA emits for created_at / modified_at.
-
-    HA sends a float (unix seconds) with 0.0 meaning "never set" for
-    internal devices (e.g. the Sun entity created before tracking). A
-    bare str is treated as already-ISO. Anything else → None.
-    """
-    if isinstance(v, (int, float)):
-        if v <= 0:
-            return None
-        return datetime.fromtimestamp(v, tz=UTC).isoformat()
-    if isinstance(v, str) and v:
-        return v
-    return None
-
 from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed
 
@@ -39,6 +23,22 @@ from home_curator.ha_client.models import (
     HAEvent,
     ReconnectedEvent,
 )
+
+
+def _iso_or_none(v: Any) -> str | None:
+    """Accept the shape HA emits for created_at / modified_at.
+
+    HA sends a float (unix seconds) with 0.0 meaning "never set" for
+    internal devices (e.g. the Sun entity created before tracking). A
+    bare str is treated as already-ISO. Anything else → None.
+    """
+    if isinstance(v, (int, float)):
+        if v <= 0:
+            return None
+        return datetime.fromtimestamp(v, tz=UTC).isoformat()
+    if isinstance(v, str) and v:
+        return v
+    return None
 
 log = logging.getLogger(__name__)
 
