@@ -1,6 +1,6 @@
 import { AppShell, Burger, Group, NavLink, Title } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router";
 
 import { useLocalStorageBoolean } from "@/hooks/useLocalStorageBoolean";
 
