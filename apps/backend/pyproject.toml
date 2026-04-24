@@ -38,6 +38,9 @@ build-backend = "hatchling.build"
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+filterwarnings = [
+    "error::DeprecationWarning:home_curator.*",
+]
 
 [tool.ruff]
 line-length = 100
