@@ -160,14 +160,16 @@ export function EntitiesTable({
       ),
       // Match HA's own display fallback: if the entity has no name of its
       // own (name + original_name both null) it inherits the owning device's
-      // name. Dimmed to signal "inherited, not entity-authored".
+      // name. All branches use <Text size="sm"> so row heights stay uniform;
+      // dimmed colour signals "inherited, not entity-authored".
       cell: ({ row }) => {
-        if (row.original.name) return row.original.name;
+        if (row.original.name)
+          return <Text size="sm">{row.original.name}</Text>;
         if (row.original.original_name)
-          return <Text c="dimmed">{row.original.original_name}</Text>;
+          return <Text size="sm" c="dimmed">{row.original.original_name}</Text>;
         if (row.original.device_name)
-          return <Text c="dimmed">{row.original.device_name}</Text>;
-        return "—";
+          return <Text size="sm" c="dimmed">{row.original.device_name}</Text>;
+        return <Text size="sm" c="dimmed">—</Text>;
       },
     },
     {
