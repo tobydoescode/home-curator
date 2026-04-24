@@ -42,3 +42,46 @@ def test_ha_device_entity_ref_accepts_valid():
     r = HADeviceEntityRef(id="light.lamp", domain="light")
     assert r.id == "light.lamp"
     assert r.domain == "light"
+
+
+from home_curator.ha_client.models import HADevice
+
+
+def test_ha_device_requires_id():
+    with pytest.raises(ValidationError):
+        HADevice()  # type: ignore[call-arg]
+
+
+def test_ha_device_minimum_valid_payload():
+    d = HADevice(id="d1")
+    assert d.id == "d1"
+    assert d.name is None
+    assert d.identifiers == []
+    assert d.config_entries == []
+    assert d.entities == []
+
+
+def test_ha_device_full_payload():
+    d = HADevice.model_validate({
+        "id": "d1",
+        "name": "Lamp",
+        "name_by_user": "Kitchen Lamp",
+        "manufacturer": "Signify",
+        "model": "Hue White",
+        "area_id": "kitchen",
+        "integration": "hue",
+        "disabled_by": None,
+        "identifiers": [["hue", "abc"]],
+        "config_entries": ["entry-1"],
+        "entities": [{"id": "light.lamp", "domain": "light"}],
+        "created_at": "2026-04-01T00:00:00Z",
+        "modified_at": None,
+    })
+    assert d.name_by_user == "Kitchen Lamp"
+    assert d.entities[0].id == "light.lamp"
+    assert d.entities[0].domain == "light"
+
+
+def test_ha_device_ignores_extra_fields():
+    d = HADevice.model_validate({"id": "d1", "new_ha_field": 42})
+    assert not hasattr(d, "new_ha_field")
