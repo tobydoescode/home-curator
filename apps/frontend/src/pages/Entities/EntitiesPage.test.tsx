@@ -191,4 +191,31 @@ describe("EntitiesPage", () => {
       window.localStorage.getItem("home-curator:columns:devices"),
     ).toBeNull();
   });
+
+  it("row click opens the drawer, close button stays closed (no reopen loop)", async () => {
+    mockEntities();
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+    render(wrap());
+
+    await waitFor(() =>
+      expect(screen.getByText("light.kitchen_lamp")).toBeInTheDocument(),
+    );
+
+    // Open: row click.
+    await user.click(screen.getByText("light.kitchen_lamp"));
+    const idInput = (await screen.findByLabelText(
+      "Entity ID",
+    )) as HTMLInputElement;
+    expect(idInput.value).toBe("light.kitchen_lamp");
+
+    // Close via the drawer's Cancel button (form is pristine so no dirty-guard).
+    await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
+
+    // Drawer must stay closed — previously a dual-effect race immediately
+    // re-synced the URL param back into drawer state, reopening it.
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Entity ID")).not.toBeInTheDocument(),
+    );
+  });
 });

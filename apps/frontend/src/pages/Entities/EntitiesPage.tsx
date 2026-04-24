@@ -88,29 +88,26 @@ function paramsFromFiltersAndPagination(
 
 export function EntitiesPage() {
   const [selection, setSelection] = useState<RowSelectionState>({});
-  const [drawerEntityId, setDrawerEntityId] = useState<string | null>(null);
   const [params, setParams] = useSearchParams();
 
-  // Deep-link support: /entities?entity=<id> opens the drawer on mount and
-  // keeps the URL in sync with the drawer state while the page is open.
-  useEffect(() => {
-    const q = params.get("entity");
-    if (q && q !== drawerEntityId) setDrawerEntityId(q);
-  }, [params, drawerEntityId]);
+  // The drawer's open state is derived from the URL — no local state. Two
+  // effects syncing URL↔state caused a race: when Close cleared the state,
+  // the URL→state effect ran before the state→URL effect cleared the param,
+  // immediately reopening the drawer. Single source of truth (URL) avoids
+  // the loop and still supports deep-links from /entities?entity=<id>.
+  const drawerEntityId = params.get("entity");
 
-  useEffect(() => {
-    const current = params.get("entity");
-    if (drawerEntityId && current !== drawerEntityId) {
-      const next = new URLSearchParams(params);
-      next.set("entity", drawerEntityId);
-      setParams(next, { replace: true });
-    } else if (!drawerEntityId && current) {
-      const next = new URLSearchParams(params);
-      next.delete("entity");
-      setParams(next, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawerEntityId]);
+  function openDrawer(id: string): void {
+    const next = new URLSearchParams(params);
+    next.set("entity", id);
+    setParams(next, { replace: true });
+  }
+
+  function closeDrawer(): void {
+    const next = new URLSearchParams(params);
+    next.delete("entity");
+    setParams(next, { replace: true });
+  }
 
   const filters = useMemo(() => filtersFromParams(params), [params]);
   const page = Number(params.get("page") ?? 1);
@@ -266,7 +263,7 @@ export function EntitiesPage() {
         rows={entityRows}
         selection={selection}
         onSelectionChange={setSelection}
-        onRowClick={setDrawerEntityId}
+        onRowClick={openDrawer}
         sortBy={sortBy}
         sortDir={sortDir}
         onSort={cycleSort}
@@ -285,7 +282,7 @@ export function EntitiesPage() {
       />
       <EditEntityDrawer
         opened={drawerEntityId !== null}
-        onClose={() => setDrawerEntityId(null)}
+        onClose={closeDrawer}
         entity={
           drawerEntityId
             ? (() => {
