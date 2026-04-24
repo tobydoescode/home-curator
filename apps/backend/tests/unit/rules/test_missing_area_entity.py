@@ -1,37 +1,24 @@
 """Four-combo matrix: require_own_area strict/lenient × entity.area_id
 present/absent × device.area_id present/absent."""
+from typing import Any
+
 import pytest
 
 from home_curator.policies.schema import EntityMissingAreaPolicy
-from home_curator.rules.base import Device, Entity, EvaluationContext
 from home_curator.rules.missing_area import compile_entity_missing_area
+from tests.unit.rules.factories import make_context, make_device, make_entity
 
 
-def _entity(**kw):
-    defaults = dict(
-        entity_id="light.x", name="x", original_name=None, icon=None,
-        domain="light", platform="hue", device_id=None, area_id=None,
-        area_name=None, disabled_by=None, hidden_by=None, unique_id=None,
-        created_at=None, modified_at=None, state={},
-    )
-    defaults.update(kw)
-    return Entity(**defaults)
+def _entity(**kwargs: Any):
+    return make_entity(**kwargs)
 
 
-def _device(**kw):
-    defaults = dict(
-        id="d1", name="D", name_by_user=None, manufacturer=None, model=None,
-        area_id=None, area_name=None, integration=None, disabled_by=None, entities=[],
-    )
-    defaults.update(kw)
-    return Device(**defaults)
+def _device(**kwargs: Any):
+    return make_device(name="D", **kwargs)
 
 
 def _ctx(devices=None, exc=None):
-    return EvaluationContext(
-        area_name_to_id={}, area_id_to_name={}, exceptions=exc or set(),
-        devices_by_id={d.id: d for d in (devices or [])},
-    )
+    return make_context(exc=exc, devices=devices)
 
 
 def _policy(require_own_area: bool) -> EntityMissingAreaPolicy:

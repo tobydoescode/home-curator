@@ -1,35 +1,32 @@
 """Entity-scope custom CEL rules: CEL variable is `entity`, context has
 `entity.device` when owned / null when standalone, and `_state` is readable."""
+from typing import Any
+
 from home_curator.policies.schema import CustomPolicy
-from home_curator.rules.base import Device, Entity, EvaluationContext
 from home_curator.rules.custom_cel import compile_custom
+from tests.unit.rules.factories import make_context, make_device, make_entity
 
 
-def _entity(**kw):
-    defaults = dict(
-        entity_id="light.x", name="x", original_name=None, icon=None,
-        domain="light", platform="hue", device_id=None, area_id=None,
-        area_name=None, disabled_by=None, hidden_by=None, unique_id=None,
-        created_at=None, modified_at=None, state={},
+def _entity(**kwargs: Any):
+    return make_entity(**kwargs)
+
+
+def _device(**kwargs: Any):
+    return make_device(
+        name=kwargs.pop("name", "Kitchen Hub"),
+        manufacturer=kwargs.pop("manufacturer", "hue"),
+        area_id=kwargs.pop("area_id", "k"),
+        area_name=kwargs.pop("area_name", "Kitchen"),
+        integration=kwargs.pop("integration", "hue"),
+        **kwargs,
     )
-    defaults.update(kw)
-    return Entity(**defaults)
-
-
-def _device(**kw):
-    defaults = dict(
-        id="d1", name="Kitchen Hub", name_by_user=None, manufacturer="hue",
-        model=None, area_id="k", area_name="Kitchen", integration="hue",
-        disabled_by=None, entities=[],
-    )
-    defaults.update(kw)
-    return Device(**defaults)
 
 
 def _ctx(devices=None, exc=None):
-    return EvaluationContext(
-        area_name_to_id={}, area_id_to_name={"k": "Kitchen"}, exceptions=exc or set(),
-        devices_by_id={d.id: d for d in (devices or [])},
+    return make_context(
+        area_id_to_name={"k": "Kitchen"},
+        exc=exc,
+        devices=devices,
     )
 
 
