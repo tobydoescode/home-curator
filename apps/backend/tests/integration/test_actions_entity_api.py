@@ -1,3 +1,6 @@
+from home_curator.ha_client.models import HAEntityUpdate
+
+
 def test_patch_entity_name_only(client, fake_ha):
     r = client.patch(
         "/api/actions/entity/light.kitchen_ceiling",
@@ -7,7 +10,7 @@ def test_patch_entity_name_only(client, fake_ha):
     assert r.json() == {"ok": True}
     assert fake_ha.update_entity_calls[-1] == (
         "light.kitchen_ceiling",
-        {"name": "Main Ceiling"},
+        HAEntityUpdate(name="Main Ceiling"),
     )
 
 
@@ -19,7 +22,7 @@ def test_patch_entity_rename_slug(client, fake_ha):
     assert r.status_code == 200
     assert fake_ha.update_entity_calls[-1] == (
         "light.kitchen_ceiling",
-        {"new_entity_id": "light.study_lamp"},
+        HAEntityUpdate(new_entity_id="light.study_lamp"),
     )
 
 
@@ -33,7 +36,7 @@ def test_patch_entity_batches_fields_into_one_call(client, fake_ha):
     assert len(fake_ha.update_entity_calls) == before + 1
     assert fake_ha.update_entity_calls[-1] == (
         "light.kitchen_ceiling",
-        {"name": "Main Ceiling", "area_id": "living", "icon": None},
+        HAEntityUpdate(name="Main Ceiling", area_id="living", icon=None),
     )
 
 
@@ -83,8 +86,8 @@ def test_assign_room_entities_bulk(client, fake_ha):
         {"entity_id": "sensor.temperature", "ok": True},
     ]
     assert fake_ha.update_entity_calls[-2:] == [
-        ("light.kitchen_ceiling", {"area_id": "living"}),
-        ("sensor.temperature", {"area_id": "living"}),
+        ("light.kitchen_ceiling", HAEntityUpdate(area_id="living")),
+        ("sensor.temperature", HAEntityUpdate(area_id="living")),
     ]
 
 
@@ -165,7 +168,7 @@ def test_rename_pattern_apply_sends_changed_fields_only(client, fake_ha):
     assert len(fake_ha.update_entity_calls) == before + 1
     assert fake_ha.update_entity_calls[-1] == (
         "light.kitchen_ceiling",
-        {"new_entity_id": "light.main_ceiling"},
+        HAEntityUpdate(new_entity_id="light.main_ceiling"),
     )
 
 
@@ -182,7 +185,7 @@ def test_rename_pattern_name_only_apply(client, fake_ha):
     assert r.status_code == 200
     assert fake_ha.update_entity_calls[-1] == (
         "light.kitchen_ceiling",
-        {"name": "Main Ceiling"},
+        HAEntityUpdate(name="Main Ceiling"),
     )
 
 
@@ -230,7 +233,7 @@ def test_rename_pattern_collision_surfaces_per_entity(client, fake_ha):
     original = fake_ha.update_entity
 
     async def colliding(eid, changes):
-        if "new_entity_id" in changes:
+        if "new_entity_id" in changes.model_fields_set:
             raise RuntimeError("entity_id already exists")
         await original(eid, changes)
 
@@ -288,7 +291,7 @@ def test_entity_state_disable(client, fake_ha):
     assert r.json()["results"] == [{"entity_id": "light.kitchen_ceiling", "ok": True}]
     assert fake_ha.update_entity_calls[-1] == (
         "light.kitchen_ceiling",
-        {"disabled_by": "user"},
+        HAEntityUpdate(disabled_by="user"),
     )
 
 
@@ -304,7 +307,7 @@ def test_entity_state_enable(client, fake_ha):
     assert r.status_code == 200
     assert fake_ha.update_entity_calls[-1] == (
         "switch.garage_door",
-        {"disabled_by": None},
+        HAEntityUpdate(disabled_by=None),
     )
 
 
@@ -320,7 +323,7 @@ def test_entity_state_hide(client, fake_ha):
     assert r.status_code == 200
     assert fake_ha.update_entity_calls[-1] == (
         "light.kitchen_ceiling",
-        {"hidden_by": "user"},
+        HAEntityUpdate(hidden_by="user"),
     )
 
 
@@ -336,7 +339,7 @@ def test_entity_state_show(client, fake_ha):
     assert r.status_code == 200
     assert fake_ha.update_entity_calls[-1] == (
         "binary_sensor.kitchen_motion",
-        {"hidden_by": None},
+        HAEntityUpdate(hidden_by=None),
     )
 
 
