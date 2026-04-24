@@ -287,8 +287,12 @@ class WebSocketHAClient:
             for a in res
         ]
 
-    async def update_device(self, device_id: str, changes: dict[str, Any]) -> None:
-        await self._send_cmd({"type": "config/device_registry/update", "device_id": device_id, **changes})
+    async def update_device(self, device_id: str, changes: HADeviceUpdate) -> None:
+        await self._send_cmd({
+            "type": "config/device_registry/update",
+            "device_id": device_id,
+            **changes.model_dump(exclude_unset=True),
+        })
 
     async def delete_device(self, device_id: str) -> None:
         """Remove the device by unlinking every config entry that owns it.
@@ -349,16 +353,16 @@ class WebSocketHAClient:
         ]
         return [HAEntity.model_validate(e) for e in built]
 
-    async def update_entity(self, entity_id: str, changes: dict[str, Any]) -> None:
+    async def update_entity(self, entity_id: str, changes: HAEntityUpdate) -> None:
         """Forward a partial entity update through HA's entity_registry/update
-        command. Callers pass only changed fields (including `new_entity_id`
-        for slug rename) — HA refusal surfaces as a RuntimeError from
-        `_send_cmd`.
+        command. Callers pass only the fields they want to change (including
+        `new_entity_id` for slug rename) — HA refusal surfaces as RuntimeError
+        from `_send_cmd`.
         """
         await self._send_cmd({
             "type": "config/entity_registry/update",
             "entity_id": entity_id,
-            **changes,
+            **changes.model_dump(exclude_unset=True),
         })
 
     async def delete_entity(self, entity_id: str) -> None:
