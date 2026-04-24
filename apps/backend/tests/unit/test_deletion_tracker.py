@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from home_curator.deletion_tracker import DeletionTracker
 from home_curator.ha_client.fake import FakeHAClient
+from home_curator.ha_client.models import HADevice
 from home_curator.registry_cache.cache import RegistryCache
 from home_curator.storage.deletion_repo import DeletionRepo, identifiers_hash
 from home_curator.storage.models import Base
@@ -15,19 +16,19 @@ def _session():
     return Session(e)
 
 
-def _dev(id_, identifiers):
-    return {
-        "id": id_,
-        "name": id_,
-        "name_by_user": None,
-        "manufacturer": None,
-        "model": None,
-        "area_id": None,
-        "integration": None,
-        "disabled_by": None,
-        "identifiers": identifiers,
-        "entities": [],
-    }
+def _dev(id_: str, identifiers: list[list[str]]) -> HADevice:
+    return HADevice(
+        id=id_,
+        name=id_,
+        name_by_user=None,
+        manufacturer=None,
+        model=None,
+        area_id=None,
+        integration=None,
+        disabled_by=None,
+        identifiers=identifiers,
+        entities=[],
+    )
 
 
 @pytest.mark.asyncio
