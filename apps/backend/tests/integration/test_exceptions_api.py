@@ -17,7 +17,7 @@ def test_acknowledge_and_clear(client):
     assert d2["issues"][0]["policy_id"] == "naming-convention"
 
     # Clear exception
-    r = client.delete("/api/exceptions/d2/missing-room")
+    r = client.delete("/api/exceptions/device/d2/missing-room")
     assert r.status_code == 204
 
     r = client.get("/api/devices", params={"q": "BadCase"})

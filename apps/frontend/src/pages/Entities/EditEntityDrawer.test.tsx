@@ -118,7 +118,7 @@ describe("EditEntityDrawer", () => {
     expect(screen.queryByText(/Rename Entity ID\?/i)).not.toBeInTheDocument();
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
     const req = fetchSpy.mock.calls.find((c) =>
-      (c[0] as Request).url.includes("/api/actions/entity/"),
+      (c[0] as Request).url.includes("/api/entities/"),
     )![0] as Request;
     expect(await req.json()).toEqual({ name: "Office Lamp 2" });
   });
@@ -144,7 +144,7 @@ describe("EditEntityDrawer", () => {
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
     const req = fetchSpy.mock.calls.find((c) =>
-      (c[0] as Request).url.includes("/api/actions/entity/light.office_lamp"),
+      (c[0] as Request).url.includes("/api/entities/light.office_lamp"),
     )![0] as Request;
     expect(await req.json()).toEqual({ new_entity_id: "light.study_lamp" });
   });
@@ -184,7 +184,7 @@ describe("EditEntityDrawer", () => {
     await user.click(screen.getByRole("switch", { name: /Enabled/i }));
     await user.click(screen.getByRole("button", { name: "Save" }));
     const req = fetchSpy.mock.calls.find((c) =>
-      (c[0] as Request).url.includes("/api/actions/entity/"),
+      (c[0] as Request).url.includes("/api/entities/"),
     )![0] as Request;
     expect(await req.json()).toEqual({ disabled_by: "user" });
   });
@@ -200,7 +200,7 @@ describe("EditEntityDrawer", () => {
     await user.click(screen.getByRole("switch", { name: /Visible/i }));
     await user.click(screen.getByRole("button", { name: "Save" }));
     const req = fetchSpy.mock.calls.find((c) =>
-      (c[0] as Request).url.includes("/api/actions/entity/"),
+      (c[0] as Request).url.includes("/api/entities/"),
     )![0] as Request;
     expect(await req.json()).toEqual({ hidden_by: "user" });
   });
@@ -248,7 +248,7 @@ describe("EditEntityDrawer", () => {
 
     const deletePost = fetchSpy.mock.calls
       .map((c) => c[0] as Request)
-      .find((r) => r.url.includes("/api/actions/delete-entity"));
+      .find((r) => r.url.includes("/api/entities/bulk-delete"));
     expect(deletePost).toBeDefined();
     expect(await deletePost!.json()).toEqual({ entity_ids: ["light.office_lamp"] });
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));

@@ -44,7 +44,7 @@ describe("useUpdateEntity", () => {
     });
     const req = fetchSpy.mock.calls[0][0] as Request;
     expect(req.method).toBe("PATCH");
-    expect(req.url).toContain("/api/actions/entity/light.a");
+    expect(req.url).toContain("/api/entities/light.a");
     expect(await req.json()).toEqual({ new_entity_id: "light.b", name: "Bulb" });
   });
 
@@ -80,7 +80,7 @@ describe("useDeleteEntities", () => {
       await result.current.mutateAsync(["light.a", "light.b"]);
     });
     const req = fetchSpy.mock.calls[0][0] as Request;
-    expect(req.url).toContain("/api/actions/delete-entity");
+    expect(req.url).toContain("/api/entities/bulk-delete");
     expect(await req.json()).toEqual({ entity_ids: ["light.a", "light.b"] });
   });
 });
@@ -128,7 +128,7 @@ describe("useRenameEntityPattern", () => {
       });
     });
     const req = fetchSpy.mock.calls[0][0] as Request;
-    expect(req.url).toContain("/api/actions/rename-pattern-entities");
+    expect(req.url).toContain("/api/entities/rename-pattern");
     expect(await req.json()).toMatchObject({ dry_run: true });
   });
 
@@ -187,7 +187,7 @@ describe("useEntityState", () => {
       });
     });
     const req = fetchSpy.mock.calls[0][0] as Request;
-    expect(req.url).toContain("/api/actions/entity-state");
+    expect(req.url).toContain("/api/entities/state");
     expect(await req.json()).toEqual({
       entity_ids: ["light.a"],
       field: "disabled_by",

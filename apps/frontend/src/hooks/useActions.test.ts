@@ -38,7 +38,7 @@ describe("useUpdateDevice", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const req = fetchSpy.mock.calls[0][0] as Request;
     expect(req.method).toBe("PATCH");
-    expect(req.url).toContain("/api/actions/device/d1");
+    expect(req.url).toContain("/api/devices/d1");
     const body = await req.json();
     expect(body).toEqual({ name_by_user: "New Name" });
   });
@@ -135,7 +135,7 @@ describe("useDeleteDevices", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const req = fetchSpy.mock.calls[0][0] as Request;
     expect(req.method).toBe("POST");
-    expect(req.url).toContain("/api/actions/delete");
+    expect(req.url).toContain("/api/devices/bulk-delete");
     expect(await req.json()).toEqual({ device_ids: ["d1"] });
   });
 
