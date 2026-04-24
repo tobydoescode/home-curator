@@ -172,7 +172,7 @@ class WebSocketHAClient:
                 attempt = 0
                 log.info("HA WebSocket reconnected")
                 # Tell subscribers so they can refresh caches post-reconnect.
-                self._dispatch({"kind": "reconnected"})
+                self._dispatch(ReconnectedEvent())
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -215,19 +215,27 @@ class WebSocketHAClient:
                 kind = event.get("event_type")
                 data = event.get("data", {})
                 if kind == "device_registry_updated":
-                    self._dispatch({"kind": "device_updated", "device_id": data.get("device_id")})
+                    # Always dispatch — if device_id is missing the consumer
+                    # still triggers a broad refresh (matches current
+                    # behavior where `data.get("device_id")` could be None).
+                    self._dispatch(DeviceUpdatedEvent(device_id=data.get("device_id")))
                 elif kind == "area_registry_updated":
-                    self._dispatch({"kind": "area_updated"})
+                    self._dispatch(AreaUpdatedEvent())
                 elif kind == "entity_registry_updated":
                     action = data.get("action")
                     entity_id = data.get("entity_id")
+                    # Dispatch unconditionally — when entity_id is None this
+                    # is a broad entity-registry change. The downstream
+                    # handler (main.py::on_event → _refresh_and_publish_entity)
+                    # still refreshes the entity cache and publishes
+                    # `entities_changed`; dropping the event would regress
+                    # cache freshness for broad HA updates.
                     if action == "remove":
-                        self._dispatch({"kind": "entity_deleted", "entity_id": entity_id})
+                        self._dispatch(EntityDeletedEvent(entity_id=entity_id))
                     else:
-                        # create / update — both re-read the entity registry
-                        self._dispatch({"kind": "entity_updated", "entity_id": entity_id})
+                        self._dispatch(EntityUpdatedEvent(entity_id=entity_id))
 
-    def _dispatch(self, event: RegistryEvent) -> None:
+    def _dispatch(self, event: HAEvent) -> None:
         for h in list(self._handlers):
             try:
                 h(event)
