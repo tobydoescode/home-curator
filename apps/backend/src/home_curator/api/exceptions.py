@@ -7,6 +7,13 @@ from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
 
 router = APIRouter(prefix="/api/exceptions", tags=["exceptions"])
+_APP_STATE_DEPENDENCY = Depends(app_state)
+_POLICY_ID_QUERY = Query(default_factory=list)
+_DEVICE_ID_QUERY = Query(default_factory=list)
+_ENTITY_ID_QUERY = Query(default_factory=list)
+_AREA_ID_QUERY = Query(default_factory=list)
+_PAGE_QUERY = Query(default=1, ge=1)
+_PAGE_SIZE_QUERY = Query(default=50, ge=1, le=500)
 
 
 class AcknowledgeBody(BaseModel):
@@ -26,7 +33,10 @@ class AcknowledgeBody(BaseModel):
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=AcknowledgeResponse)
-def acknowledge(body: AcknowledgeBody, state: AppState = Depends(app_state)) -> AcknowledgeResponse:
+def acknowledge(
+    body: AcknowledgeBody,
+    state: AppState = _APP_STATE_DEPENDENCY,
+) -> AcknowledgeResponse:
     """Acknowledge (create or update) an exception for either a device or entity target."""
     with session_scope(state.session_factory) as s:
         repo = ExceptionsRepo(s)
@@ -49,7 +59,7 @@ def acknowledge(body: AcknowledgeBody, state: AppState = Depends(app_state)) -> 
 
 
 @router.delete("/{device_id}/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
-def clear(device_id: str, policy_id: str, state: AppState = Depends(app_state)):
+def clear(device_id: str, policy_id: str, state: AppState = _APP_STATE_DEPENDENCY):
     """Remove an acknowledged exception for (device_id, policy_id)."""
     with session_scope(state.session_factory) as s:
         ExceptionsRepo(s).clear(device_id, policy_id)
@@ -57,7 +67,7 @@ def clear(device_id: str, policy_id: str, state: AppState = Depends(app_state)):
 
 
 @router.delete("/entity/{entity_id}/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
-def clear_entity(entity_id: str, policy_id: str, state: AppState = Depends(app_state)):
+def clear_entity(entity_id: str, policy_id: str, state: AppState = _APP_STATE_DEPENDENCY):
     """Remove an acknowledged exception for (entity_id, policy_id). No-op if absent."""
     with session_scope(state.session_factory) as s:
         ExceptionsRepo(s).clear_entity(entity_id, policy_id)
@@ -65,7 +75,10 @@ def clear_entity(entity_id: str, policy_id: str, state: AppState = Depends(app_s
 
 
 @router.get("", response_model=list[ExceptionOut])
-def list_for_device(device_id: str, state: AppState = Depends(app_state)) -> list[ExceptionOut]:
+def list_for_device(
+    device_id: str,
+    state: AppState = _APP_STATE_DEPENDENCY,
+) -> list[ExceptionOut]:
     """List all acknowledged exceptions for a device."""
     with session_scope(state.session_factory) as s:
         rows = ExceptionsRepo(s).for_device(device_id)
@@ -86,13 +99,13 @@ def list_for_device(device_id: str, state: AppState = Depends(app_state)) -> lis
 @router.get("/list", response_model=ExceptionsListResponse)
 def list_paginated(
     search: str | None = None,
-    policy_id: list[str] = Query(default_factory=list),
-    device_id: list[str] = Query(default_factory=list),
-    entity_id: list[str] = Query(default_factory=list),
-    area_id: list[str] = Query(default_factory=list),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=500),
-    state: AppState = Depends(app_state),
+    policy_id: list[str] = _POLICY_ID_QUERY,
+    device_id: list[str] = _DEVICE_ID_QUERY,
+    entity_id: list[str] = _ENTITY_ID_QUERY,
+    area_id: list[str] = _AREA_ID_QUERY,
+    page: int = _PAGE_QUERY,
+    page_size: int = _PAGE_SIZE_QUERY,
+    state: AppState = _APP_STATE_DEPENDENCY,
 ) -> ExceptionsListResponse:
     """Paginated cross-kind exception list.
 
@@ -182,7 +195,10 @@ def list_paginated(
 
 
 @router.post("/bulk-delete", response_model=BulkDeleteResponse)
-async def bulk_delete(body: BulkDeleteRequest, state: AppState = Depends(app_state)) -> BulkDeleteResponse:
+async def bulk_delete(
+    body: BulkDeleteRequest,
+    state: AppState = _APP_STATE_DEPENDENCY,
+) -> BulkDeleteResponse:
     """Delete multiple exceptions in one transaction and notify SSE subscribers."""
     ids = set(body.ids)
     with session_scope(state.session_factory) as s:
