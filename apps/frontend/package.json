@@ -7,10 +7,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "npm run gen:api:local && tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
-    "gen:api": "openapi-typescript http://localhost:8099/openapi.json -o src/api/generated.ts"
+    "test:coverage": "vitest run --coverage --coverage.reporter=text",
+    "gen:api": "openapi-typescript http://localhost:8099/openapi.json -o src/api/generated.ts",
+    "gen:api:local": "cd ../backend && uv run python -c \"import json; from home_curator.main import app; print(json.dumps(app.openapi()))\" > /tmp/home-curator-openapi.json && cd ../frontend && openapi-typescript /tmp/home-curator-openapi.json -o src/api/generated.ts"
   },
   "dependencies": {
     "@mantine/core": "^7.12.0",
@@ -32,6 +34,7 @@
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
+    "@vitest/coverage-v8": "^2.1.9",
     "jsdom": "^24.1.0",
     "msw": "^2.4.0",
     "openapi-typescript": "^7.4.0",

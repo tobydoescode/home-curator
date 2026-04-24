@@ -220,6 +220,7 @@ def create_app(
                 watcher_task.cancel()
             if session is not None:
                 session.close()
+            engine_db.dispose()
             await client.stop()
             raise
 
@@ -235,6 +236,7 @@ def create_app(
             await client.stop()
             if session is not None:
                 session.close()
+            engine_db.dispose()
 
     app = FastAPI(lifespan=lifespan, title="Home Curator")
 

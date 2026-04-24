@@ -10,10 +10,15 @@ from home_curator.storage.deletion_repo import DeletionRepo, identifiers_hash
 from home_curator.storage.models import Base
 
 
-def _session():
-    e = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(e)
-    return Session(e)
+@pytest.fixture
+def session():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    try:
+        with Session(engine) as s:
+            yield s
+    finally:
+        engine.dispose()
 
 
 def _dev(id_: str, identifiers: list[list[str]]) -> HADevice:
@@ -32,11 +37,10 @@ def _dev(id_: str, identifiers: list[list[str]]) -> HADevice:
 
 
 @pytest.mark.asyncio
-async def test_deletion_recorded_on_disappearance():
+async def test_deletion_recorded_on_disappearance(session):
     fake = FakeHAClient(devices=[_dev("d1", [["hue", "abc"]])], areas=[])
     cache = RegistryCache(fake)
     await cache.load()
-    session = _session()
     tracker = DeletionTracker(cache=cache, session=session)
 
     fake.set_devices([])
@@ -49,11 +53,10 @@ async def test_deletion_recorded_on_disappearance():
 
 
 @pytest.mark.asyncio
-async def test_reappearance_marked_and_state_flag_set():
+async def test_reappearance_marked_and_state_flag_set(session):
     fake = FakeHAClient(devices=[_dev("d1", [["hue", "abc"]])], areas=[])
     cache = RegistryCache(fake)
     await cache.load()
-    session = _session()
     tracker = DeletionTracker(cache=cache, session=session)
 
     # Delete
@@ -73,12 +76,11 @@ async def test_reappearance_marked_and_state_flag_set():
 
 
 @pytest.mark.asyncio
-async def test_state_and_snapshots_pruned_on_delete():
+async def test_state_and_snapshots_pruned_on_delete(session):
     """Reappeared device that's later deleted doesn't leak state."""
     fake = FakeHAClient(devices=[_dev("d1", [["hue", "abc"]])], areas=[])
     cache = RegistryCache(fake)
     await cache.load()
-    session = _session()
     tracker = DeletionTracker(cache=cache, session=session)
 
     # Delete + re-add to set reappeared flag on d2

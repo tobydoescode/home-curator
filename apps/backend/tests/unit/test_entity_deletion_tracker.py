@@ -11,10 +11,15 @@ from home_curator.storage.deletion_repo import DeletionRepo, identifiers_hash
 from home_curator.storage.models import Base
 
 
-def _session():
-    e = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(e)
-    return Session(e)
+@pytest.fixture
+def session():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    try:
+        with Session(engine) as s:
+            yield s
+    finally:
+        engine.dispose()
 
 
 def _ent(
@@ -37,7 +42,7 @@ def _ent(
 
 
 @pytest.mark.asyncio
-async def test_entity_deletion_recorded_on_disappearance():
+async def test_entity_deletion_recorded_on_disappearance(session):
     fake = FakeHAClient(devices=[], areas=[], entities=[_ent("light.a", unique_id="u1")])
     dev_cache = RegistryCache(fake)
     await dev_cache.load()
@@ -47,7 +52,6 @@ async def test_entity_deletion_recorded_on_disappearance():
         device_lookup=dev_cache.device,
     )
     await ent_cache.load()
-    session = _session()
     tracker = DeletionTracker(cache=dev_cache, session=session, entity_cache=ent_cache)
 
     fake.set_entities([])
@@ -60,7 +64,7 @@ async def test_entity_deletion_recorded_on_disappearance():
 
 
 @pytest.mark.asyncio
-async def test_entity_reappearance_flags_state_under_new_entity_id():
+async def test_entity_reappearance_flags_state_under_new_entity_id(session):
     fake = FakeHAClient(devices=[], areas=[], entities=[_ent("light.a", unique_id="u1")])
     dev_cache = RegistryCache(fake)
     await dev_cache.load()
@@ -70,7 +74,6 @@ async def test_entity_reappearance_flags_state_under_new_entity_id():
         device_lookup=dev_cache.device,
     )
     await ent_cache.load()
-    session = _session()
     tracker = DeletionTracker(cache=dev_cache, session=session, entity_cache=ent_cache)
 
     fake.set_entities([])
@@ -88,7 +91,7 @@ async def test_entity_reappearance_flags_state_under_new_entity_id():
 
 
 @pytest.mark.asyncio
-async def test_entity_without_unique_id_falls_back_to_entity_id_identity():
+async def test_entity_without_unique_id_falls_back_to_entity_id_identity(session):
     fake = FakeHAClient(
         devices=[], areas=[],
         entities=[_ent("light.a", unique_id=None)],
@@ -101,7 +104,6 @@ async def test_entity_without_unique_id_falls_back_to_entity_id_identity():
         device_lookup=dev_cache.device,
     )
     await ent_cache.load()
-    session = _session()
     tracker = DeletionTracker(cache=dev_cache, session=session, entity_cache=ent_cache)
 
     fake.set_entities([])
@@ -119,7 +121,7 @@ async def test_entity_without_unique_id_falls_back_to_entity_id_identity():
 
 
 @pytest.mark.asyncio
-async def test_different_platform_is_not_a_reappearance():
+async def test_different_platform_is_not_a_reappearance(session):
     fake = FakeHAClient(
         devices=[], areas=[],
         entities=[_ent("light.a", platform="hue", unique_id="u1")],
@@ -132,7 +134,6 @@ async def test_different_platform_is_not_a_reappearance():
         device_lookup=dev_cache.device,
     )
     await ent_cache.load()
-    session = _session()
     tracker = DeletionTracker(cache=dev_cache, session=session, entity_cache=ent_cache)
 
     fake.set_entities([])

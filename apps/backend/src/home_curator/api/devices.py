@@ -290,7 +290,11 @@ async def delete_device(
     return RenameResponse(ok=True)
 
 
-@router.post("/devices/bulk-delete", response_model=DeleteResponse, response_model_exclude_none=True)
+@router.post(
+    "/devices/bulk-delete",
+    response_model=DeleteResponse,
+    response_model_exclude_none=True,
+)
 async def delete_devices_bulk(
     body: DeleteBody,
     state: AppState = _APP_STATE_DEPENDENCY,

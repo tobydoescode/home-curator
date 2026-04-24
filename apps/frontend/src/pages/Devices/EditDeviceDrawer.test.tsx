@@ -382,8 +382,9 @@ describe("EditDeviceDrawer", () => {
     const modalRoot = confirmTitle.closest('[role="dialog"]') as HTMLElement;
     await user.click(within(modalRoot).getByRole("button", { name: "Delete" }));
 
-    // Give the mutation time to resolve; onClose must not fire.
-    await new Promise((r) => setTimeout(r, 20));
+    await waitFor(() =>
+      expect(screen.queryByText(/Delete hue_bulb_3\?/i)).not.toBeInTheDocument(),
+    );
     expect(onClose).not.toHaveBeenCalled();
   });
 });
