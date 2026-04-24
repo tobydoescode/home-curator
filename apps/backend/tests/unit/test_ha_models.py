@@ -124,3 +124,40 @@ def test_ha_entity_full_payload():
 def test_ha_entity_ignores_extra_fields():
     e = HAEntity.model_validate({"entity_id": "light.lamp", "new_field": 1})
     assert not hasattr(e, "new_field")
+
+
+from home_curator.ha_client.models import HADeviceUpdate, HAEntityUpdate
+
+
+def test_ha_device_update_unset_fields_absent_from_dump():
+    u = HADeviceUpdate(area_id="kitchen")
+    assert u.model_dump(exclude_unset=True) == {"area_id": "kitchen"}
+
+
+def test_ha_device_update_explicit_none_is_clear():
+    u = HADeviceUpdate(area_id=None)
+    # Explicitly-set None means "clear the field" and must be sent.
+    assert u.model_dump(exclude_unset=True) == {"area_id": None}
+
+
+def test_ha_device_update_empty_dump_is_empty():
+    u = HADeviceUpdate()
+    assert u.model_dump(exclude_unset=True) == {}
+
+
+def test_ha_device_update_forbids_extra_fields():
+    with pytest.raises(ValidationError):
+        HADeviceUpdate(unknown_field="x")  # type: ignore[call-arg]
+
+
+def test_ha_entity_update_multiple_fields():
+    u = HAEntityUpdate(name="Kitchen Lamp", new_entity_id="light.kitchen_lamp")
+    assert u.model_dump(exclude_unset=True) == {
+        "name": "Kitchen Lamp",
+        "new_entity_id": "light.kitchen_lamp",
+    }
+
+
+def test_ha_entity_update_forbids_extra_fields():
+    with pytest.raises(ValidationError):
+        HAEntityUpdate(bogus=True)  # type: ignore[call-arg]

@@ -54,3 +54,24 @@ class HAEntity(BaseModel):
     unique_id: str | None = None
     created_at: str | None = None
     modified_at: str | None = None
+
+
+class HADeviceUpdate(BaseModel):
+    """Partial device update. Only explicitly-set fields are sent to HA via
+    `model_dump(exclude_unset=True)`. `None` means "clear the field"."""
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    area_id: str | None = None
+    name_by_user: str | None = None
+
+
+class HAEntityUpdate(BaseModel):
+    """Partial entity update. Only explicitly-set fields are sent to HA via
+    `model_dump(exclude_unset=True)`. `None` means "clear the field".
+    `new_entity_id` renames the HA entity slug."""
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    new_entity_id: str | None = None
+    name: str | None = None
+    area_id: str | None = None
+    disabled_by: str | None = None
+    hidden_by: str | None = None
+    icon: str | None = None
