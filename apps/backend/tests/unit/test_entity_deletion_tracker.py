@@ -3,8 +3,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from home_curator.deletion_tracker import DeletionTracker
-from home_curator.ha_client.base import HAEntityDict
 from home_curator.ha_client.fake import FakeHAClient
+from home_curator.ha_client.models import HAEntity
 from home_curator.registry_cache.cache import RegistryCache
 from home_curator.registry_cache.entity_cache import EntityRegistryCache
 from home_curator.storage.deletion_repo import DeletionRepo, identifiers_hash
@@ -22,18 +22,18 @@ def _ent(
     platform: str = "hue",
     unique_id: str | None = "u1",
     device_id: str | None = None,
-) -> HAEntityDict:
-    return {
-        "entity_id": eid,
-        "name": None,
-        "original_name": eid,
-        "platform": platform,
-        "device_id": device_id,
-        "area_id": None,
-        "disabled_by": None,
-        "hidden_by": None,
-        "unique_id": unique_id,
-    }
+) -> HAEntity:
+    return HAEntity(
+        entity_id=eid,
+        name=None,
+        original_name=eid,
+        platform=platform,
+        device_id=device_id,
+        area_id=None,
+        disabled_by=None,
+        hidden_by=None,
+        unique_id=unique_id,
+    )
 
 
 @pytest.mark.asyncio

@@ -4,6 +4,7 @@ import json
 import pytest
 import websockets
 
+from home_curator.ha_client.models import HAEntityUpdate, HAEvent
 from home_curator.ha_client.websocket import WebSocketHAClient
 
 HA_AUTH_OK = {"type": "auth_ok", "ha_version": "2026.4.0"}
@@ -51,9 +52,9 @@ async def test_end_to_end_get_devices():
         try:
             devs = await client.get_devices()
             assert len(devs) == 1
-            assert devs[0]["id"] == "d1"
+            assert devs[0].id == "d1"
             areas = await client.get_areas()
-            assert areas[0]["name"] == "Living Room"
+            assert areas[0].name == "Living Room"
         finally:
             await client.stop()
 
@@ -74,7 +75,7 @@ async def test_reconnects_and_emits_reconnected_event(monkeypatch):
         client = WebSocketHAClient(url=f"ws://localhost:{port}", token="tok")
         await client.start()
 
-        events: list[dict] = []
+        events: list[HAEvent] = []
         client.subscribe(lambda e: events.append(e))
 
         try:
@@ -85,16 +86,16 @@ async def test_reconnects_and_emits_reconnected_event(monkeypatch):
 
             # Wait up to 3s for the supervisor to reconnect + emit.
             for _ in range(30):
-                if any(e.get("kind") == "reconnected" for e in events):
+                if any(e.kind == "reconnected" for e in events):
                     break
                 await asyncio.sleep(0.1)
-            assert any(e.get("kind") == "reconnected" for e in events), (
+            assert any(e.kind == "reconnected" for e in events), (
                 f"no reconnect event observed; got {events}"
             )
 
             # Post-reconnect the client is usable again.
             areas = await client.get_areas()
-            assert areas[0]["name"] == "Living Room"
+            assert areas[0].name == "Living Room"
         finally:
             await client.stop()
 
@@ -191,16 +192,13 @@ async def test_get_entities_normalizes_payload():
 
     assert len(ents) == 1
     e = ents[0]
-    assert e["entity_id"] == "light.kitchen_lamp"
-    # Fields are NotRequired on HAEntityDict for forward-compat; this fixture
-    # supplies them, so the assertions are safe at runtime. See docs/tech-debt.md
-    # for the broader TypedDict rethink.
-    assert e["platform"] == "hue"  # type: ignore[typeddict-item]
-    assert e["device_id"] == "d1"  # type: ignore[typeddict-item]
-    assert e["unique_id"] == "hue:abc"  # type: ignore[typeddict-item]
+    assert e.entity_id == "light.kitchen_lamp"
+    assert e.platform == "hue"
+    assert e.device_id == "d1"
+    assert e.unique_id == "hue:abc"
     # epoch-seconds → ISO normalization
-    assert isinstance(e["created_at"], str) and e["created_at"].startswith("20")  # type: ignore[typeddict-item]
-    assert e["modified_at"] is None  # type: ignore[typeddict-item]
+    assert isinstance(e.created_at, str) and e.created_at.startswith("20")
+    assert e.modified_at is None
 
 
 @pytest.mark.asyncio
@@ -226,7 +224,7 @@ async def test_update_entity_forwards_changes():
         try:
             await client.update_entity(
                 "light.lamp",
-                {"name": "Kitchen Lamp", "new_entity_id": "light.kitchen_lamp"},
+                HAEntityUpdate(name="Kitchen Lamp", new_entity_id="light.kitchen_lamp"),
             )
         finally:
             await client.stop()
@@ -271,7 +269,7 @@ async def test_delete_entity_sends_remove_command():
 async def test_entity_registry_updated_dispatches_updated_and_deleted():
     """Two server-pushed events: an update and a remove. Subscriber sees
     entity_updated first, then entity_deleted."""
-    events: list[dict] = []
+    events: list[HAEvent] = []
 
     async def _fake(ws):
         await ws.send(json.dumps(HA_AUTH_REQUIRED))
@@ -314,10 +312,10 @@ async def test_entity_registry_updated_dispatches_updated_and_deleted():
         finally:
             await client.stop()
 
-    kinds = [e["kind"] for e in events]
+    kinds = [e.kind for e in events]
     assert "entity_updated" in kinds
     assert "entity_deleted" in kinds
-    updated = next(e for e in events if e["kind"] == "entity_updated")
-    deleted = next(e for e in events if e["kind"] == "entity_deleted")
-    assert updated["entity_id"] == "light.a"
-    assert deleted["entity_id"] == "light.a"
+    updated = next(e for e in events if e.kind == "entity_updated")
+    deleted = next(e for e in events if e.kind == "entity_deleted")
+    assert updated.entity_id == "light.a"
+    assert deleted.entity_id == "light.a"

@@ -1,3 +1,20 @@
+from home_curator.ha_client.models import HADeviceUpdate
+
+
+def _wire(call: tuple[str, HADeviceUpdate]) -> tuple[str, dict]:
+    """Render a recorded update call as the dict the WS client would send to HA.
+
+    Pydantic model equality compares `__dict__` (values), not
+    `model_fields_set`, so `HADeviceUpdate(area_id=None)` equals
+    `HADeviceUpdate()` — a regression that drops an explicit `None` from the
+    wire payload wouldn't fail an assertion that compared models directly.
+    `model_dump(exclude_unset=True)` mirrors what the WS client actually sends,
+    so asserting on it catches set-ness regressions.
+    """
+    device_id, patch = call
+    return device_id, patch.model_dump(exclude_unset=True)
+
+
 def test_assign_room_bulk(client, fake_ha):
     r = client.post(
         "/api/actions/assign-room",
@@ -9,7 +26,7 @@ def test_assign_room_bulk(client, fake_ha):
         {"device_id": "d1", "ok": True},
         {"device_id": "d2", "ok": True},
     ]
-    assert fake_ha.update_calls == [
+    assert [_wire(c) for c in fake_ha.update_calls] == [
         ("d1", {"area_id": "living"}),
         ("d2", {"area_id": "living"}),
     ]
@@ -21,7 +38,7 @@ def test_rename_single(client, fake_ha):
         json={"device_id": "d2", "name_by_user": "bad_name"},
     )
     assert r.status_code == 200
-    assert fake_ha.update_calls[-1] == ("d2", {"name_by_user": "bad_name"})
+    assert _wire(fake_ha.update_calls[-1]) == ("d2", {"name_by_user": "bad_name"})
 
 
 def test_rename_pattern_applies_to_multiple(client, fake_ha):
@@ -40,7 +57,9 @@ def test_rename_pattern_applies_to_multiple(client, fake_ha):
     assert results["d1"]["ok"] is True
     assert results["d2"]["matched"] is False
     # Only d1 matched, so only one write call recorded
-    assert fake_ha.update_calls == [("d1", {"name_by_user": "lr_room_lamp"})]
+    assert [_wire(c) for c in fake_ha.update_calls] == [
+        ("d1", {"name_by_user": "lr_room_lamp"}),
+    ]
 
 
 def test_patch_device_name_only(client, fake_ha):
@@ -50,7 +69,7 @@ def test_patch_device_name_only(client, fake_ha):
     )
     assert r.status_code == 200
     assert r.json() == {"ok": True}
-    assert fake_ha.update_calls[-1] == ("d1", {"name_by_user": "Lounge Lamp"})
+    assert _wire(fake_ha.update_calls[-1]) == ("d1", {"name_by_user": "Lounge Lamp"})
 
 
 def test_patch_device_area_only(client, fake_ha):
@@ -60,7 +79,7 @@ def test_patch_device_area_only(client, fake_ha):
     )
     assert r.status_code == 200
     assert r.json() == {"ok": True}
-    assert fake_ha.update_calls[-1] == ("d2", {"area_id": "living"})
+    assert _wire(fake_ha.update_calls[-1]) == ("d2", {"area_id": "living"})
 
 
 def test_patch_device_both_fields_single_call(client, fake_ha):
@@ -73,7 +92,7 @@ def test_patch_device_both_fields_single_call(client, fake_ha):
     assert r.json() == {"ok": True}
     # Exactly one HA write for the combined change (verifies batching).
     assert len(fake_ha.update_calls) == before + 1
-    assert fake_ha.update_calls[-1] == (
+    assert _wire(fake_ha.update_calls[-1]) == (
         "d1",
         {"name_by_user": "Main Lamp", "area_id": None},
     )
