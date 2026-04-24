@@ -22,13 +22,16 @@ def test_fresh_db_upgrades_to_head(tmp_path):
     command.upgrade(_alembic_config(url), "head")
 
     engine = create_engine(url)
-    insp = inspect(engine)
-    exc_cols = {c["name"] for c in insp.get_columns("exceptions")}
-    assert "device_id" in exc_cols
-    assert "entity_id" in exc_cols
-    del_cols = {c["name"] for c in insp.get_columns("deletion_events")}
-    assert "entity_id" in del_cols
-    assert "platform" in del_cols
+    try:
+        insp = inspect(engine)
+        exc_cols = {c["name"] for c in insp.get_columns("exceptions")}
+        assert "device_id" in exc_cols
+        assert "entity_id" in exc_cols
+        del_cols = {c["name"] for c in insp.get_columns("deletion_events")}
+        assert "entity_id" in del_cols
+        assert "platform" in del_cols
+    finally:
+        engine.dispose()
 
     # CHECK constraint enforces exactly-one on exceptions.
     with sqlite3.connect(str(db)) as conn:

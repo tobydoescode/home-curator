@@ -12,8 +12,11 @@ from home_curator.storage.models import Base
 def session():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
-    with Session(engine) as s:
-        yield s
+    try:
+        with Session(engine) as s:
+            yield s
+    finally:
+        engine.dispose()
 
 
 def test_identifiers_hash_is_order_independent():

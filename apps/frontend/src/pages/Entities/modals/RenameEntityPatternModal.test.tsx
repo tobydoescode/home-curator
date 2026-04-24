@@ -5,6 +5,7 @@ import { Notifications } from "@mantine/notifications";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RenameEntityPatternModal } from "./RenameEntityPatternModal";
@@ -52,7 +53,9 @@ describe("RenameEntityPatternModal", () => {
     // user.type() treats '[' as a key modifier; escape it with '[[' so the
     // character lands in the field literally.
     await user.type(idPattern, "[[unclosed");
-    idPattern.blur();
+    act(() => {
+      idPattern.blur();
+    });
     await waitFor(() =>
       expect(screen.getByText(/Invalid regex/i)).toBeInTheDocument(),
     );

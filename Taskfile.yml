@@ -71,11 +71,27 @@ tasks:
 
   test:backend:
     dir: "{{.BACKEND_DIR}}"
-    cmd: uv run pytest -q
+    cmd: env -u HA_URL -u HA_TOKEN -u SUPERVISOR_TOKEN uv run pytest -q
 
   test:frontend:
     dir: "{{.FRONTEND_DIR}}"
     cmd: npm run test:run
+
+  coverage:
+    desc: Calculate backend + frontend test coverage
+    cmds:
+      - task: coverage:backend
+      - task: coverage:frontend
+
+  coverage:backend:
+    dir: "{{.BACKEND_DIR}}"
+    cmds:
+      - env -u HA_URL -u HA_TOKEN -u SUPERVISOR_TOKEN uv run coverage run --source=home_curator -m pytest
+      - uv run coverage report --show-missing
+
+  coverage:frontend:
+    dir: "{{.FRONTEND_DIR}}"
+    cmd: npm run test:coverage
 
   typecheck:
     desc: TypeScript typecheck

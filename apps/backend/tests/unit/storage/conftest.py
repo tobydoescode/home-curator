@@ -9,4 +9,7 @@ from home_curator.storage.models import Base
 def session_factory():
     engine = create_engine("sqlite:///:memory:", future=True)
     Base.metadata.create_all(engine)
-    return sessionmaker(bind=engine, expire_on_commit=False)
+    try:
+        yield sessionmaker(bind=engine, expire_on_commit=False)
+    finally:
+        engine.dispose()

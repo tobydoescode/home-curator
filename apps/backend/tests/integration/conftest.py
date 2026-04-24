@@ -13,7 +13,10 @@ from home_curator.storage.models import Base
 
 def _seed_db(path: Path):
     engine = create_engine(f"sqlite:///{path}")
-    Base.metadata.create_all(engine)
+    try:
+        Base.metadata.create_all(engine)
+    finally:
+        engine.dispose()
 
 
 @pytest.fixture

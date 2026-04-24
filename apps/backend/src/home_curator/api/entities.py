@@ -527,7 +527,11 @@ async def rename_pattern_entities(
     return RenamePatternEntityResponse(results=results, error=None)
 
 
-@router.post("/entities/state", response_model=EntityStateResponse, response_model_exclude_none=True)
+@router.post(
+    "/entities/state",
+    response_model=EntityStateResponse,
+    response_model_exclude_none=True,
+)
 async def entity_state(
     body: EntityStateBody,
     state: AppState = _APP_STATE_DEPENDENCY,

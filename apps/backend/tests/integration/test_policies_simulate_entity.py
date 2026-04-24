@@ -32,7 +32,10 @@ policies:
 """.strip()
     )
     engine = create_engine(f"sqlite:///{tmp_path / 'curator.db'}")
-    Base.metadata.create_all(engine)
+    try:
+        Base.metadata.create_all(engine)
+    finally:
+        engine.dispose()
     monkeypatch.setenv("CONFIG_DIR", str(config_dir))
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     monkeypatch.setenv("HA_TOKEN", "devtoken")

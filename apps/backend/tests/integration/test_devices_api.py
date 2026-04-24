@@ -99,3 +99,69 @@ def test_device_row_exposes_name_by_user(client):
     rows = {d["id"]: d for d in r.json()["devices"]}
     assert "name_by_user" in rows["d1"]
     assert rows["d1"]["name_by_user"] is None
+
+
+def test_patch_device_rejects_empty_body(client):
+    r = client.patch("/api/devices/d1", json={})
+    assert r.status_code == 400
+    assert r.json()["detail"] == "no fields to update"
+
+
+def test_delete_device_returns_404_for_unknown_device(client):
+    r = client.delete("/api/devices/not-a-device")
+    assert r.status_code == 404
+    assert r.json()["detail"] == "device not found"
+
+
+def test_bulk_delete_rejects_empty_device_ids(client):
+    r = client.post("/api/devices/bulk-delete", json={"device_ids": []})
+    assert r.status_code == 400
+    assert r.json()["detail"] == "device_ids must not be empty"
+
+
+def test_rename_pattern_reports_invalid_regex(client):
+    r = client.post(
+        "/api/devices/rename-pattern",
+        json={
+            "device_ids": ["d1"],
+            "pattern": "[",
+            "replacement": "new",
+            "dry_run": True,
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["error"].startswith("invalid regex:")
+    assert body["results"] == []
+
+
+def test_rename_pattern_reports_unknown_and_unmatched_devices(client):
+    r = client.post(
+        "/api/devices/rename-pattern",
+        json={
+            "device_ids": ["not-a-device", "d1"],
+            "pattern": "^no-match",
+            "replacement": "new",
+            "dry_run": True,
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["results"][0]["device_id"] == "not-a-device"
+    assert body["results"][0]["matched"] is False
+    assert body["results"][0]["reason"] == "not in cache"
+    assert body["results"][1]["device_id"] == "d1"
+    assert body["results"][1]["matched"] is False
+
+
+def test_list_devices_sort_by_created_and_integration(client):
+    by_created = client.get("/api/devices", params={"sort_by": "created", "sort_dir": "asc"})
+    assert by_created.status_code == 200
+    assert "devices" in by_created.json()
+
+    by_integration = client.get(
+        "/api/devices",
+        params={"sort_by": "integration", "sort_dir": "desc"},
+    )
+    assert by_integration.status_code == 200
+    assert by_integration.json()["all_integrations"] == ["aqara", "hue"]
