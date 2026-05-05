@@ -33,7 +33,7 @@ jobs:
       # Generate the frontend's API types from a local backend run so the
       # Docker build sees the real contract.
       - uses: astral-sh/setup-uv@v3
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
       - name: Start backend to produce OpenAPI spec
         working-directory: apps/backend
