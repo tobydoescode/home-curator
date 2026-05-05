@@ -44,7 +44,7 @@ jobs:
           uv sync --all-extras
           nohup uv run uvicorn home_curator.main:app --port 8099 > /tmp/uvicorn.log 2>&1 &
           sleep 5
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with: { node-version: "22" }
       - name: Generate frontend API types
         working-directory: apps/frontend
