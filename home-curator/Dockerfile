@@ -1,7 +1,7 @@
 ARG BUILD_FROM=ghcr.io/hassio-addons/base:15.0.7
 
 # ---------- Stage 1: build the frontend ----------
-FROM node:22-alpine AS fe-builder
+FROM node:24-alpine AS fe-builder
 
 WORKDIR /fe
 COPY apps/frontend/package.json apps/frontend/package-lock.json ./
