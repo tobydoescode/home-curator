@@ -18,10 +18,10 @@
     "gen:api:local": "cd ../backend && uv run python -c \"import json; from home_curator.main import app; print(json.dumps(app.openapi()))\" > /tmp/home-curator-openapi.json && cd ../frontend && openapi-typescript /tmp/home-curator-openapi.json -o src/api/generated.ts"
   },
   "dependencies": {
-    "@mantine/core": "^7.12.0",
-    "@mantine/hooks": "^7.12.0",
-    "@mantine/modals": "^7.12.0",
-    "@mantine/notifications": "^7.12.0",
+    "@mantine/core": "^9.0.0",
+    "@mantine/hooks": "^9.0.0",
+    "@mantine/modals": "^9.0.0",
+    "@mantine/notifications": "^9.0.0",
     "@tabler/icons-react": "^3.11.0",
     "@tanstack/react-query": "^5.51.0",
     "@tanstack/react-table": "^8.19.0",
@@ -37,7 +37,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.0",
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^4.0.0",
     "jsdom": "^29.0.0",
     "msw": "^2.4.0",
     "openapi-typescript": "^7.4.0",
@@ -46,6 +46,6 @@
     "postcss-simple-vars": "^7.0.1",
     "typescript": "^6.0.0",
     "vite": "^8.0.0",
-    "vitest": "^2.0.0"
+    "vitest": "^4.0.0"
   }
 }
