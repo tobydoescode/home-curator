@@ -11,7 +11,7 @@ import { showDetailedResultToast } from "./useDetailedToast";
 
 function wrap(ui: React.ReactElement) {
   return (
-    <MantineProvider>
+    <MantineProvider env="test">
       <Notifications />
       {ui}
     </MantineProvider>

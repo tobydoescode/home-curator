@@ -11,7 +11,7 @@ import { ExceptionsPage } from "./ExceptionsPage";
 function wrap() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MantineProvider>
+    <MantineProvider env="test">
       <Notifications />
       <QueryClientProvider client={qc}>
         <MemoryRouter initialEntries={["/settings/exceptions"]}>

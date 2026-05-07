@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ColorSchemeToggle } from "./ColorSchemeToggle";
 
 function wrap(ui: React.ReactElement, defaultColorScheme: "light" | "dark" | "auto" = "auto") {
-  return render(<MantineProvider defaultColorScheme={defaultColorScheme}>{ui}</MantineProvider>);
+  return render(<MantineProvider env="test" defaultColorScheme={defaultColorScheme}>{ui}</MantineProvider>);
 }
 
 afterEach(() => {

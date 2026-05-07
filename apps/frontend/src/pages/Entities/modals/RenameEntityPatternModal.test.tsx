@@ -20,7 +20,7 @@ afterEach(() => vi.restoreAllMocks());
 function wrap(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return (
-    <MantineProvider>
+    <MantineProvider env="test">
       <Notifications />
       <QueryClientProvider client={qc}>{ui}</QueryClientProvider>
     </MantineProvider>

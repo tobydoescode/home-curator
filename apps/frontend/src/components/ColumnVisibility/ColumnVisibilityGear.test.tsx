@@ -14,7 +14,7 @@ const COLUMNS = [
 ];
 
 function wrap(ui: React.ReactElement) {
-  return <MantineProvider>{ui}</MantineProvider>;
+  return <MantineProvider env="test">{ui}</MantineProvider>;
 }
 
 describe("ColumnVisibilityGear", () => {

@@ -71,7 +71,7 @@ function wrap(initialEntries: string[] = ["/entities"]) {
     },
   });
   return (
-    <MantineProvider>
+    <MantineProvider env="test">
       <Notifications />
       <QueryClientProvider client={qc}>
         <ModalsProvider>

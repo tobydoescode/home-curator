@@ -30,3 +30,11 @@ if (!globalThis.ResizeObserver) {
 // into view after a click. The no-op keeps test output free of unhandled
 // errors without affecting any observable behaviour.
 Element.prototype.scrollIntoView = () => {};
+
+// jsdom doesn't implement document.fonts; Mantine v9 Textarea autosize
+// attaches a "loadingdone" listener to it.
+if (!document.fonts) {
+  Object.defineProperty(document, "fonts", {
+    value: { addEventListener: () => {}, removeEventListener: () => {} },
+  });
+}

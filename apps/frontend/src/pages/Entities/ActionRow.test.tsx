@@ -24,7 +24,7 @@ function wrap(ui: React.ReactElement) {
     },
   });
   return (
-    <MantineProvider>
+    <MantineProvider env="test">
       <Notifications />
       <QueryClientProvider client={qc}>
         <ModalsProvider>{ui}</ModalsProvider>

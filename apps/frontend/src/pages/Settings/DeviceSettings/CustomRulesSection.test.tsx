@@ -37,7 +37,7 @@ function Harness({
 function wrap(initial = draft) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MantineProvider>
+    <MantineProvider env="test">
       <ModalsProvider>
         <QueryClientProvider client={qc}>
           <MemoryRouter>
@@ -116,7 +116,7 @@ describe("CustomRulesSection — scope prop", () => {
   it("scope=devices filters out entity-scoped custom rules", () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
-      <MantineProvider>
+      <MantineProvider env="test">
         <ModalsProvider>
           <QueryClientProvider client={qc}>
             <MemoryRouter>
@@ -133,7 +133,7 @@ describe("CustomRulesSection — scope prop", () => {
   it("scope=entities filters out device-scoped custom rules", () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
-      <MantineProvider>
+      <MantineProvider env="test">
         <ModalsProvider>
           <QueryClientProvider client={qc}>
             <MemoryRouter>

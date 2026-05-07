@@ -10,7 +10,7 @@ import { openRenameConfirmModal } from "./RenameConfirmModal";
 
 function wrap(ui: React.ReactElement) {
   return (
-    <MantineProvider>
+    <MantineProvider env="test">
       <ModalsProvider>{ui}</ModalsProvider>
     </MantineProvider>
   );

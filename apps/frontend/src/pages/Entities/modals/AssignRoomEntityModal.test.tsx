@@ -14,7 +14,7 @@ vi.mock("@/hooks/useEntityActions", () => ({
 
 function renderModal(onClose = vi.fn()) {
   render(
-    <MantineProvider>
+    <MantineProvider env="test">
       <AssignRoomEntityModal
         entityIds={["light.kitchen", "sensor.temp"]}
         rooms={[{ id: "kitchen", name: "Kitchen" }]}
@@ -32,7 +32,7 @@ describe("AssignRoomEntityModal", () => {
     renderModal();
 
     expect(screen.getByRole("button", { name: "Assign" })).toBeDisabled();
-    await userEvent.click(screen.getByRole("textbox", { name: "Room" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Room" }));
     await userEvent.click(screen.getByText("Kitchen"));
 
     expect(screen.getByRole("button", { name: "Assign" })).toBeEnabled();
@@ -42,7 +42,7 @@ describe("AssignRoomEntityModal", () => {
     mutateAsync.mockResolvedValue({});
     const onClose = renderModal();
 
-    await userEvent.click(screen.getByRole("textbox", { name: "Room" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Room" }));
     await userEvent.click(screen.getByText("Kitchen"));
     await userEvent.click(screen.getByRole("button", { name: "Assign" }));
 

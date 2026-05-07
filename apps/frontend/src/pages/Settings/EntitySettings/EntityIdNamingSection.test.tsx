@@ -17,7 +17,7 @@ function Harness({ initial }: { initial: EntityIdBlock }) {
 function wrap(ui: React.ReactElement) {
   const qc = new QueryClient();
   return (
-    <MantineProvider>
+    <MantineProvider env="test">
       <QueryClientProvider client={qc}>{ui}</QueryClientProvider>
     </MantineProvider>
   );

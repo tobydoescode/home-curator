@@ -7,7 +7,7 @@ import { SettingsLayout } from "./SettingsLayout";
 
 function wrap(path: string) {
   return render(
-    <MantineProvider>
+    <MantineProvider env="test">
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="/settings" element={<SettingsLayout />}>

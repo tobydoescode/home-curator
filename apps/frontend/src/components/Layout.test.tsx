@@ -12,7 +12,7 @@ const STORAGE_KEY = "home-curator:sidebar-desktop-opened";
 function wrap() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MantineProvider>
+    <MantineProvider env="test">
       <QueryClientProvider client={qc}>
         <MemoryRouter initialEntries={["/devices"]}>
           <Routes>

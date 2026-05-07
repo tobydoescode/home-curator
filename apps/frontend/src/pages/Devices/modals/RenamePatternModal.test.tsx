@@ -14,7 +14,7 @@ vi.mock("@/hooks/useActions", () => ({
 
 function renderModal(onClose = vi.fn()) {
   render(
-    <MantineProvider>
+    <MantineProvider env="test">
       <RenamePatternModal deviceIds={["dev-1", "dev-2"]} onClose={onClose} />
     </MantineProvider>,
   );

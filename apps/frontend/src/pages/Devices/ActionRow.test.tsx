@@ -39,7 +39,7 @@ function wrap(ui: React.ReactElement) {
   // ModalsProvider so modal-rendered children (which live inside
   // ModalsProvider's own subtree) can still see the React Query context.
   return (
-    <MantineProvider>
+    <MantineProvider env="test">
       <Notifications />
       <QueryClientProvider client={qc}>
         <ModalsProvider>{ui}</ModalsProvider>

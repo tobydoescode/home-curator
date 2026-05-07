@@ -28,7 +28,7 @@ function Harness({ initial, spy }: { initial: PoliciesFileShape; spy: (d: Polici
 function wrap(initial = initialDraft) {
   const spy = vi.fn();
   const utils = render(
-    <MantineProvider>
+    <MantineProvider env="test">
       <Harness initial={initial} spy={spy} />
     </MantineProvider>,
   );

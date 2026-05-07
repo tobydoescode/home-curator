@@ -9,7 +9,7 @@ import { DeviceSettingsPage } from "./DeviceSettingsPage";
 function wrap() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MantineProvider>
+    <MantineProvider env="test">
       <QueryClientProvider client={qc}>
         <MemoryRouter>
           <DeviceSettingsPage />

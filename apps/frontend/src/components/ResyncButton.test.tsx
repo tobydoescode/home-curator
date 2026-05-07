@@ -20,7 +20,7 @@ function wrap(ui: React.ReactElement) {
     },
   });
   return (
-    <MantineProvider>
+    <MantineProvider env="test">
       <Notifications />
       <QueryClientProvider client={client}>{ui}</QueryClientProvider>
     </MantineProvider>

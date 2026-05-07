@@ -32,7 +32,7 @@ function wrap(ui: React.ReactElement) {
   // QueryClientProvider — modal children render inside ModalsProvider's
   // subtree and otherwise can't call `useQueryClient()`.
   return (
-    <MantineProvider>
+    <MantineProvider env="test">
       <Notifications />
       <QueryClientProvider client={client}>
         <ModalsProvider>

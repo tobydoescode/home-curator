@@ -9,7 +9,7 @@ describe("Simulator", () => {
   it("shows counts + groups; Failing expanded by default, Passing collapsed", async () => {
     const user = userEvent.setup();
     render(
-      <MantineProvider>
+      <MantineProvider env="test">
         <Simulator result={{
           ok: true, error: null,
           counts: { matched_when: 3, passes_assert: 1, fails_assert: 1, errored: 1 },
@@ -29,7 +29,7 @@ describe("Simulator", () => {
 
   it("shows parse error in place of results", () => {
     render(
-      <MantineProvider>
+      <MantineProvider env="test">
         <Simulator result={{ ok: false, error: "bad cel", counts: null, failing: [], errored: [], passing: [] } as any} />
       </MantineProvider>,
     );

@@ -16,12 +16,12 @@ const draft: PoliciesFileShape = {
   }],
 };
 
-function StatefulWrapper({ initial = draft, spy = vi.fn() }: { initial?: PoliciesFileShape; spy?: ReturnType<typeof vi.fn> }) {
+function StatefulWrapper({ initial = draft, spy = vi.fn() }: { initial?: PoliciesFileShape; spy?: (...args: any[]) => any }) {
   const [d, setD] = useState(initial);
   const onChange = (next: PoliciesFileShape) => { setD(next); spy(next); };
   const qc = new QueryClient();
   return (
-    <MantineProvider>
+    <MantineProvider env="test">
       <QueryClientProvider client={qc}>
         <NamingSection draft={d} onChange={onChange} />
       </QueryClientProvider>
@@ -134,7 +134,7 @@ describe("NamingBlockSection (generic)", () => {
     const { NamingBlockSection } = await import("./NamingSection");
     const qc = new QueryClient();
     render(
-      <MantineProvider>
+      <MantineProvider env="test">
         <QueryClientProvider client={qc}>
           <NamingBlockSection
             block={{ preset: "snake_case", starts_with_room: false, rooms: [] }}
@@ -157,7 +157,7 @@ describe("NamingBlockSection (generic)", () => {
     const qc = new QueryClient();
     const user = userEvent.setup();
     render(
-      <MantineProvider>
+      <MantineProvider env="test">
         <QueryClientProvider client={qc}>
           <NamingBlockSection
             block={{ preset: "snake_case", starts_with_room: false, rooms: [] }}

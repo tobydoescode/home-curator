@@ -9,7 +9,7 @@ import { CustomRuleEditor } from "./CustomRuleEditor";
 function wrap(props: { initial?: any | null; onSaved?: (r: any) => void; onClose?: () => void } = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MantineProvider>
+    <MantineProvider env="test">
       <QueryClientProvider client={qc}>
         <CustomRuleEditor
           initial={props.initial ?? null}

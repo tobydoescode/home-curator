@@ -11,7 +11,7 @@ import { GlobalPoliciesPage } from "./GlobalPoliciesPage";
 function wrap(path = "/settings/global") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MantineProvider>
+    <MantineProvider env="test">
       <ModalsProvider>
         <QueryClientProvider client={qc}>
           <MemoryRouter initialEntries={[path]}>
@@ -82,11 +82,11 @@ describe("GlobalPoliciesPage", () => {
     wrap("/settings/global?test=aqara-needs-room");
 
     await waitFor(() => {
-      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-        expect.objectContaining({
-          url: expect.stringContaining("/api/policies/simulate"),
-        }),
-      );
+      expect(
+        vi.mocked(fetch).mock.calls.some(
+          ([req]) => req instanceof Request && req.url.includes("/api/policies/simulate"),
+        ),
+      ).toBe(true);
     });
     const simulateRequest = vi
       .mocked(fetch)

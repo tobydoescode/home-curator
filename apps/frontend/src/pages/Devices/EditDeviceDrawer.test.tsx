@@ -31,7 +31,7 @@ const AREAS = [
 function wrap(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return (
-    <MantineProvider>
+    <MantineProvider env="test">
       <Notifications />
       <ModalsProvider>
         <QueryClientProvider client={qc}>{ui}</QueryClientProvider>

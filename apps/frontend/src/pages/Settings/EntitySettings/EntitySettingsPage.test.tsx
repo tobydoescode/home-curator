@@ -84,7 +84,7 @@ function wrap() {
     defaultOptions: { queries: { retry: false } },
   });
   return render(
-    <MantineProvider>
+    <MantineProvider env="test">
       <Notifications />
       <ModalsProvider>
         <QueryClientProvider client={qc}>
