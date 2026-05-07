@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:15.0.7
+ARG BUILD_FROM=ghcr.io/hassio-addons/base:15.0.9
 
 # ---------- Stage 1: build the frontend ----------
 FROM node:24-alpine AS fe-builder
