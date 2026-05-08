@@ -2,6 +2,7 @@ name: backend
 
 on:
   push:
+    branches: [main]
     paths:
       - "apps/backend/**"
       - ".github/workflows/backend.yml"

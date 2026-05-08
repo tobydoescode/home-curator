@@ -2,6 +2,7 @@ name: frontend
 
 on:
   push:
+    branches: [main]
     paths:
       - "apps/frontend/**"
       - "apps/backend/**"
