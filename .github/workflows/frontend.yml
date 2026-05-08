@@ -4,10 +4,12 @@ on:
   push:
     paths:
       - "apps/frontend/**"
+      - "apps/backend/**"
       - ".github/workflows/frontend.yml"
   pull_request:
     paths:
       - "apps/frontend/**"
+      - "apps/backend/**"
       - ".github/workflows/frontend.yml"
 
 jobs:
@@ -18,17 +20,18 @@ jobs:
         working-directory: apps/frontend
     steps:
       - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.1.0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: "npm"
           cache-dependency-path: apps/frontend/package-lock.json
+      - run: uv sync --all-extras
+        working-directory: apps/backend
       - run: npm ci
-      # Stub the generated types so typecheck + build don't require a running backend.
-      - run: |
-          mkdir -p src/api
-          echo 'export type paths = Record<string, any>;' > src/api/generated.ts
-          echo 'export type components = { schemas: Record<string, any> };' >> src/api/generated.ts
-      - run: npx tsc --noEmit
+      - run: npm run typecheck
       - run: npm run test:run
       - run: npm run build
