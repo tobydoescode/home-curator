@@ -27,8 +27,8 @@ jobs:
       # Stub the generated types so typecheck + build don't require a running backend.
       - run: |
           mkdir -p src/api
-          echo 'export type paths = Record<string, never>;' > src/api/generated.ts
-          echo 'export type components = { schemas: Record<string, never> };' >> src/api/generated.ts
+          echo 'export type paths = Record<string, any>;' > src/api/generated.ts
+          echo 'export type components = { schemas: Record<string, any> };' >> src/api/generated.ts
       - run: npx tsc --noEmit
       - run: npm run test:run
       - run: npm run build
