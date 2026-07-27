@@ -7,6 +7,7 @@ Home Assistant addon that helps keep your instance tidy: mass updates, misconfig
 - `apps/backend/` — FastAPI service. [README](apps/backend/README.md)
 - `apps/frontend/` — React + Vite UI. [README](apps/frontend/README.md)
 - `home-curator/` — HA addon packaging (Dockerfile, config.yaml, run.sh)
+- `docs/policies.md` — **writing policies**: rule types, naming presets, CEL reference
 - `docs/architecture/` — diagrams: [data model](docs/architecture/data-model.md), [rule engine](docs/architecture/rule-engine.md), [live updates](docs/architecture/live-updates.md), [frontend](docs/architecture/frontend.md)
 
 ## Quick-start (Taskfile)
@@ -25,6 +26,8 @@ Open <http://localhost:5173>. Ctrl-C stops both.
 
 Other tasks:
 
+- `task lint` — ruff + mypy + tsc
+- `task check` — lint plus both test suites (what CI gates on)
 - `task test` — run backend + frontend test suites
 - `task test:realha` — run the backend against a real Home Assistant container (needs Docker). See [why](apps/backend/README.md#real-home-assistant-tests-testsrealha).
 - `task test:e2e` — drive the built frontend behind a fake Home Assistant ingress (builds the frontend, downloads Chromium)

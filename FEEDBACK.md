@@ -693,7 +693,11 @@ There is no ESLint or Prettier config anywhere in the tracked file list. TypeScr
 
 ## 8. Documentation
 
-### D-1 — The add-on README documents behaviour that doesn't exist
+### D-1 — The add-on README documents behaviour that doesn't exist — **fixed**
+
+> Fixed while doing C-3: the first-run paragraph now describes what the code
+> actually does, and the dead "Settings → Naming Conventions" reference is
+> gone. S-1 then corrected the path it points at.
 
 `home-curator/README.md:7`: *"On first start a default `policies.yaml` is created at `/config/home-curator/policies.yaml`."* Nothing writes it (see C-3). It also references *"Settings → Naming Conventions"*, a route that now redirects away (`App.tsx:51-54`).
 
@@ -708,7 +712,12 @@ There is no ESLint or Prettier config anywhere in the tracked file list. TypeScr
 
 `home-curator/CHANGELOG.md` stops at `0.2.0` (dated 2026-04-22). Since then the repo gained the entire Entities view, entity policies, entity bulk actions, the resync button, column visibility, and a settings restructure. The file also states *"Custom policies gain `scope: devices` (required; `entities` reserved for future use)"* — `entities` scope shipped (`policies/schema.py:200`). And no entry matches `config.yaml`'s declared `0.1.0` (see C-2).
 
-### D-3 — `frontend/README.md` describes a different stack
+### D-3 — `frontend/README.md` describes a different stack — **fixed**
+
+> Now React 19 / TypeScript 6 / Vite 8 / Mantine 9 / Vitest 4, matching
+> `package.json`. The layout section gained `pages/Entities/`, the Settings
+> description matches its four sub-pages, and the Node claim states what
+> `engines` declares and what CI builds on rather than a third number.
 
 | README says (`:16-20`) | Actual (`package.json`) |
 | --- | --- |
@@ -720,11 +729,24 @@ There is no ESLint or Prettier config anywhere in the tracked file list. TypeScr
 
 The `Layout` section (`:38-49`) predates `pages/Entities/` and describes Settings as *"Naming Conventions editor"* — it's now four sub-pages.
 
-### D-4 — `backend/README.md` has a stale test count and a documented assertion failure
+### D-4 — `backend/README.md` has a stale test count and a documented assertion failure — **fixed**
+
+> Count corrected to 434 and the e2e / real-HA suites documented. `CONFIG_DIR`
+> now describes the post-S-1 location. The `assert ha_url is not None`
+> troubleshooting entry is **kept deliberately** — it still describes real
+> behaviour, because S-4 is open; it is a symptom of that, not of stale docs.
 
 `:29` says *"112 tests"*; there are 381. `:85` documents `assert ha_url is not None` as a troubleshooting entry, which is really a bug report against S-4.
 
-### D-5 — No policy authoring reference — the biggest documentation gap
+### D-5 — No policy authoring reference — the biggest documentation gap — **fixed**
+
+> `docs/policies.md` covers the file's shape, every rule type with an example,
+> the naming presets with their real regexes (including why `title-case` is
+> lenient), per-room overrides, the full `device.*` / `entity.*` CEL variable
+> tables, worked examples, and the simulator. Every CEL example in it was
+> compiled and executed against the real rule engine before publishing.
+>
+> Linked from the addon README and the root README.
 
 Custom CEL rules are a headline feature. Nothing in the repo documents:
 
@@ -736,11 +758,16 @@ Custom CEL rules are a headline feature. Nothing in the repo documents:
 
 A user hitting the CEL editor has no reference. This is the highest-value doc to write.
 
-### D-6 — No LICENSE
+### D-6 — No LICENSE — **fixed**
+
+> MIT, at the owner's choice.
 
 There is no LICENSE file. `repository.yaml` publishes this as an installable HA add-on repository — users have no terms. Add one.
 
-### D-6b — Errors in `docs/architecture/`
+### D-6b — Errors in `docs/architecture/` — **fixed**
+
+> `live-updates.md`'s `POST /api/resync` corrected to `/api/cache/resync`. The
+> two `frontend.md` errors were fixed earlier, with C-1.
 
 Spotted while updating those diagrams for the ingress fix:
 
@@ -750,7 +777,11 @@ Spotted while updating those diagrams for the ingress fix:
 
 Worth a pass over the rest of these diagrams against the code; they were written quickly and at least three claims in two files were wrong.
 
-### D-7 — `docs/` is gitignored but three files are tracked anyway
+### D-7 — `docs/` is gitignored but three files are tracked anyway — **fixed**
+
+> The three `docs/superpowers/plans/` files are untracked. `docs/` itself is
+> not ignored — only `docs/superpowers/` — so `docs/architecture/` and the new
+> `docs/policies.md` are unaffected.
 
 `.gitignore:2` ignores `docs/superpowers/`, yet three plan files are tracked (`docs/superpowers/plans/2026-04-24-backend-{pyright,ruff,test-warning}-cleanup.md`) — added before the ignore rule and never removed. Either untrack them or narrow the ignore. Right now `docs/` contains only stale artifacts and no user-facing documentation.
 
@@ -758,7 +789,11 @@ Worth a pass over the rest of these diagrams against the code; they were written
 
 No `CONTRIBUTING.md`, no issue/PR templates, no `SECURITY.md`. `CLAUDE.md` encodes the working style but is agent-facing. For a public add-on repo, a short CONTRIBUTING that states the `task setup` → `task test` → PR-to-main loop would carry most of the value.
 
-### D-9 — Taskfile is missing the tasks the docs reference
+### D-9 — Taskfile is missing the tasks the docs reference — **fixed**
+
+> Added `task lint` (ruff + mypy + tsc), `task lint:backend`, and `task check`
+> (lint plus both test suites). The backend README now points at them instead
+> of listing raw commands.
 
 `apps/backend/README.md:90-96` tells you to `cd apps/backend && uv run ruff check src tests && uv run mypy src`. There is no `task lint` or `task check`. `CLAUDE.md:15` says *"Add Taskfile tasks when they aid local development or repeated operations"* — lint and typecheck qualify. Also missing: `task build`, `task docker:build`.
 

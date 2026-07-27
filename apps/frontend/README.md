@@ -13,10 +13,11 @@ task typecheck        # TypeScript strict check
 
 ## Stack
 
-- React 18 + TypeScript 5 + Vite 5
-- [Mantine v7](https://mantine.dev/) UI primitives
-- [TanStack Query](https://tanstack.com/query) for data fetching
-- [TanStack Table v8](https://tanstack.com/table) for the devices table
+- React 19 + TypeScript 6 + Vite 8
+- [Mantine v9](https://mantine.dev/) UI primitives
+- [TanStack Query v5](https://tanstack.com/query) for data fetching
+- [TanStack Table v8](https://tanstack.com/table) for the devices and entities tables
+- [Vitest v4](https://vitest.dev/) + Testing Library
 - [openapi-fetch](https://github.com/openapi-ts/openapi-typescript) typed client, generated from the backend's OpenAPI spec
 
 ## Direct commands
@@ -37,12 +38,13 @@ npm run typecheck             # tsc --noEmit
 
 ```
 src/
-├── api/            # typed fetch client + SSE helper
+├── api/            # typed fetch client, SSE helper, base-path resolution
 ├── components/     # shared UI (Layout, SeverityBadge, LiveIndicator)
 ├── hooks/          # TanStack Query hooks per endpoint + useLiveEvents
 ├── pages/
 │   ├── Devices/    # DevicesPage + Table + FilterBar + ActionRow + EditDeviceDrawer + modals
-│   └── Settings/   # Naming Conventions editor
+│   ├── Entities/   # the same, for entities
+│   └── Settings/   # Device / Entity settings, Global Policies, Exceptions
 ├── theme.ts        # Mantine theme
 ├── main.tsx        # entry
 └── App.tsx         # provider stack + router
@@ -52,4 +54,6 @@ src/
 
 - `src/api/generated.ts` is gitignored — regenerate with `task gen-api` (or `npm run gen:api`) whenever the backend's schema changes.
 - Tests stub `globalThis.fetch` directly (not MSW) because MSW v2 has interop issues with Vitest + jsdom.
-- Node 22+ required.
+- `package.json` declares `engines: node >=20`; CI builds on Node 24.
+- Every URL the app emits resolves against `api/basePath.ts`, not the origin —
+  see [ingress](../../home-curator/README.md#ingress) for why.

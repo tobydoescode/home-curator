@@ -20,6 +20,10 @@ config folder, which the File Editor and Samba addons expose; the folder's
 exact name varies by Home Assistant version (`addon_configs/`, `app_configs/`
 on newer builds), so browse to it rather than hard-coding a path.
 
+See **[Writing policies](../docs/policies.md)** for the full reference: every
+rule type, the naming presets, per-room overrides, and the variables available
+to custom CEL rules.
+
 It configures:
 
 - naming conventions for devices and for entities (global + per-room overrides)

@@ -100,7 +100,7 @@ Four things this diagram is meant to make obvious:
 
 Events can be missed — a dropped socket, an HA restart, a registry change HA doesn't announce. `_safety_resync_loop` refreshes both caches every 5 minutes, runs both tracker diffs, commits, and publishes `devices_changed` / `entities_changed` **only if the corresponding diff is non-empty**, so a quiet system produces no SSE traffic. Failures are logged and swallowed; the loop never dies.
 
-The same work is exposed on demand at `POST /api/resync`, driven by the frontend's `ResyncButton`.
+The same work is exposed on demand at `POST /api/cache/resync`, driven by the frontend's `ResyncButton`.
 
 ## Browser change → HA
 

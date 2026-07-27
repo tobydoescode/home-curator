@@ -11,7 +11,7 @@ All of these can go in `.env` at the repo root (loaded by the Taskfile) or be ex
 - `SUPERVISOR_TOKEN` — used in production. In dev, use `HA_TOKEN` instead.
 - `HA_TOKEN` — long-lived access token for dev (create in HA: **Profile → Security → Long-Lived Access Tokens**).
 - `HA_URL` — HA base URL. Dev default: `http://localhost:8123`. Prod: `http://supervisor/core`.
-- `CONFIG_DIR` — directory containing `policies.yaml`. Defaults to `/config/home-curator` in prod, `./.dev-config/home-curator` in dev.
+- `CONFIG_DIR` — directory containing `policies.yaml`. Defaults to `/config` in prod — the addon's *own* directory via the `addon_config` mapping, not Home Assistant's config — and `./.dev-config/home-curator` in dev.
 - `DATA_DIR` — directory for SQLite DB. Defaults to `/data` in prod, `./.dev-data` in dev.
 
 ## Automated tests (no HA required)
@@ -26,7 +26,7 @@ Or directly:
 
 ```bash
 cd apps/backend
-uv run pytest                   # 381 tests
+uv run pytest                   # 434 tests
 uv run pytest --cov=home_curator
 uv run pytest tests/unit/
 uv run pytest tests/integration/
@@ -185,7 +185,14 @@ Edit `apps/backend/.dev-config/home-curator/policies.yaml` while the server runs
 ## Lint + type-check
 
 ```bash
+task lint          # ruff + mypy + tsc, from the repo root
+task check         # the above plus both test suites
+```
+
+Or directly:
+
+```bash
 cd apps/backend
 uv run ruff check src tests
-uv run mypy src
+uv run mypy src                 # strict; enforced in CI
 ```

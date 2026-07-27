@@ -156,6 +156,25 @@ tasks:
     dir: "{{.FRONTEND_DIR}}"
     cmd: npm run typecheck
 
+  lint:
+    desc: Lint and typecheck everything (what CI runs, minus the tests)
+    cmds:
+      - task: lint:backend
+      - task: typecheck
+
+  lint:backend:
+    desc: Ruff + mypy over the backend
+    dir: "{{.BACKEND_DIR}}"
+    cmds:
+      - uv run ruff check src tests
+      - uv run mypy src
+
+  check:
+    desc: Everything CI checks on a PR — lint, typecheck and both test suites
+    cmds:
+      - task: lint
+      - task: test
+
   # --- Devcontainer (real Supervisor) --------------------------------------
   #
   # Heavy: a privileged container running Docker-in-Docker, Supervisor and
