@@ -48,7 +48,7 @@ def _migrate(db_path: Path) -> None:
 
 
 @pytest.fixture
-def real_app(tmp_path, ha_ws_url, ha_token, monkeypatch):
+def real_app(tmp_path, ha_ws_url, ha_token, ha_ready, monkeypatch):
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     (config_dir / "policies.yaml").write_text(_POLICIES)

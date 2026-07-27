@@ -17,17 +17,23 @@ Everything here is marked `realha` and deselected by default. Run with
 
 from __future__ import annotations
 
+import asyncio
+import json
 import shutil
 import time
 from collections.abc import Iterator
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import httpx
 import pytest
 import pytest_asyncio
-from testcontainers.core.container import DockerContainer
+from websockets.asyncio.client import connect
 
 from home_curator.ha_client.websocket import WebSocketHAClient
+
+if TYPE_CHECKING:
+    from testcontainers.core.container import DockerContainer
 
 # Pinned so fixture expectations cannot drift underneath us. Renovate will
 # raise a PR to bump this; a failure on that PR is an early warning that HA
@@ -43,6 +49,11 @@ _BOOT_TIMEOUT_SECONDS = 300
 _ONBOARD_USERNAME = "curator"
 _ONBOARD_PASSWORD = "curator-test-password"
 
+# Config entries are set up asynchronously after HA starts answering HTTP,
+# so tests wait for a known fixture device rather than for the port.
+_FIXTURE_TIMEOUT_SECONDS = 120
+_FIXTURE_SENTINEL_DEVICE = "living_room_lamp"
+
 
 # Every module in this package must declare `pytestmark = pytest.mark.realha`.
 # Marking them from a `pytest_collection_modifyitems` hook here does not work:
@@ -53,6 +64,12 @@ _ONBOARD_PASSWORD = "curator-test-password"
 @pytest.fixture(scope="session")
 def ha_base_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
     """Boot a throwaway Home Assistant and yield its base URL."""
+    # Imported here rather than at module scope on purpose. `-m 'not realha'`
+    # deselects these tests but pytest still *imports* this conftest during
+    # collection, so a module-level import would make the default suite fail
+    # for anyone who has not installed the optional `realha` group.
+    from testcontainers.core.container import DockerContainer
+
     config_dir = tmp_path_factory.mktemp("ha-config")
     shutil.copytree(_FIXTURE_CONFIG, config_dir, dirs_exist_ok=True)
 
@@ -143,8 +160,56 @@ def ha_ws_url(ha_base_url: str) -> str:
     return ha_base_url.replace("http://", "ws://") + "/api/websocket"
 
 
+@pytest.fixture(scope="session")
+def ha_ready(ha_ws_url: str, ha_token: str) -> None:
+    """Block until the fixture integration has populated the registries.
+
+    Home Assistant serves HTTP well before it has finished setting up every
+    integration, so "the port answers" is not the same as "the devices
+    exist". Without this gate the first test to run sees an empty device
+    registry, intermittently, depending on how fast the container warms up.
+    """
+    deadline = time.monotonic() + _FIXTURE_TIMEOUT_SECONDS
+    seen: list[str] = []
+    while time.monotonic() < deadline:
+        seen = asyncio.run(_list_device_names(ha_ws_url, ha_token))
+        if _FIXTURE_SENTINEL_DEVICE in seen:
+            return
+        time.sleep(1)
+
+    raise TimeoutError(
+        f"fixture device {_FIXTURE_SENTINEL_DEVICE!r} never appeared in the "
+        f"device registry within {_FIXTURE_TIMEOUT_SECONDS}s. Saw: {seen}. "
+        "Check that the curator_test custom component loaded — its errors "
+        "surface in the container log."
+    )
+
+
+async def _list_device_names(ws_url: str, token: str) -> list[str]:
+    """One-shot device registry read, independent of `WebSocketHAClient`.
+
+    Readiness must not depend on the class under test.
+    """
+    try:
+        async with connect(ws_url, max_size=None) as ws:
+            if json.loads(await ws.recv()).get("type") != "auth_required":
+                return []
+            await ws.send(json.dumps({"type": "auth", "access_token": token}))
+            if json.loads(await ws.recv()).get("type") != "auth_ok":
+                return []
+            await ws.send(json.dumps({"id": 1, "type": "config/device_registry/list"}))
+            while True:
+                message = json.loads(await ws.recv())
+                if message.get("id") == 1 and message.get("type") == "result":
+                    if not message.get("success"):
+                        return []
+                    return [d.get("name") for d in message.get("result") or []]
+    except (OSError, ConnectionError, json.JSONDecodeError):
+        return []
+
+
 @pytest_asyncio.fixture
-async def ha_client(ha_ws_url: str, ha_token: str):
+async def ha_client(ha_ws_url: str, ha_token: str, ha_ready: None):
     """A started, authenticated `WebSocketHAClient` — the real thing."""
     client = WebSocketHAClient(url=ha_ws_url, token=ha_token)
     await client.start()
