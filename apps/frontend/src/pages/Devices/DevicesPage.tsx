@@ -6,13 +6,14 @@ import type { RowSelectionState } from "@tanstack/react-table";
 
 import { ColumnVisibilityGear } from "@/components/ColumnVisibility/ColumnVisibilityGear";
 import { useColumnVisibility } from "@/components/ColumnVisibility/useColumnVisibility";
+import { PaginationFooter } from "@/components/PaginationFooter";
 import { SEARCH_DEBOUNCE_MS } from "@/constants";
-import { useDevices, type DevicesSortBy, type DevicesSortDir } from "@/hooks/useDevices";
+import { useDevices, type DevicesSortBy } from "@/hooks/useDevices";
+import { useTableUrlState } from "@/hooks/useTableUrlState";
 import { ActionRow } from "./ActionRow";
 import { DevicesTable, type DeviceRow } from "./DevicesTable";
 import { FilterBar, type Filters } from "./FilterBar";
 import { EditDeviceDrawer } from "./EditDeviceDrawer";
-import { PaginationFooter } from "./PaginationFooter";
 
 // Every column id rendered by `DevicesTable`, in the order shown to users.
 // Keep in sync with `DevicesTable`'s column defs. `select` and `link` are
@@ -29,46 +30,31 @@ const DEVICES_COLUMNS: { id: string; label: string }[] = [
 const DEVICES_COLUMN_IDS = DEVICES_COLUMNS.map((c) => c.id);
 const DEVICES_DEFAULT_VISIBLE = DEVICES_COLUMN_IDS;  // all visible (no regression)
 
-function filtersFromParams(p: URLSearchParams): Filters {
-  return {
-    q: p.get("q") ?? "",
-    regex: p.get("regex") === "true",
-    rooms: p.getAll("room"),
-    issue_types: p.getAll("issue_type"),
-    integrations: p.getAll("integration"),
-    with_issues: p.get("with_issues") === "true",
-  };
-}
-
-function paramsFromFiltersAndPagination(
-  f: Filters,
-  page: number,
-  pageSize: number,
-  current?: URLSearchParams,
-): URLSearchParams {
-  const out = new URLSearchParams();
-  if (f.q) out.set("q", f.q);
-  if (f.regex) out.set("regex", "true");
-  for (const r of f.rooms) out.append("room", r);
-  for (const t of f.issue_types) out.append("issue_type", t);
-  for (const i of f.integrations) out.append("integration", i);
-  if (f.with_issues) out.set("with_issues", "true");
-  if (page !== 1) out.set("page", String(page));
-  if (pageSize !== 50) out.set("page_size", String(pageSize));
-  // Preserve orthogonal params (sort) so a filter change doesn't wipe
-  // the user's chosen column ordering.
-  if (current) {
-    for (const key of ["sort_by", "sort_dir"]) {
-      const v = current.get(key);
-      if (v) out.set(key, v);
-    }
-  }
-  return out;
-}
+// Filter field → repeated query parameter. They differ: `rooms` is `?room=`.
+const DEVICES_ARRAY_FILTERS = {
+  rooms: "room",
+  issue_types: "issue_type",
+  integrations: "integration",
+} as const;
+const DEVICES_BOOLEAN_FILTERS = ["with_issues"] as const;
 
 export function DevicesPage() {
   const [selection, setSelection] = useState<RowSelectionState>({});
   const [params, setParams] = useSearchParams();
+  const {
+    filters,
+    page,
+    pageSize,
+    sortBy,
+    sortDir,
+    setFilters,
+    setPage,
+    setPageSize,
+    cycleSort,
+  } = useTableUrlState<Filters, DevicesSortBy>({
+    arrays: DEVICES_ARRAY_FILTERS,
+    booleans: DEVICES_BOOLEAN_FILTERS,
+  });
 
   // Derived from the URL rather than local state, matching EntitiesPage:
   // one source of truth, and it makes /devices?device=<id> deep-linkable.
@@ -92,29 +78,6 @@ export function DevicesPage() {
     defaultVisible: DEVICES_DEFAULT_VISIBLE,
   });
 
-  const filters = useMemo(() => filtersFromParams(params), [params]);
-  const page = Number(params.get("page") ?? 1);
-  const pageSize = Number(params.get("page_size") ?? 50);
-  const sortBy = (params.get("sort_by") as DevicesSortBy | null) || null;
-  const sortDir: DevicesSortDir = params.get("sort_dir") === "desc" ? "desc" : "asc";
-
-  function cycleSort(column: DevicesSortBy) {
-    const next = new URLSearchParams(params);
-    if (sortBy !== column) {
-      // First click on a new column → ascending.
-      next.set("sort_by", column);
-      next.set("sort_dir", "asc");
-    } else if (sortDir === "asc") {
-      // Second click → flip to descending.
-      next.set("sort_dir", "desc");
-    } else {
-      // Third click → clear the sort.
-      next.delete("sort_by");
-      next.delete("sort_dir");
-    }
-    next.set("page", "1");  // any sort change resets to page 1
-    setParams(next);
-  }
 
   // Debounce only the free-text search — dropdowns/toggles fire immediately
   // because they're already discrete clicks.
@@ -232,7 +195,7 @@ export function DevicesPage() {
         roomCounts={data.area_counts}
         issueTypeCounts={data.issue_counts_by_type}
         integrationCounts={data.integration_counts}
-        onChange={(f) => setParams(paramsFromFiltersAndPagination(f, 1, pageSize, params))}
+        onChange={setFilters}
         rightSlot={
           <ColumnVisibilityGear
             columns={DEVICES_COLUMNS}
@@ -262,12 +225,8 @@ export function DevicesPage() {
         total={data.total}
         page={page}
         pageSize={pageSize}
-        onPageChange={(p) =>
-          setParams(paramsFromFiltersAndPagination(filters, p, pageSize, params))
-        }
-        onPageSizeChange={(s) =>
-          setParams(paramsFromFiltersAndPagination(filters, 1, s, params))
-        }
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
       />
       <EditDeviceDrawer
         opened={drawerId !== null}

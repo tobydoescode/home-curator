@@ -7,6 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from home_curator.api.deps import AppState, app_state
+from home_curator.api.listing import (
+    highest_severity,
+    matches_query,
+    missing_last,
+    missing_last_exact,
+    per_item_results,
+    severity_sort_key,
+)
 from home_curator.api.schemas import (
     AreaOut,
     AssignRoomResponse,
@@ -22,7 +30,7 @@ from home_curator.api.schemas import (
     RenameResponse,
 )
 from home_curator.ha_client.models import HADeviceUpdate
-from home_curator.rules.base import Device, EvaluationContext, Issue, Severity
+from home_curator.rules.base import Device, EvaluationContext, Issue
 from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
 
@@ -36,10 +44,6 @@ _INTEGRATION_QUERY = Query(default_factory=list)
 _PAGE_QUERY = Query(default=1, ge=1)
 _PAGE_SIZE_QUERY = Query(default=50, ge=1, le=500)
 _APP_STATE_DEPENDENCY = Depends(app_state)
-
-_SEVERITY_RANK: dict[Severity, int] = {"info": 1, "warning": 2, "error": 3}
-_RANK_TO_SEVERITY: dict[int, Severity] = {v: k for k, v in _SEVERITY_RANK.items()}
-
 
 class UpdateDeviceBody(BaseModel):
     name_by_user: str | None = None
@@ -62,24 +66,6 @@ class RenamePatternBody(BaseModel):
 
 class DeleteBody(BaseModel):
     device_ids: list[str]
-
-
-def _matches_query(name: str, q: str, regex: bool) -> bool:
-    if not q:
-        return True
-    if regex:
-        try:
-            return re.search(q, name) is not None
-        except re.error:
-            return False
-    return q.lower() in name.lower()
-
-
-def _highest_severity(issues: list[Issue]) -> Severity | None:
-    if not issues:
-        return None
-    highest = max(_SEVERITY_RANK[i.severity] for i in issues)
-    return _RANK_TO_SEVERITY[highest]
 
 
 @router.get("/devices", response_model=DevicesListResponse)
@@ -137,7 +123,7 @@ def list_devices(
 
     rows: list[tuple[Device, list[Issue]]] = []
     for d in hydrated:
-        if not _matches_query(d.name, q, regex):
+        if not matches_query(d.name, q, regex):
             continue
         if rooms_lower and (d.area_name or "").lower() not in rooms_lower:
             continue
@@ -170,37 +156,21 @@ def list_devices(
             # Empty room sorts last on asc, first on desc — mirrors "no data"
             # convention where unassigned values drop to the bottom when sorting
             # naturally.
-            rows.sort(
-                key=lambda r: (r[0].area_name is None, (r[0].area_name or "").lower()),
-                reverse=reverse,
-            )
+            rows.sort(key=lambda r: missing_last(r[0].area_name), reverse=reverse)
         elif sort_by == "severity":
             # Highest severity first on desc; tiebreak on issue count then name
             # so rows with the same severity don't shuffle.
             rows.sort(
-                key=lambda r: (
-                    max((_SEVERITY_RANK[i.severity] for i in r[1]), default=0),
-                    len(r[1]),
-                    r[0].display_name.lower(),
-                ),
+                key=lambda r: (*severity_sort_key(r[1]), r[0].display_name.lower()),
                 reverse=reverse,
             )
         elif sort_by == "integration":
-            rows.sort(
-                key=lambda r: (r[0].integration is None, (r[0].integration or "").lower()),
-                reverse=reverse,
-            )
+            rows.sort(key=lambda r: missing_last(r[0].integration), reverse=reverse)
         elif sort_by == "created":
             # Missing timestamps sort last on asc to mirror "no data at bottom".
-            rows.sort(
-                key=lambda r: (r[0].created_at is None, r[0].created_at or ""),
-                reverse=reverse,
-            )
+            rows.sort(key=lambda r: missing_last_exact(r[0].created_at), reverse=reverse)
         elif sort_by == "modified":
-            rows.sort(
-                key=lambda r: (r[0].modified_at is None, r[0].modified_at or ""),
-                reverse=reverse,
-            )
+            rows.sort(key=lambda r: missing_last_exact(r[0].modified_at), reverse=reverse)
 
     start = (page - 1) * page_size
     end = start + page_size
@@ -221,7 +191,7 @@ def list_devices(
             created_at=d.created_at,
             modified_at=d.modified_at,
             issue_count=len(issues),
-            highest_severity=_highest_severity(issues),
+            highest_severity=highest_severity(issues),
             issues=[
                 IssueOut(
                     policy_id=i.policy_id,
@@ -302,16 +272,14 @@ async def delete_devices_bulk(
     """Delete one or more devices. Returns per-device results for partial success."""
     if not body.device_ids:
         raise HTTPException(status_code=400, detail="device_ids must not be empty")
-    results: list[DeleteResult] = []
-    for did in body.device_ids:
-        if state.cache.device(did) is None:
-            results.append(DeleteResult(device_id=did, ok=False, error="device not found"))
-            continue
-        try:
-            await state.ha.delete_device(did)
-            results.append(DeleteResult(device_id=did, ok=True))
-        except Exception as e:
-            results.append(DeleteResult(device_id=did, ok=False, error=str(e)))
+    results = await per_item_results(
+        body.device_ids,
+        state.ha.delete_device,
+        build=lambda did, ok, error: DeleteResult(device_id=did, ok=ok, error=error),
+        precheck=lambda did: (
+            None if state.cache.device(did) is not None else "device not found"
+        ),
+    )
     return DeleteResponse(results=results)
 
 
@@ -325,13 +293,13 @@ async def assign_room(
     state: AppState = _APP_STATE_DEPENDENCY,
 ) -> AssignRoomResponse:
     """Assign the given area_id to each device."""
-    results: list[AssignRoomResult] = []
-    for did in body.device_ids:
-        try:
-            await state.ha.update_device(did, HADeviceUpdate(area_id=body.area_id))
-            results.append(AssignRoomResult(device_id=did, ok=True))
-        except Exception as e:
-            results.append(AssignRoomResult(device_id=did, ok=False, error=str(e)))
+    results = await per_item_results(
+        body.device_ids,
+        lambda did: state.ha.update_device(did, HADeviceUpdate(area_id=body.area_id)),
+        build=lambda did, ok, error: AssignRoomResult(
+            device_id=did, ok=ok, error=error
+        ),
+    )
     return AssignRoomResponse(results=results)
 
 

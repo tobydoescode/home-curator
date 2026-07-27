@@ -460,7 +460,35 @@ Consequences: screen readers do not announce them as links; keyboard tab order s
 
 ## 3. Architecture
 
-### A-1 — `devices.py` and `entities.py` are near-verbatim duplicates
+### A-1 — `devices.py` and `entities.py` are near-verbatim duplicates — **partly fixed, deliberately**
+
+> **What was extracted.** `api/listing.py` now holds the behaviour the two
+> endpoints must *agree* on: severity ranking, query matching, the
+> "missing values sort last" convention, and the per-item bulk result shape
+> (which collapsed five handlers). On the frontend, `PaginationFooter` was
+> byte-identical and is now shared, and `useTableUrlState` owns URL⇄filter
+> serialisation and sort cycling for both pages.
+>
+> **What was deliberately not extracted: the listing pipeline itself.** Merging
+> filter→count→sort→paginate→render would mean a function taking five callbacks
+> that reads worse than either original. Every bug this duplication actually
+> produced was a *semantic* disagreement — C-4's two endpoints differing on what
+> "in an area" means, F-5's differing selection behaviour, and a `platform` sort
+> arm testing `not value` where its neighbours tested `is None` — not mechanical
+> divergence. Sharing the semantics addresses the cause; merging the pipelines
+> would only address the line count.
+>
+> `FilterBar` and `ActionRow` are also left separate: 95 vs 142 and 124 vs 123
+> lines, with genuinely different filters and actions. A props union would
+> satisfy neither.
+>
+> **Honest accounting:** this did not reduce total lines. The pages lost 50
+> lines and the new hook adds 141, so the frontend is net larger. The value is
+> that the logic exists once, not that there is less of it.
+>
+> Verified by refactoring with **no edits to any existing test** — 458 backend,
+> 181 frontend, 10 e2e and 28 real-HA all stayed green. 27 new tests cover the
+> extracted helpers, which previously had no direct coverage at all.
 
 `api/devices.py` (388 lines) and `api/entities.py` (549 lines) share:
 
@@ -819,7 +847,7 @@ Worth a pass over the rest of these diagrams against the code; they were written
 
 `.gitignore:2` ignores `docs/superpowers/`, yet three plan files are tracked (`docs/superpowers/plans/2026-04-24-backend-{pyright,ruff,test-warning}-cleanup.md`) — added before the ignore rule and never removed. Either untrack them or narrow the ignore. Right now `docs/` contains only stale artifacts and no user-facing documentation.
 
-### D-8 — Missing repo hygiene files
+### D-8 — Missing repo hygiene files **skipped**
 
 No `CONTRIBUTING.md`, no issue/PR templates, no `SECURITY.md`. `CLAUDE.md` encodes the working style but is agent-facing. For a public add-on repo, a short CONTRIBUTING that states the `task setup` → `task test` → PR-to-main loop would carry most of the value.
 

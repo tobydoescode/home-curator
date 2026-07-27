@@ -11,6 +11,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from home_curator.api.deps import AppState, app_state
+from home_curator.api.listing import (
+    highest_severity,
+    matches_query,
+    missing_last,
+    missing_last_exact,
+    per_item_results,
+    severity_sort_key,
+)
 from home_curator.api.schemas import (
     AreaOut,
     AssignRoomEntityResponse,
@@ -27,7 +35,7 @@ from home_curator.api.schemas import (
     RenameResponse,
 )
 from home_curator.ha_client.models import HAEntityUpdate
-from home_curator.rules.base import Entity, EvaluationContext, Issue, Severity
+from home_curator.rules.base import Entity, EvaluationContext, Issue
 from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
 
@@ -39,9 +47,6 @@ _INTEGRATION_QUERY = Query(default_factory=list)
 _ISSUE_TYPE_QUERY = Query(default_factory=list)
 _PAGE_QUERY = Query(default=1, ge=1)
 _PAGE_SIZE_QUERY = Query(default=50, ge=1, le=500)
-
-_SEVERITY_RANK: dict[Severity, int] = {"info": 1, "warning": 2, "error": 3}
-_RANK_TO_SEVERITY: dict[int, Severity] = {v: k for k, v in _SEVERITY_RANK.items()}
 
 # The "no area" filter sentinel. Picked as a string unlikely to collide with
 # any real area name (double-underscore + keyword) so users can still name a
@@ -86,24 +91,6 @@ class EntityStateBody(BaseModel):
 
 class DeleteEntityBody(BaseModel):
     entity_ids: list[str]
-
-
-def _matches_query(text: str, q: str, regex: bool) -> bool:
-    if not q:
-        return True
-    if regex:
-        try:
-            return re.search(q, text) is not None
-        except re.error:
-            return False
-    return q.lower() in text.lower()
-
-
-def _highest_severity(issues: list[Issue]) -> Severity | None:
-    if not issues:
-        return None
-    highest = max(_SEVERITY_RANK[i.severity] for i in issues)
-    return _RANK_TO_SEVERITY[highest]
 
 
 @router.get("/entities", response_model=EntitiesListResponse)
@@ -176,8 +163,8 @@ def list_entities(
     rows: list[tuple[Entity, list[Issue]]] = []
     for e in enriched:
         if not (
-            _matches_query(e.entity_id, q, regex)
-            or _matches_query(e.display_name, q, regex)
+            matches_query(e.entity_id, q, regex)
+            or matches_query(e.display_name, q, regex)
         ):
             continue
         if domains_set and e.domain not in domains_set:
@@ -216,10 +203,7 @@ def list_entities(
         elif sort_by == "domain":
             rows.sort(key=lambda r: r[0].domain.lower(), reverse=reverse)
         elif sort_by == "room":
-            rows.sort(
-                key=lambda r: (r[0].area_name is None, (r[0].area_name or "").lower()),
-                reverse=reverse,
-            )
+            rows.sort(key=lambda r: missing_last(r[0].area_name), reverse=reverse)
         elif sort_by == "device":
             def _device_key(row: tuple[Entity, list[Issue]]) -> tuple[bool, str]:
                 d = devices_by_id.get(row[0].device_id) if row[0].device_id else None
@@ -227,29 +211,16 @@ def list_entities(
                 return (d is None, name.lower())
             rows.sort(key=_device_key, reverse=reverse)
         elif sort_by == "integration":
-            rows.sort(
-                key=lambda r: (not r[0].platform, (r[0].platform or "").lower()),
-                reverse=reverse,
-            )
+            rows.sort(key=lambda r: missing_last(r[0].platform), reverse=reverse)
         elif sort_by == "severity":
             rows.sort(
-                key=lambda r: (
-                    max((_SEVERITY_RANK[i.severity] for i in r[1]), default=0),
-                    len(r[1]),
-                    r[0].display_name.lower(),
-                ),
+                key=lambda r: (*severity_sort_key(r[1]), r[0].display_name.lower()),
                 reverse=reverse,
             )
         elif sort_by == "created":
-            rows.sort(
-                key=lambda r: (r[0].created_at is None, r[0].created_at or ""),
-                reverse=reverse,
-            )
+            rows.sort(key=lambda r: missing_last_exact(r[0].created_at), reverse=reverse)
         elif sort_by == "modified":
-            rows.sort(
-                key=lambda r: (r[0].modified_at is None, r[0].modified_at or ""),
-                reverse=reverse,
-            )
+            rows.sort(key=lambda r: missing_last_exact(r[0].modified_at), reverse=reverse)
 
     start = (page - 1) * page_size
     end = start + page_size
@@ -275,7 +246,7 @@ def list_entities(
             created_at=e.created_at,
             modified_at=e.modified_at,
             issue_count=len(issues),
-            highest_severity=_highest_severity(issues),
+            highest_severity=highest_severity(issues),
             issues=[
                 IssueOut(
                     policy_id=i.policy_id,
@@ -364,18 +335,16 @@ async def delete_entities_bulk(
     """Delete one or more entities. Returns per-entity results for partial success."""
     if not body.entity_ids:
         raise HTTPException(status_code=400, detail="entity_ids must not be empty")
-    results: list[DeleteEntityResult] = []
-    for eid in body.entity_ids:
-        if state.entity_cache.entity(eid) is None:
-            results.append(
-                DeleteEntityResult(entity_id=eid, ok=False, error="entity not found"),
-            )
-            continue
-        try:
-            await state.ha.delete_entity(eid)
-            results.append(DeleteEntityResult(entity_id=eid, ok=True))
-        except Exception as e:
-            results.append(DeleteEntityResult(entity_id=eid, ok=False, error=str(e)))
+    results = await per_item_results(
+        body.entity_ids,
+        state.ha.delete_entity,
+        build=lambda eid, ok, error: DeleteEntityResult(
+            entity_id=eid, ok=ok, error=error
+        ),
+        precheck=lambda eid: (
+            None if state.entity_cache.entity(eid) is not None else "entity not found"
+        ),
+    )
     return DeleteEntityResponse(results=results)
 
 
@@ -389,13 +358,13 @@ async def assign_room_entities(
     state: AppState = _APP_STATE_DEPENDENCY,
 ) -> AssignRoomEntityResponse:
     """Bulk-assign an area_id to one or more entities."""
-    results: list[AssignRoomEntityResult] = []
-    for eid in body.entity_ids:
-        try:
-            await state.ha.update_entity(eid, HAEntityUpdate(area_id=body.area_id))
-            results.append(AssignRoomEntityResult(entity_id=eid, ok=True))
-        except Exception as e:
-            results.append(AssignRoomEntityResult(entity_id=eid, ok=False, error=str(e)))
+    results = await per_item_results(
+        body.entity_ids,
+        lambda eid: state.ha.update_entity(eid, HAEntityUpdate(area_id=body.area_id)),
+        build=lambda eid, ok, error: AssignRoomEntityResult(
+            entity_id=eid, ok=ok, error=error
+        ),
+    )
     return AssignRoomEntityResponse(results=results)
 
 
@@ -542,11 +511,13 @@ async def entity_state(
     """Bulk flip disabled_by / hidden_by to user or None."""
     if not body.entity_ids:
         raise HTTPException(status_code=400, detail="entity_ids must not be empty")
-    results: list[EntityStateResult] = []
-    for eid in body.entity_ids:
-        try:
-            await state.ha.update_entity(eid, HAEntityUpdate(**{body.field: body.value}))
-            results.append(EntityStateResult(entity_id=eid, ok=True))
-        except Exception as e:
-            results.append(EntityStateResult(entity_id=eid, ok=False, error=str(e)))
+    results = await per_item_results(
+        body.entity_ids,
+        lambda eid: state.ha.update_entity(
+            eid, HAEntityUpdate(**{body.field: body.value})
+        ),
+        build=lambda eid, ok, error: EntityStateResult(
+            entity_id=eid, ok=ok, error=error
+        ),
+    )
     return EntityStateResponse(results=results)

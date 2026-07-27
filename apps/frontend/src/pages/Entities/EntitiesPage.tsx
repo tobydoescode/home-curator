@@ -6,18 +6,15 @@ import type { RowSelectionState } from "@tanstack/react-table";
 
 import { ColumnVisibilityGear } from "@/components/ColumnVisibility/ColumnVisibilityGear";
 import { useColumnVisibility } from "@/components/ColumnVisibility/useColumnVisibility";
+import { PaginationFooter } from "@/components/PaginationFooter";
 import { SEARCH_DEBOUNCE_MS } from "@/constants";
-import {
-  type EntitiesSortBy,
-  type EntitiesSortDir,
-  useEntities,
-} from "@/hooks/useEntities";
+import { type EntitiesSortBy, useEntities } from "@/hooks/useEntities";
+import { useTableUrlState } from "@/hooks/useTableUrlState";
 
 import { ActionRow } from "./ActionRow";
 import { EditEntityDrawer } from "./EditEntityDrawer";
 import { EntitiesTable, type EntityRow } from "./EntitiesTable";
 import { FilterBar, type Filters } from "./FilterBar";
-import { PaginationFooter } from "./PaginationFooter";
 
 const ENTITIES_COLUMNS: { id: string; label: string }[] = [
   { id: "severity", label: "Severity" },
@@ -35,6 +32,19 @@ const ENTITIES_COLUMNS: { id: string; label: string }[] = [
 ];
 
 const ENTITIES_COLUMN_IDS = ENTITIES_COLUMNS.map((c) => c.id);
+// Filter field → repeated query parameter; they differ (`rooms` is `?room=`).
+const ENTITIES_ARRAY_FILTERS = {
+  domains: "domain",
+  rooms: "room",
+  integrations: "integration",
+  issue_types: "issue_type",
+} as const;
+const ENTITIES_BOOLEAN_FILTERS = [
+  "with_issues",
+  "show_disabled",
+  "show_hidden",
+] as const;
+
 const ENTITIES_DEFAULT_VISIBLE = [
   "severity",
   "entity_id",
@@ -45,50 +55,23 @@ const ENTITIES_DEFAULT_VISIBLE = [
   "issues",
 ];
 
-function filtersFromParams(p: URLSearchParams): Filters {
-  return {
-    q: p.get("q") ?? "",
-    regex: p.get("regex") === "true",
-    domains: p.getAll("domain"),
-    rooms: p.getAll("room"),
-    integrations: p.getAll("integration"),
-    issue_types: p.getAll("issue_type"),
-    with_issues: p.get("with_issues") === "true",
-    show_disabled: p.get("show_disabled") === "true",
-    show_hidden: p.get("show_hidden") === "true",
-  };
-}
-
-function paramsFromFiltersAndPagination(
-  f: Filters,
-  page: number,
-  pageSize: number,
-  current?: URLSearchParams,
-): URLSearchParams {
-  const out = new URLSearchParams();
-  if (f.q) out.set("q", f.q);
-  if (f.regex) out.set("regex", "true");
-  for (const d of f.domains) out.append("domain", d);
-  for (const r of f.rooms) out.append("room", r);
-  for (const i of f.integrations) out.append("integration", i);
-  for (const t of f.issue_types) out.append("issue_type", t);
-  if (f.with_issues) out.set("with_issues", "true");
-  if (f.show_disabled) out.set("show_disabled", "true");
-  if (f.show_hidden) out.set("show_hidden", "true");
-  if (page !== 1) out.set("page", String(page));
-  if (pageSize !== 50) out.set("page_size", String(pageSize));
-  if (current) {
-    for (const key of ["sort_by", "sort_dir"]) {
-      const v = current.get(key);
-      if (v) out.set(key, v);
-    }
-  }
-  return out;
-}
-
 export function EntitiesPage() {
   const [selection, setSelection] = useState<RowSelectionState>({});
   const [params, setParams] = useSearchParams();
+  const {
+    filters,
+    page,
+    pageSize,
+    sortBy,
+    sortDir,
+    setFilters,
+    setPage,
+    setPageSize,
+    cycleSort,
+  } = useTableUrlState<Filters, EntitiesSortBy>({
+    arrays: ENTITIES_ARRAY_FILTERS,
+    booleans: ENTITIES_BOOLEAN_FILTERS,
+  });
 
   // The drawer's open state is derived from the URL — no local state. Two
   // effects syncing URL↔state caused a race: when Close cleared the state,
@@ -109,27 +92,6 @@ export function EntitiesPage() {
     setParams(next, { replace: true });
   }
 
-  const filters = useMemo(() => filtersFromParams(params), [params]);
-  const page = Number(params.get("page") ?? 1);
-  const pageSize = Number(params.get("page_size") ?? 50);
-  const sortBy = (params.get("sort_by") as EntitiesSortBy | null) || null;
-  const sortDir: EntitiesSortDir =
-    params.get("sort_dir") === "desc" ? "desc" : "asc";
-
-  function cycleSort(column: EntitiesSortBy) {
-    const next = new URLSearchParams(params);
-    if (sortBy !== column) {
-      next.set("sort_by", column);
-      next.set("sort_dir", "asc");
-    } else if (sortDir === "asc") {
-      next.set("sort_dir", "desc");
-    } else {
-      next.delete("sort_by");
-      next.delete("sort_dir");
-    }
-    next.set("page", "1");
-    setParams(next);
-  }
 
   const [debouncedQ] = useDebouncedValue(filters.q, SEARCH_DEBOUNCE_MS);
 
@@ -242,9 +204,7 @@ export function EntitiesPage() {
         roomCounts={data.area_counts}
         integrationCounts={data.integration_counts}
         issueTypeCounts={data.issue_counts_by_type}
-        onChange={(f) =>
-          setParams(paramsFromFiltersAndPagination(f, 1, pageSize, params))
-        }
+        onChange={setFilters}
         rightSlot={
           <ColumnVisibilityGear
             columns={ENTITIES_COLUMNS}
@@ -273,12 +233,8 @@ export function EntitiesPage() {
         total={data.total}
         page={page}
         pageSize={pageSize}
-        onPageChange={(p) =>
-          setParams(paramsFromFiltersAndPagination(filters, p, pageSize, params))
-        }
-        onPageSizeChange={(s) =>
-          setParams(paramsFromFiltersAndPagination(filters, 1, s, params))
-        }
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
       />
       <EditEntityDrawer
         opened={drawerEntityId !== null}
