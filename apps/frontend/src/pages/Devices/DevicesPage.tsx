@@ -68,8 +68,23 @@ function paramsFromFiltersAndPagination(
 
 export function DevicesPage() {
   const [selection, setSelection] = useState<RowSelectionState>({});
-  const [drawerId, setDrawerId] = useState<string | null>(null);
   const [params, setParams] = useSearchParams();
+
+  // Derived from the URL rather than local state, matching EntitiesPage:
+  // one source of truth, and it makes /devices?device=<id> deep-linkable.
+  const drawerId = params.get("device");
+
+  function openDrawer(id: string): void {
+    const next = new URLSearchParams(params);
+    next.set("device", id);
+    setParams(next, { replace: true });
+  }
+
+  function closeDrawer(): void {
+    const next = new URLSearchParams(params);
+    next.delete("device");
+    setParams(next, { replace: true });
+  }
 
   const columnVis = useColumnVisibility({
     storageKey: "home-curator:columns:devices",
@@ -169,8 +184,28 @@ export function DevicesPage() {
   // deleted via HA → SSE → refetch), close the drawer so it doesn't
   // "teleport" back if the device reappears later.
   useEffect(() => {
-    if (drawerId !== null && data && !active) setDrawerId(null);
+    if (drawerId !== null && data && !active) closeDrawer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawerId, data, active]);
+
+  // Prune selection down to what is actually on screen. Without this, acting
+  // on a selection after filtering operates on rows the user can no longer
+  // see, and the counter disagrees with the table. EntitiesPage already did
+  // this; Devices did not.
+  useEffect(() => {
+    if (!data) return;
+    const visible = new Set(data.devices.map((d) => d.id));
+    let changed = false;
+    const next: RowSelectionState = {};
+    for (const id of Object.keys(selection)) {
+      if (visible.has(id)) {
+        next[id] = selection[id];
+      } else {
+        changed = true;
+      }
+    }
+    if (changed) setSelection(next);
+  }, [data, selection]);
 
   if (isLoading) return <Text>Loading…</Text>;
   if (error)
@@ -217,7 +252,7 @@ export function DevicesPage() {
         rows={deviceRows}
         selection={selection}
         onSelectionChange={setSelection}
-        onRowClick={setDrawerId}
+        onRowClick={openDrawer}
         sortBy={sortBy}
         sortDir={sortDir}
         onSort={cycleSort}
@@ -236,7 +271,7 @@ export function DevicesPage() {
       />
       <EditDeviceDrawer
         opened={drawerId !== null}
-        onClose={() => setDrawerId(null)}
+        onClose={closeDrawer}
         device={
           active
             ? {

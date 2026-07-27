@@ -85,11 +85,7 @@ def test_hard_refresh_on_a_nested_route_works(
 def test_client_side_navigation_stays_under_the_prefix(page: Page, ingress_base_url):
     page.goto(f"{ingress_base_url}/", wait_until="load")
 
-    # Located by text inside the navbar rather than by link role: the sidebar
-    # items are Mantine NavLinks rendered as anchors without an href, so they
-    # expose no implicit link role. (Worth fixing separately — it also costs
-    # middle-click and open-in-new-tab.)
-    page.locator("nav").get_by_text("Entities", exact=True).click()
+    page.get_by_role("link", name="Entities").click()
 
     expect(page.get_by_role("heading", name="Entities")).to_be_visible()
     assert page.url.startswith(f"{ingress_base_url}/entities"), page.url

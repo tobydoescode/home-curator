@@ -1,6 +1,6 @@
 import { AppShell, Burger, Group, NavLink, Title } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 
 import { useLocalStorageBoolean } from "@/hooks/useLocalStorageBoolean";
 
@@ -11,8 +11,6 @@ import { ResyncButton } from "./ResyncButton";
 const NAV = [
   { label: "Devices", to: "/devices" },
   { label: "Entities", to: "/entities" },
-  { label: "Automations", to: "/automations", disabled: true },
-  { label: "Areas", to: "/areas", disabled: true },
   { label: "Settings", to: "/settings" },
 ];
 
@@ -20,7 +18,6 @@ const DESKTOP_OPEN_KEY = "home-curator:sidebar-desktop-opened";
 
 export function Layout() {
   const loc = useLocation();
-  const navigate = useNavigate();
   const [mobileOpened, { toggle: toggleMobile }] = useDisclosure(false);
   const [desktopOpened, toggleDesktop] = useLocalStorageBoolean(
     DESKTOP_OPEN_KEY,
@@ -64,15 +61,17 @@ export function Layout() {
       </AppShell.Header>
       <AppShell.Navbar p="sm">
         {NAV.map((item) => (
+          // `component={Link}` renders a real anchor with a resolved href, so
+          // these are announced as links, reachable by keyboard, and open in a
+          // new tab on middle-click. Previously they were anchors with no href
+          // and an onClick that called preventDefault, which has none of that.
+          // React Router's Link also honours the ingress basename.
           <NavLink
             key={item.to}
+            component={Link}
+            to={item.to}
             label={item.label}
             active={loc.pathname.startsWith(item.to)}
-            disabled={item.disabled}
-            onClick={(e) => {
-              e.preventDefault();
-              if (!item.disabled) navigate(item.to);
-            }}
           />
         ))}
       </AppShell.Navbar>

@@ -69,6 +69,38 @@ class DeletionTracker:
                 )
                 self._last_known_entity_first_seen[e.entity_id] = datetime.now(UTC)
 
+        self._restore_reappeared_state()
+
+    def _restore_reappeared_state(self) -> None:
+        """Rebuild the reappeared flags from the database.
+
+        The flags are otherwise only set by observing a delete-then-return
+        live, so a restart cleared every one of them — and since the earlier
+        sighting had already stamped `reappeared_at`, the transition could
+        never be observed a second time. The issue vanished silently.
+
+        The database knew all along; this reads it back.
+        """
+        reappeared = self._repo.all_reappeared_hashes()
+        if not reappeared:
+            return
+
+        for device in self._cache.devices():
+            identifiers = self._cache.identifiers(device.id) or ()
+            if not identifiers:
+                continue
+            if identifiers_hash(identifiers) in reappeared:
+                self._state[device.id] = {STATE_KEY_REAPPEARED: True}
+
+        if self._entity_cache is None:
+            return
+        for entity in self._entity_cache.entities():
+            identity = _entity_identity(
+                entity.platform, entity.unique_id, entity.entity_id
+            )
+            if identifiers_hash([identity]) in reappeared:
+                self._entity_state[entity.entity_id] = {STATE_KEY_REAPPEARED: True}
+
     def commit(self) -> None:
         self._session.commit()
 

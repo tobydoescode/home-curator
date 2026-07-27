@@ -134,8 +134,8 @@ def list_entities(
     """
     raw_entities = state.entity_cache.entities()
 
-    # Device + area joins ahead of filtering so sorts on those keys work
-    # and rendered rows carry the joined fields without a second lookup.
+    # Devices are looked up per row by `_render` and by the `device` sort key;
+    # this is the index they share.
     devices_by_id = {d.id: d for d in state.cache.devices()}
 
     enriched: list[Entity] = list(raw_entities)

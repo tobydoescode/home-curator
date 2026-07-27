@@ -31,6 +31,31 @@ afterEach(() => {
 });
 
 describe("Layout", () => {
+  it("exposes nav items as real links", () => {
+    // They used to be anchors with no href and an onClick that called
+    // preventDefault: no link role, no keyboard focus, and middle-click or
+    // open-in-new-tab did nothing.
+    wrap();
+
+    const devices = screen.getByRole("link", { name: "Devices" });
+    expect(devices).toHaveAttribute("href", "/devices");
+    expect(screen.getByRole("link", { name: "Entities" })).toHaveAttribute(
+      "href",
+      "/entities",
+    );
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
+      "href",
+      "/settings",
+    );
+  });
+
+  it("does not offer navigation to pages that do not exist", () => {
+    wrap();
+
+    expect(screen.queryByText("Automations")).not.toBeInTheDocument();
+    expect(screen.queryByText("Areas")).not.toBeInTheDocument();
+  });
+
   it("renders the sidebar nav links expanded by default", () => {
     wrap();
     expect(screen.getByText("Devices")).toBeInTheDocument();

@@ -21,6 +21,12 @@ export function useLiveEvents() {
         e.kind === "entity_deleted"
       )
         qc.invalidateQueries({ queryKey: ["entities"] });
+      // Published by PUT /api/policies (cascade) and bulk-delete. Without
+      // this an Exceptions page open in another tab never refreshes.
+      if (e.kind === "exceptions_changed") {
+        qc.invalidateQueries({ queryKey: ["exceptions-list"] });
+        qc.invalidateQueries({ queryKey: ["exceptions"] });
+      }
     });
     return unsub;
   }, [qc]);

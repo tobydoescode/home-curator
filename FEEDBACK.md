@@ -374,7 +374,9 @@ There is also duplicate, divergent type-checker configuration: `pyrightconfig.js
 
 ## 2. Correctness and behaviour
 
-### F-1 — `exceptions_changed` SSE events are published but never consumed
+### F-1 — `exceptions_changed` SSE events are published but never consumed — **fixed**
+
+> **Status: fixed.** `useLiveEvents` now invalidates `exceptions-list` and `exceptions` on that event, so an Exceptions page open in another tab refreshes.
 
 `api/policies.py:85` and `api/exceptions.py:214` publish `{"kind": "exceptions_changed"}`. `api/sse.ts:7` declares it in the `SSEEvent` union. But `hooks/useLiveEvents.ts:14-23` handles `devices_changed`, `policies_changed`, `entities_changed`, `entity_updated` and `entity_deleted` — not `exceptions_changed`. An open Exceptions page in a second tab never refreshes.
 
@@ -383,21 +385,33 @@ if (e.kind === "exceptions_changed")
   qc.invalidateQueries({ queryKey: ["exceptions-list"] });
 ```
 
-### F-2 — The Exceptions page cannot filter by entity
+### F-2 — The Exceptions page cannot filter by entity — **fixed**
+
+> **Status: fixed.** `entity_id` is plumbed through `ListParams` and forwarded by `useExceptionsList`, so the endpoint's entity filter is reachable.
+>
+> Note the page still has **no filter UI at all** — no search, no pagination, `page_size` hard-coded to 50. That is a feature gap rather than the defect filed here, and is worth its own item.
 
 `GET /api/exceptions/list` accepts `entity_id` (`api/exceptions.py:111`), but `ListParams` in `hooks/useExceptions.ts:89-96` omits it and `useExceptionsList` never forwards it (`:102-109`). Half of the endpoint's capability is unreachable from the UI — notable given entity exceptions are a first-class concept everywhere else.
 
-### F-3 — Deletion tracking loses its history on restart
+### F-3 — Deletion tracking loses its history on restart — **fixed**
+
+> **Status: fixed.** The reappeared flags are rebuilt from the database on startup via `DeletionRepo.all_reappeared_hashes()` — which already existed, was already tested, and was never called by anything. Previously a restart cleared every flag, and because the first sighting had already stamped `reappeared_at`, the transition could never be observed again: the issue vanished silently.
+>
+> **Not fixed:** `first_seen_at` is still stamped at process start rather than when the device was genuinely first seen. It is a write-only audit column — nothing reads it back — so persisting it properly would mean a new table for no current benefit. Recorded here rather than done.
 
 `deletion_tracker.py:51-53,62-63` initialises `_last_known_first_seen` to `datetime.now(UTC)` for every device and entity at construction. "First seen" therefore means "first seen since this process booted", and every recorded `DeletionEvent.first_seen_at` is wrong after a restart.
 
 Separately, the reappearance flag lives only in memory (`_state[did] = {STATE_KEY_REAPPEARED: True}`, `:99`), while the DB row is marked reappeared permanently (`mark_reappeared`, `:98`). After a restart the rule stops firing *and* `is_reappearance` won't fire again — the issue vanishes with no user action. Persist `first_seen_at` and the reappeared flag, or document that this rule is best-effort within a single process lifetime.
 
-### F-4 — Dead nav items shipped to users
+### F-4 — Dead nav items shipped to users — **fixed**
+
+> **Status: fixed.** "Automations" and "Areas" are removed. Greyed-out entries for pages that do not exist read as breakage.
 
 `components/Layout.tsx:14-15` renders "Automations" and "Areas" as permanently `disabled: true`. There is no Areas page despite `GET /api/areas` existing (`api/areas.py`). Either build them or drop them from `NAV` — greyed-out entries in shipped UI read as breakage.
 
-### F-5 — Devices and Entities pages behave inconsistently
+### F-5 — Devices and Entities pages behave inconsistently — **fixed**
+
+> **Status: fixed.** The Devices drawer is now driven by the URL (`/devices?device=<id>`, deep-linkable) like the Entities one, and Devices prunes stale selection when rows leave the result set. Acting on a selection after filtering previously operated on rows the user could no longer see.
 
 Two user-visible divergences between structurally parallel pages:
 
@@ -408,7 +422,9 @@ Two user-visible divergences between structurally parallel pages:
 
 `EntitiesPage.tsx:98` even carries a comment explaining why the URL is the better source of truth — the fix just wasn't applied to Devices. Selecting devices, filtering them out of view, then acting on the selection currently operates on invisible rows.
 
-### F-6b — Sidebar nav items are not real links
+### F-6b — Sidebar nav items are not real links — **fixed**
+
+> **Status: fixed.** `component={Link}` with `to`, so they render real anchors: announced as links, keyboard reachable, and middle-click / open-in-new-tab work. Confirmed in a real browser through real ingress — the e2e test now locates them by link role, which previously matched nothing.
 
 `components/Layout.tsx:66-77` renders each nav item as a Mantine `NavLink` with an `onClick` that calls `preventDefault()` then `navigate()`, and **no `href`**. Mantine renders the root as an `<a>`, but an anchor without `href` has no implicit `link` role.
 
@@ -418,7 +434,9 @@ Consequences: screen readers do not announce them as links; keyboard tab order s
 
 **Fix:** give `NavLink` `component={Link}` and `to=` (React Router's `Link` renders a real anchor with a resolved `href`, and correctly honours the router basename), or at minimum set `href` alongside the existing handler.
 
-### F-6 — Stale comment in `list_entities`
+### F-6 — Stale comment in `list_entities` — **fixed**
+
+> **Status: fixed.** The comment described a join that was not there; it now describes what the index is actually for.
 
 `api/entities.py:137-141` says *"Device + area joins ahead of filtering so sorts on those keys work"*, then does `enriched = list(raw_entities)` with no join. The joins actually happen inline in `_render` and `_device_key`. Delete the comment.
 

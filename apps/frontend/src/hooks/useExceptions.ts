@@ -89,7 +89,11 @@ export function useExceptionsForDevice(deviceId: string | null) {
 export interface ListParams {
   search?: string;
   policy_id?: string[];
+  /** Restricts to device-kind rows. */
   device_id?: string[];
+  /** Restricts to entity-kind rows. */
+  entity_id?: string[];
+  /** Matches devices in the area, and entities in it directly or via their device. */
   area_id?: string[];
   page?: number;
   page_size?: number;
@@ -103,6 +107,7 @@ export function useExceptionsList(params: ListParams = {}) {
         search: params.search,
         policy_id: params.policy_id,
         device_id: params.device_id,
+        entity_id: params.entity_id,
         area_id: params.area_id,
         page: params.page,
         page_size: params.page_size,
