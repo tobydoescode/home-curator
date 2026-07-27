@@ -17,7 +17,9 @@ def test_defaults_in_dev(tmp_path, monkeypatch):
 def test_defaults_with_supervisor_token(monkeypatch):
     monkeypatch.setenv("SUPERVISOR_TOKEN", "fake")
     s = Settings()
-    assert s.config_dir == Path("/config/home-curator")
+    # `/config` is the addon's *own* directory under the `addon_config`
+    # mapping, not Home Assistant's config directory.
+    assert s.config_dir == Path("/config")
     assert s.data_dir == Path("/data")
     assert s.ha_url == "http://supervisor/core"
     assert s.ha_token == "fake"

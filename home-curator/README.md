@@ -6,11 +6,19 @@ Install by adding this repo to Home Assistant:
 
 Then install "Home Curator" and open it from the sidebar.
 
-On first start the addon creates `/config/home-curator/` and writes a default
-`policies.yaml` there. Everything is configurable from **Settings** in the UI,
-and the same file can be edited by hand — it is reloaded within about a second
-of being saved. Invalid content keeps the last-good rules loaded and shows the
-error in the UI rather than taking the addon down.
+On first start the addon writes a default `policies.yaml` into its own config
+directory. Everything is configurable from **Settings** in the UI, and the same
+file can be edited by hand — it is reloaded within about a second of being
+saved. Invalid content keeps the last-good rules loaded and shows the error in
+the UI rather than taking the addon down.
+
+The addon deliberately maps only its **own** config directory
+(`addon_config`), not Home Assistant's — it has no access to `secrets.yaml`,
+`configuration.yaml` or the database. Inside the container the file is at
+`/config/policies.yaml`. On the host it sits in Home Assistant's per-addon
+config folder, which the File Editor and Samba addons expose; the folder's
+exact name varies by Home Assistant version (`addon_configs/`, `app_configs/`
+on newer builds), so browse to it rather than hard-coding a path.
 
 It configures:
 

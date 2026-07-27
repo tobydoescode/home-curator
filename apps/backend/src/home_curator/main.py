@@ -120,8 +120,8 @@ def create_app(
             session = session_factory()
             tracker = DeletionTracker(cache=cache, session=session, entity_cache=entity_cache)
             broker = EventBroker()
-            # Creates /config/home-curator on a fresh install and drops the
-            # baseline file in it, so the directory exists before the first
+            # Creates the addon's config directory on a fresh install and drops
+            # the baseline file in it, so the directory exists before the first
             # policy save and users can hand-edit the file as documented.
             # Not fatal if it fails — a read-only config mount should still
             # give a working, read-only app rather than refusing to boot.

@@ -67,6 +67,59 @@ def test_changelog_documents_the_declared_version():
     )
 
 
+# Home Assistant's current map types. `config` and `addons` are gone; the
+# Supervisor logs a deprecation warning for the former.
+_VALID_MAP_TYPES = {
+    "homeassistant_config",
+    "addon_config",
+    "all_addon_configs",
+    "ssl",
+    "backup",
+    "share",
+    "media",
+    "data",
+}
+
+
+def _map_entries() -> list[dict[str, object]]:
+    data = YAML(typ="safe").load(_CONFIG.read_text())
+    entries = []
+    for entry in data.get("map", []):
+        # Both the legacy "type:rw" string form and the object form are valid.
+        if isinstance(entry, str):
+            entries.append({"type": entry.split(":", 1)[0]})
+        else:
+            entries.append(entry)
+    return entries
+
+
+def test_map_uses_no_deprecated_types():
+    """`config:rw` granted read/write over all of Home Assistant's config."""
+    for entry in _map_entries():
+        assert entry["type"] in _VALID_MAP_TYPES, (
+            f"map type {entry['type']!r} is not a current Home Assistant "
+            f"type; valid types are {sorted(_VALID_MAP_TYPES)}"
+        )
+
+
+def test_addon_does_not_request_home_assistants_config_directory():
+    """The addon stores one file it owns; it has no business in /config.
+
+    `homeassistant_config` would be the like-for-like replacement for the old
+    `config` mapping, but it carries the same blast radius — secrets.yaml,
+    configuration.yaml and the database all become writable.
+    """
+    types = {entry["type"] for entry in _map_entries()}
+    assert "homeassistant_config" not in types
+    assert "all_addon_configs" not in types
+
+
+def test_supervisor_api_is_not_requested():
+    """Nothing calls it; `homeassistant_api` is what the websocket needs."""
+    data = YAML(typ="safe").load(_CONFIG.read_text())
+    assert data.get("hassio_api") is not True
+
+
 def test_changelog_versions_are_unique():
     versions = _changelog_versions()
     assert len(versions) == len(set(versions)), (

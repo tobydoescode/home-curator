@@ -124,9 +124,10 @@ def seed_policies_file(path: Path) -> bool:
     load-time defaults:
 
     - The addon README tells users they can edit
-      `/config/home-curator/policies.yaml` directly. Without seeding there is
+      `policies.yaml` in the addon's config directory directly. Without
+      seeding there is
       nothing to edit until they have saved through the UI at least once.
-    - `/config/home-curator` does not exist on a fresh install, so seeding is
+    - That directory does not exist on a fresh install, so seeding is
       also what creates the directory (`write_policies_file` makes parents).
 
     Never overwrites an existing file — an upgrade path is `_merge_missing_baselines`'s

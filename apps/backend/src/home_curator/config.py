@@ -38,7 +38,11 @@ class Settings(BaseSettings):
         if v:
             return Path(v)
         if info.data.get("supervisor_token"):
-            return Path("/config/home-curator")
+            # Under the addon this is the `addon_config` mapping — the addon's
+            # own private directory, not Home Assistant's `/config`. It used
+            # to be a `home-curator/` subdirectory of the latter, back when
+            # the addon mapped the whole HA config directory.
+            return Path("/config")
         return Path.cwd() / ".dev-config" / "home-curator"
 
     @field_validator("data_dir", mode="before")

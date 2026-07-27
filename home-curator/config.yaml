@@ -16,10 +16,25 @@ arch:
 startup: services
 boot: auto
 init: false
-hassio_api: true
+# `homeassistant_api` grants the Supervisor proxy to Home Assistant core,
+# which is what the websocket client connects through. The Supervisor's own
+# API (`hassio_api`) is deliberately not requested — nothing calls it.
 homeassistant_api: true
+# The addon's own private config directory, not Home Assistant's.
+#
+# This used to be `config:rw`, which granted read/write over the whole of
+# `/config` — secrets.yaml, configuration.yaml, the database — in order to
+# store a single policies.yaml. `addon_config` is backed by
+# `/addon_configs/<slug>/` on the host, still browsable with the File Editor
+# or Samba addons, but nothing outside this addon's own files is reachable.
+#
+# `path` is stated explicitly rather than relying on the default, which is
+# documented inconsistently (`/config` in one place, `/<type-name>` in
+# another).
 map:
-  - "config:rw"
+  - type: addon_config
+    read_only: false
+    path: /config
 ingress: true
 ingress_port: 8099
 panel_icon: mdi:broom

@@ -25,8 +25,8 @@ def write_policies_file(path: Path, data: dict[str, Any]) -> None:
     filesystems is not atomic.
 
     The parent directory is created rather than required. Under the addon it
-    is `/config/home-curator`, which does not exist on a fresh install — and
-    nothing else creates it, so refusing here meant the very first policy
+    is the addon's own `/config`, which does not exist on a fresh install and
+    which nothing else creates, so refusing here meant the very first policy
     save failed. Owning the invariant in the writer also means it holds no
     matter which `Settings` instance produced `path`.
     """

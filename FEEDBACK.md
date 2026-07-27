@@ -537,7 +537,31 @@ Evaluation is only invalidated by: a registry change (already broadcast via SSE)
 
 ## 5. Security and least privilege
 
-### S-1 — `map: config:rw` grants full read/write over the HA config directory
+### S-1 — `map: config:rw` grants full read/write over the HA config directory — **fixed**
+
+> **Status: fixed**, and verified against a real Supervisor rather than by
+> inspection. The mapping is now `addon_config` (object form, with `path`
+> stated explicitly because the default is documented two different ways), so
+> the addon gets its own private directory instead of all of Home Assistant's
+> config.
+>
+> Confirmed in the running addon container: `/config` holds only
+> `policies.yaml`, and `secrets.yaml`, `configuration.yaml` and
+> `home-assistant_v2.db` are not reachable. The Supervisor's
+> `uses deprecated map option 'config'` warning is gone.
+>
+> `hassio_api: true` is dropped with it (**S-2**) — nothing calls the
+> Supervisor API. `homeassistant_api` stays; the websocket client needs it.
+>
+> No migration was needed: no release has ever been cut, so nobody has data at
+> the old location. Doing the like-for-like rename to `homeassistant_config`
+> instead would have kept the full blast radius and left this to redo later
+> with users' data to move.
+>
+> Verification also corrected the documentation: the host-side folder is
+> `app_configs/` on current Supervisor builds, not `addon_configs/` as I first
+> wrote, so the README now describes it rather than hard-coding a name that
+> varies by version.
 
 `home-curator/config.yaml:15-16` requests `config:rw` to store one file at `/config/home-curator/policies.yaml`. That grants read/write across the entire HA configuration directory — including `secrets.yaml`, `configuration.yaml` and the HA database.
 
