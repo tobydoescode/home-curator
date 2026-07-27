@@ -24,7 +24,7 @@ Everything below is grounded in the code as it stands. Items marked *(unverified
 | C-2 | ~~Critical~~ **fixed** | Release | Docker tag (`v0.1.0`) doesn't match the tag the Supervisor pulls (`0.1.0`) |
 | C-3 | ~~Critical~~ **fixed** | First run | `CONFIG_DIR` is never created — first policy save 500s |
 | C-4 | ~~High~~ **fixed** | Correctness | `/api/exceptions/list` applies `area_id` filter *after* pagination |
-| C-5 | High | Config | `Settings()` re-instantiated in request handlers, ignoring injected settings |
+| C-5 | ~~High~~ **fixed** | Config | `Settings()` re-instantiated in request handlers, ignoring injected settings |
 | C-6 | ~~High~~ **fixed (partly wrong as filed)** | Concurrency | Compiled rules mutate themselves during evaluation |
 | C-7 | ~~High~~ **fixed** | Data safety | `policies.yaml` written non-atomically |
 | C-8 | ~~High~~ **fixed** | CI | mypy is documented but never run; it currently fails |
@@ -191,7 +191,23 @@ Consequences: a page-2 request drops all page-1 matches; `total` no longer descr
 
 Related, same file: `bulk_delete` (`api/exceptions.py:215`) returns `deleted=sorted(ids)` — the *requested* ids, not the deleted ones. `ExceptionsRepo.bulk_delete` already returns a real count that is thrown away. Callers cannot distinguish "deleted 5" from "4 of your 5 ids didn't exist".
 
-### C-5 — `Settings()` is rebuilt inside request handlers, discarding injected settings
+### C-5 — `Settings()` is rebuilt inside request handlers, discarding injected settings — **fixed**
+
+> **Status: fixed.** `AppState` now carries the `Settings` the app was created
+> with, and both handlers read it. `create_app(settings=...)` is therefore
+> honoured rather than silently losing to the process environment.
+>
+> `get_config` had no `AppState` dependency at all and has gained one.
+>
+> Also removes a filesystem read from the request path: `Settings` is
+> configured with `env_file=".env"`, so every construction re-read that file
+> — once per `GET /api/config`, i.e. once per page load — for configuration
+> that cannot change while the app is running.
+>
+> Covered by `tests/integration/test_settings_injection.py`, which points the
+> injected settings and the environment at *different* directories. The
+> existing fixtures set both to the same value, which is exactly why this went
+> unnoticed; both new assertions were confirmed failing first.
 
 `create_app(ha_client=…, settings=…)` (`main.py:76`) takes a `Settings` and threads it through the lifespan. But two handlers ignore it and construct their own:
 

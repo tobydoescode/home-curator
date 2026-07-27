@@ -13,7 +13,6 @@ from home_curator.api.schemas import (
     SimulateTargetRow,
     UpdatePoliciesResponse,
 )
-from home_curator.config import Settings
 from home_curator.policies.schema import CustomPolicy, PoliciesFile, Policy
 from home_curator.policies.writer import write_policies_file
 from home_curator.rules.base import Device, Entity
@@ -75,16 +74,16 @@ async def update_policies(
     so open Exceptions pages refresh.
     """
     data = body.model_dump(mode="json", by_alias=True)
-    settings = Settings()
+    policies_path = state.settings.policies_path
     try:
-        write_policies_file(settings.policies_path, data)
+        write_policies_file(policies_path, data)
     except OSError as e:
         # Read-only mount, permissions, disk full. The user cannot fix this
         # from the UI, but naming the path and the OS error tells them where
         # to look instead of returning a bare stack trace.
         raise HTTPException(
             status_code=500,
-            detail=f"could not write {settings.policies_path}: {e}",
+            detail=f"could not write {policies_path}: {e}",
         ) from e
 
     kept_ids = {p.id for p in body.policies}

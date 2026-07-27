@@ -229,6 +229,7 @@ def create_app(
             )
 
             app.state.store = AppState(
+                settings=effective_settings,
                 ha=client,
                 cache=cache,
                 entity_cache=entity_cache,

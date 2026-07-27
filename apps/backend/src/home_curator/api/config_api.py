@@ -1,14 +1,15 @@
 """GET /api/config — runtime config the frontend needs at boot."""
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from home_curator.api.deps import AppState, app_state
 from home_curator.api.schemas import ConfigResponse
-from home_curator.config import Settings
 
 router = APIRouter(prefix="/api", tags=["config"])
+_APP_STATE_DEPENDENCY = Depends(app_state)
 
 
 @router.get("/config", response_model=ConfigResponse)
-def get_config() -> ConfigResponse:
+def get_config(state: AppState = _APP_STATE_DEPENDENCY) -> ConfigResponse:
     """Return UI-relevant config.
 
     `ha_external_url` defaults to HA_EXTERNAL_URL from the environment.
@@ -16,5 +17,4 @@ def get_config() -> ConfigResponse:
     resolves to the HA host. In standalone dev the env var lets the user
     point "Open in Home Assistant" at their actual HA instance.
     """
-    s = Settings()
-    return ConfigResponse(ha_external_url=s.ha_external_url)
+    return ConfigResponse(ha_external_url=state.settings.ha_external_url)
