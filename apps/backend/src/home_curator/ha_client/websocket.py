@@ -186,7 +186,11 @@ class WebSocketHAClient:
             self._pending.pop(mid, None)
 
     async def _send_cmd(self, payload: dict[str, Any]) -> Any:
-        assert self._ws is not None
+        # Not an assert: stripped under `python -O`, and a command sent before
+        # `start()` would then fail with an AttributeError on None rather than
+        # saying what was wrong.
+        if self._ws is None:
+            raise RuntimeError("HA WebSocket is not connected; call start() first")
         self._msg_id += 1
         mid = self._msg_id
         payload = {"id": mid, **payload}
@@ -200,7 +204,8 @@ class WebSocketHAClient:
         return await fut
 
     async def _read_loop(self) -> None:
-        assert self._ws is not None
+        if self._ws is None:
+            raise RuntimeError("HA WebSocket is not connected; call start() first")
         async for raw in self._ws:
             msg = json.loads(raw)
             mid = msg.get("id")

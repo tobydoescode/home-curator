@@ -2,7 +2,10 @@ import { ActionIcon, Badge, Button, Card, Group, Stack, Switch, Text, TextInput,
 import { IconEdit, IconFlask, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 
+import { isCustomPolicy, type CustomPolicy } from "@/api/policyTypes";
 import type { PoliciesFileShape } from "@/hooks/usePolicies";
+
+type EnabledFilter = "all" | "on" | "off";
 
 export interface CustomRulesListProps {
   draft: PoliciesFileShape;
@@ -13,12 +16,12 @@ export interface CustomRulesListProps {
 }
 
 export function CustomRulesList({ draft, onChange, onEdit, onAdd, onTest }: CustomRulesListProps) {
-  const [filter, setFilter] = useState<"all" | "on" | "off">("all");
+  const [filter, setFilter] = useState<EnabledFilter>("all");
   const [search, setSearch] = useState("");
 
   const customs = draft.policies
-    .map((p, i) => ({ p: p as any, i }))
-    .filter(({ p }) => p.type === "custom")
+    .map((p, i) => ({ p, i }))
+    .filter((x): x is { p: CustomPolicy; i: number } => isCustomPolicy(x.p))
     .filter(({ p }) => filter === "all" || (filter === "on" ? p.enabled : !p.enabled))
     .filter(({ p }) =>
       !search ||
@@ -51,7 +54,7 @@ export function CustomRulesList({ draft, onChange, onEdit, onAdd, onTest }: Cust
           onChange={(e) => setSearch(e.currentTarget.value)}
           style={{ flex: 1 }}
         />
-        <select aria-label="Enabled filter" value={filter} onChange={(e) => setFilter(e.currentTarget.value as any)}>
+        <select aria-label="Enabled filter" value={filter} onChange={(e) => setFilter(e.currentTarget.value as EnabledFilter)}>
           <option value="all">All</option>
           <option value="on">Enabled</option>
           <option value="off">Disabled</option>

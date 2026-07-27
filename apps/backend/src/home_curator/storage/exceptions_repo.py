@@ -2,8 +2,9 @@
 from datetime import UTC, datetime
 from typing import Literal, cast
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.engine import CursorResult
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from home_curator.storage.models import Exemption
@@ -62,30 +63,47 @@ class ExceptionsRepo:
     ) -> None:
         if (device_id is None) == (entity_id is None):
             raise ValueError("exactly one of device_id or entity_id required")
-        stmt = select(Exemption).where(Exemption.policy_id == policy_id)
-        if device_id is not None:
-            stmt = stmt.where(
-                Exemption.device_id == device_id, Exemption.entity_id.is_(None)
-            )
-        else:
-            stmt = stmt.where(
-                Exemption.entity_id == entity_id, Exemption.device_id.is_(None)
-            )
-        existing = self.session.execute(stmt).scalar_one_or_none()
-        if existing:
-            existing.note = note
-            existing.acknowledged_by = acknowledged_by
-            existing.acknowledged_at = datetime.now(UTC)
-        else:
-            self.session.add(
-                Exemption(
-                    device_id=device_id,
-                    entity_id=entity_id,
-                    policy_id=policy_id,
-                    note=note,
-                    acknowledged_by=acknowledged_by,
+        # Insert first and fall back to an update on conflict, rather than
+        # checking then inserting. The check-then-insert form let two
+        # concurrent acknowledgements of the same target race, and the partial
+        # unique index turned the loser into an IntegrityError that surfaced
+        # as an unhandled 500 instead of simply updating the row.
+        #
+        # A SQLite `ON CONFLICT` upsert would be neater, but its conflict
+        # target has to match the index expression
+        # (COALESCE(device_id, ''), COALESCE(entity_id, ''), policy_id) and
+        # SQLAlchemy does not render an expression target SQLite accepts.
+        # A savepoint keeps the failed INSERT from poisoning the surrounding
+        # transaction.
+        now = datetime.now(UTC)
+        try:
+            with self.session.begin_nested():
+                self.session.add(
+                    Exemption(
+                        device_id=device_id,
+                        entity_id=entity_id,
+                        policy_id=policy_id,
+                        note=note,
+                        acknowledged_by=acknowledged_by,
+                        acknowledged_at=now,
+                    )
+                )
+        except IntegrityError:
+            stmt = update(Exemption).where(Exemption.policy_id == policy_id)
+            if device_id is not None:
+                stmt = stmt.where(
+                    Exemption.device_id == device_id, Exemption.entity_id.is_(None)
+                )
+            else:
+                stmt = stmt.where(
+                    Exemption.entity_id == entity_id, Exemption.device_id.is_(None)
+                )
+            self.session.execute(
+                stmt.values(
+                    note=note, acknowledged_by=acknowledged_by, acknowledged_at=now
                 )
             )
+            self.session.expire_all()
 
     def clear(self, device_id: str, policy_id: str) -> None:
         """Delete the device exemption for (device_id, policy_id). No-op if absent."""

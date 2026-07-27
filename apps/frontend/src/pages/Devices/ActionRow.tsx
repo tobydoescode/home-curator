@@ -20,6 +20,11 @@ export function ActionRow({
   deviceLookup,
   onClearSelection,
 }: Props) {
+  // Called before the early return: hooks must run in the same order on every
+  // render. It does not currently misbehave, because the earlier render calls
+  // no hooks at all, but adding any hook above the return would break it.
+  const deleteDevices = useDeleteDevices();
+
   if (selectedIds.length === 0) return null;
 
   const openAssignRoom = () =>
@@ -60,8 +65,6 @@ export function ActionRow({
         />
       ),
     });
-
-  const deleteDevices = useDeleteDevices();
 
   const openDelete = () => {
     modals.openConfirmModal({

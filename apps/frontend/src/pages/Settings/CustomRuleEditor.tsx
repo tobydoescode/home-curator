@@ -49,7 +49,7 @@ export function CustomRuleEditor({ initial, onClose, onSaved }: CustomRuleEditor
         return;
       }
       try {
-        const res = await compile.mutateAsync(buildRule() as any);
+        const res = await compile.mutateAsync(buildRule());
         setCompileErr(res.ok ? null : res.error ?? "Unknown compile error");
       } catch (e) {
         setCompileErr(String(e));
@@ -73,7 +73,7 @@ export function CustomRuleEditor({ initial, onClose, onSaved }: CustomRuleEditor
   }
 
   async function runTest() {
-    const res = await simulate.mutateAsync({ policy: buildRule() as any });
+    const res = await simulate.mutateAsync({ policy: buildRule() });
     setSimResult(res);
   }
 

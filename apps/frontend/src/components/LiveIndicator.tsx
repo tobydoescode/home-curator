@@ -11,9 +11,12 @@ function formatAge(ms: number): string {
 
 export function LiveIndicator() {
   const { lastEventAt } = useLiveEvents();
-  const [, tick] = useState(0);
+  // The ticker already re-rendered every second purely to refresh this label;
+  // it now carries the timestamp too, so render reads state instead of
+  // calling Date.now() and producing different output for the same props.
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const id = setInterval(() => tick((t) => t + 1), 1000);
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
   return (
@@ -23,7 +26,7 @@ export function LiveIndicator() {
       </Badge>
       <Text size="xs" c="dimmed">
         {lastEventAt
-          ? `Updated ${formatAge(Date.now() - lastEventAt)}`
+          ? `Updated ${formatAge(now - lastEventAt)}`
           : "Waiting For Events…"}
       </Text>
     </Group>

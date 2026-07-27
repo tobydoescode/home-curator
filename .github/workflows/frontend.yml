@@ -33,6 +33,10 @@ jobs:
       - run: uv sync --all-extras
         working-directory: apps/backend
       - run: npm ci
+      # Catches what tsc cannot: hook dependency arrays, conditional hook
+      # calls, and impure render. It found a conditionally-called hook and
+      # a Date.now() during render on its first run.
+      - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:run
       - run: npm run build

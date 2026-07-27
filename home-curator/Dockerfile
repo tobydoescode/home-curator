@@ -27,7 +27,11 @@ ENV LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1
 # depends on google-re2, which publishes no musllinux wheel, so on Alpine it
 # is always compiled from source — hence the toolchain below, added and
 # removed in one layer so it never reaches the final image.
-RUN apk add --no-cache python3 py3-pip re2 abseil-cpp
+RUN apk add --no-cache python3 py3-pip re2 abseil-cpp && \
+    # The base image's python floats. pyproject requires >=3.12, and a
+    # base bump that regressed below it would otherwise fail deep inside
+    # `uv sync` with an unrelated-looking resolution error.
+    python3 -c 'import sys; assert sys.version_info >= (3, 12), sys.version'
 
 COPY apps/backend/pyproject.toml apps/backend/uv.lock /app/
 WORKDIR /app

@@ -3,12 +3,19 @@ import { notifications } from "@mantine/notifications";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
+import { isCustomPolicy, type CustomPolicy } from "@/api/policyTypes";
 import { useSimulate } from "@/hooks/useSimulate";
 import { usePoliciesFile, useUpdatePolicies, type PoliciesFileShape } from "@/hooks/usePolicies";
 import { applyCustomRuleEdit } from "@/pages/Settings/applyCustomRuleEdit";
 import { CustomRuleEditor, type CustomRule } from "@/pages/Settings/CustomRuleEditor";
 import { Simulator, type SimulateResponse } from "@/pages/Settings/Simulator";
 import { CustomRulesList } from "./CustomRulesList";
+
+/** The policy at `index`, if it is a custom rule — the editor handles no other. */
+function customAt(draft: PoliciesFileShape, index: number): CustomPolicy | null {
+  const policy = draft.policies[index];
+  return policy && isCustomPolicy(policy) ? policy : null;
+}
 
 export function GlobalPoliciesPage() {
   const { data, isLoading, error } = usePoliciesFile();
@@ -27,7 +34,7 @@ export function GlobalPoliciesPage() {
     const id = params.get("test");
     if (!id || !draft) return;
     (async () => {
-      const res = await simulate.mutateAsync({ policy_id: id } as any);
+      const res = await simulate.mutateAsync({ policy_id: id });
       setSimResult(res);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -47,7 +54,7 @@ export function GlobalPoliciesPage() {
 
   async function handleTest(index: number) {
     const rule = draft!.policies[index];
-    const res = await simulate.mutateAsync({ policy: rule as any });
+    const res = await simulate.mutateAsync({ policy: rule });
     setSimResult(res);
   }
 
@@ -76,7 +83,9 @@ export function GlobalPoliciesPage() {
       <Button onClick={save} loading={update.isPending}>Save</Button>
       {editing !== null && (
         <CustomRuleEditor
-          initial={editing === "new" ? null : (draft.policies[editing] as any)}
+          initial={
+            editing === "new" ? null : customAt(draft, editing)
+          }
           onClose={() => setEditing(null)}
           onSaved={(rule) => handleSaved(rule, editing)}
         />

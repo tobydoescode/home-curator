@@ -565,7 +565,9 @@ def check(self, thing, ctx, *, apply_exceptions: bool = True) -> Verdict:  # mat
 
 ## 4. Robustness and performance
 
-### R-1 — `EventBroker` queues are unbounded
+### R-1 — `EventBroker` queues are unbounded — **fixed**
+
+> **Status: fixed.** Queues are bounded at 100 with drop-oldest on overflow. These events are notifications, not a log — the client refetches on any of them — so losing an old one when a subscriber stalls costs nothing, while an unbounded backlog held every event published during the up-to-25-second disconnect-detection window.
 
 `events/broker.py:10` creates `asyncio.Queue()` with no `maxsize`, and `publish` uses `put_nowait` (`:20`). A stalled SSE consumer — a browser tab that stopped reading but hasn't dropped TCP — accumulates events without limit. The SSE handler only notices disconnection every 25 s (`api/events.py:25-28`), so there's a guaranteed window for growth.
 
@@ -587,7 +589,9 @@ Python's `re` has no timeout. A catastrophically-backtracking pattern (`(a+)+$`)
 
 Evaluation is only invalidated by: a registry change (already broadcast via SSE), a policy change (already broadcast), or an exception change (already broadcast). That's a well-defined invalidation set, so an issue cache keyed on `(cache_generation, policy_generation, exceptions_generation)` is straightforward and would make listing near-free. Worth doing before this ships to large instances.
 
-### R-4 — SSE disconnect detection lags by up to 25 seconds
+### R-4 — SSE disconnect detection lags by up to 25 seconds — **fixed**
+
+> **Status: fixed.** The disconnect check now polls every 2 seconds independently of the 25-second keep-alive ping, instead of both being driven by one `wait_for` timeout.
 
 `api/events.py:24-32` checks `request.is_disconnected()` only at the top of each loop iteration, and the loop blocks for up to 25 s in `asyncio.wait_for`. Combined with R-1 this means a disconnected client's queue keeps filling for up to 25 s after it's gone. Racing the queue read against a disconnect poll, or letting `EventSourceResponse` handle the ping itself, fixes both.
 
@@ -597,7 +601,11 @@ Evaluation is only invalidated by: a registry change (already broadcast via SSE)
 
 `policies/watcher.py:8` watches `path.parent` and reloads on *any* change in `CONFIG_DIR`. Under the add-on that's `/config/home-curator/`, which is currently single-purpose — but an editor swapfile or a future sibling file triggers a full recompile. Filter on the changed path matching `policies_path`.
 
-### R-6 — Exception upsert has a check-then-insert race
+### R-6 — Exception upsert has a check-then-insert race — **fixed**
+
+> **Status: fixed.** Replaced with insert-then-update-on-conflict inside a savepoint. A SQLite `ON CONFLICT` upsert would be neater but its conflict target must match the index expression, and SQLAlchemy does not render an expression target SQLite accepts — three attempts at that failed before switching approach.
+>
+> Fixing this surfaced **T-2** directly: the partial unique index existed only as raw SQL in `0002_entity_support` and was never declared on the model, so `create_all()` — which every test fixture uses — produced a schema without it. The upsert worked in production and failed in tests. The index is now declared on the model too.
 
 `storage/exceptions_repo.py:65-88` does `SELECT` then `INSERT`. The partial unique index prevents duplicate rows, so the failure mode is an `IntegrityError` surfacing as an unhandled 500 rather than a 409. Use SQLite's `INSERT … ON CONFLICT DO UPDATE`.
 
@@ -651,7 +659,11 @@ This matters more than usual here because the app evaluates user-authored CEL, w
 
 No endpoint authenticates. This is defensible: `config.yaml` exposes no `ports:`, so the only route in is HA ingress, which authenticates upstream. But it is load-bearing and undocumented — anyone who adds a `ports:` mapping for debugging exposes unauthenticated device-delete and entity-rename to the LAN. Add a comment in `config.yaml` and a line in the add-on README recording that ingress is the security boundary.
 
-### S-4 — `assert` used for user-facing error handling
+### S-4 — `assert` used for user-facing error handling — **fixed**
+
+> **Status: fixed.** The four guards that `python -O` would strip are now real exceptions: `Settings.db_path` / `policies_path`, and the two connection checks in `WebSocketHAClient`. The `HA_URL` assert became a `RuntimeError` with A-2.
+>
+> The remaining ~13 asserts are all `isinstance` narrowing for the type checker, not runtime guards, and are left alone deliberately — stripping them under `-O` changes nothing.
 
 `main.py:91-93` (`assert ha_url is not None`), `config.py:59,64`, `ha_client/websocket.py:189`, `rules/custom_cel.py:56,76`. Assertions are stripped under `python -O` — the config ones would then fail later with a confusing `TypeError` deep in path handling. `apps/backend/README.md:85` documents `assert ha_url is not None` as an *expected user-facing startup error*, which is the clearest sign this should be a real exception with an actionable message.
 
@@ -686,7 +698,9 @@ No endpoint authenticates. This is defensible: `config.yaml` exposes no `ports:`
 
 `Dockerfile:1` defaults `BUILD_FROM=ghcr.io/hassio-addons/base:20.1.1`; `build.yaml:2-4` pins `15.0.7` for all three arches. A local `docker build` and a Supervisor build produce different base images — a five-major-version gap. Make `build.yaml` the single source and drop the default, or keep them in sync via a comment referencing the other.
 
-### P-3 — Python version differs across dev, CI and production
+### P-3 — Python version differs across dev, CI and production — **fixed**
+
+> **Status: fixed.** The image now asserts its interpreter is >=3.12 at build time rather than pinning a version that floats with the base image, so a base bump that regressed below the declared floor fails loudly instead of deep inside `uv sync`. CI runs a 3.12 + 3.14 matrix: it previously only tested 3.14, so nothing exercised the minimum the project advertises.
 
 | Where | Version |
 | --- | --- |
@@ -715,7 +729,9 @@ Neither `backend.yml` nor `frontend.yml` builds the image; only `release.yml` (t
 
 `package.json:18` already has `gen:api:local`, which generates the schema in-process with no server at all. Use that in the release workflow and delete the uvicorn dance.
 
-### P-6 — `task setup` doesn't produce a buildable frontend
+### P-6 — `task setup` doesn't produce a buildable frontend — **fixed**
+
+> **Status: fixed.** `setup:frontend` now generates the typed API client, which is gitignored and required by `npm run build`.
 
 `src/api/generated.ts` is gitignored (`apps/frontend/.gitignore:5`) and generated. `task setup` (`Taskfile.yml:17-39`) runs `npm install` but never generates it, so immediately after setup `npm run build` fails on the missing module. Tests pass only because esbuild erases type-only imports.
 
@@ -725,7 +741,9 @@ Add `npm run gen:api:local` to `setup:frontend`. Neither the root README's quick
 
 ## 7. Testing
 
-### T-1 — `task test:backend` fails on a clean checkout
+### T-1 — `task test:backend` fails on a clean checkout — **fixed**
+
+> **Status: fixed.** `uv run --all-extras` lets it provision pytest itself. Verified by deleting `.venv` and running it.
 
 ```
 task: [test:backend] env -u HA_URL … uv run pytest -q
@@ -735,7 +753,9 @@ error: Failed to spawn: `pytest`
 
 `test:backend` assumes `setup:backend` already ran. `uv run` is capable of syncing on demand — either add `deps: [setup:backend]`, or use `uv run --extra dev pytest` so it self-provisions. Minor, but it's the first command a new contributor runs.
 
-### T-2 — Integration tests bypass Alembic
+### T-2 — Integration tests bypass Alembic — **fixed**
+
+> **Status: fixed.** `tests/unit/test_schema_drift.py` builds both schemas — one via `alembic upgrade head`, one via `create_all()` — and compares tables, columns and indexes, with a specific check on the expression index that reflection skips. Confirmed to fail when the model index is removed. It found a real divergence on its first run (see R-6).
 
 `tests/integration/conftest.py:14-19` builds the schema with `Base.metadata.create_all`. Production builds it with `alembic upgrade head` (`home-curator/run.sh:7`). Nothing asserts the two agree, so a model change without a migration passes the whole suite and breaks on deploy.
 
@@ -761,7 +781,13 @@ def test_models_match_migrations(tmp_path):
 
 Everything is unit or API-level. The ingress bug (C-1) is exactly the class of failure that only a real browser load catches — and `.playwright-mcp/` artifacts show Playwright was used manually during development. One smoke test that loads the built `dist/` through the backend's `StaticFiles` mount and asserts the devices table renders would have caught it.
 
-### T-5 — No frontend linter
+### T-5 — No frontend linter — **fixed**
+
+> **Status: fixed.** ESLint with `typescript-eslint` and the React hook rules, wired into `task lint` and the frontend CI job. Deliberately does not duplicate what `tsc` already reports.
+>
+> Its first run found two real defects: `useDeleteDevices()` called after an early return in `Devices/ActionRow` (the Entities copy already did it correctly), and `Date.now()` called during render in `LiveIndicator`. I tested whether the conditional hook actually crashes — it does not, because the earlier render calls no hooks at all — so it was a latent hazard rather than a live bug, and is fixed on that basis.
+>
+> Ten `as any` casts around the policy union are replaced by an `isCustomPolicy` type guard; those casts had been disabling type checking for whole expressions, not just the narrowing. 14 warnings remain, all pre-existing "copy props into state" effects: converting them is a behavioural change rather than a lint fix, so that rule warns instead of blocking.
 
 There is no ESLint or Prettier config anywhere in the tracked file list. TypeScript `strict` is on with `noUnusedLocals`/`noUnusedParameters` (`tsconfig.json:14-16`), which covers some ground, but nothing catches React hook dependency mistakes — and `EntitiesPage.tsx:200-213` has a `useEffect` that calls `setSelection` with `selection` in its own dependency array, guarded only by a manual `changed` flag. `eslint-plugin-react-hooks` flags this class of thing.
 

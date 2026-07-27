@@ -14,6 +14,13 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor pyproject.toml declares, and the version CI and the
+        # runtime image actually use. Testing only the newest meant a
+        # 3.13+ feature could slip past the declared minimum.
+        python-version: ["3.12", "3.14"]
     defaults:
       run:
         working-directory: apps/backend
@@ -22,7 +29,7 @@ jobs:
       - uses: astral-sh/setup-uv@v8.3.2
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.14"
+          python-version: "${{ matrix.python-version }}"
       - run: uv sync --all-extras
       - run: uv run ruff check src tests
       # Documented in apps/backend/README.md as part of the workflow but never

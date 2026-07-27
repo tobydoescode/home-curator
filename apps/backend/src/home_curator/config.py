@@ -60,10 +60,15 @@ class Settings(BaseSettings):
 
     @property
     def db_path(self) -> Path:
-        assert self.data_dir is not None, "data_dir must be set before accessing db_path"
+        # A real error rather than an assert: assertions vanish under
+        # `python -O`, and this is a configuration problem the user has to
+        # act on, not an internal invariant.
+        if self.data_dir is None:
+            raise RuntimeError("DATA_DIR is not set")
         return self.data_dir / "curator.db"
 
     @property
     def policies_path(self) -> Path:
-        assert self.config_dir is not None, "config_dir must be set before accessing policies_path"
+        if self.config_dir is None:
+            raise RuntimeError("CONFIG_DIR is not set")
         return self.config_dir / "policies.yaml"

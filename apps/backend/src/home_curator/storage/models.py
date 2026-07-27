@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Literal
 
-from sqlalchemy import CheckConstraint, Index, UniqueConstraint
+from sqlalchemy import CheckConstraint, Index, UniqueConstraint, func
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -40,6 +40,19 @@ class Exemption(Base):
     acknowledged_at: Mapped[datetime] = mapped_column(TZDateTime(), default=_now)
     acknowledged_by: Mapped[str | None] = mapped_column(default=None)
     note: Mapped[str | None] = mapped_column(default=None)
+
+
+# Declared here as well as in the migration that created it. It was
+# previously only raw SQL inside `0002_entity_support`, so `create_all()` —
+# which every test fixture uses — produced a schema without it, and an upsert
+# targeting it failed in tests while working in production.
+Index(
+    "ix_exceptions_target_policy",
+    func.coalesce(Exemption.device_id, ""),
+    func.coalesce(Exemption.entity_id, ""),
+    Exemption.policy_id,
+    unique=True,
+)
 
 
 class DeletionEvent(Base):

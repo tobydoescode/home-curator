@@ -3,6 +3,7 @@ import { IconEdit, IconFlask, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { isCustomPolicy, type CustomPolicy } from "@/api/policyTypes";
 import { applyCustomRuleEdit } from "@/pages/Settings/applyCustomRuleEdit";
 import { CustomRuleEditor, type CustomRule } from "@/pages/Settings/CustomRuleEditor";
 import type { SectionProps } from "./NamingSection";
@@ -22,11 +23,8 @@ export function CustomRulesSection({
 
   const customs = draft.policies
     .map((p, i) => ({ p, i }))
-    .filter(
-      ({ p }) =>
-        p.type === "custom" &&
-        ((p as { scope?: string }).scope ?? "devices") === scope,
-    );
+    .filter((x): x is { p: CustomPolicy; i: number } => isCustomPolicy(x.p))
+    .filter(({ p }) => (p.scope ?? "devices") === scope);
 
   function remove(i: number) {
     const policies = draft.policies.filter((_, j) => j !== i);
@@ -71,9 +69,9 @@ export function CustomRulesSection({
               <Table.Tr key={p.id}>
                 <Table.Td>{p.enabled ? "✓" : ""}</Table.Td>
                 <Table.Td>{p.id}</Table.Td>
-                <Table.Td><Badge>{(p as any).severity}</Badge></Table.Td>
+                <Table.Td><Badge>{p.severity}</Badge></Table.Td>
                 <Table.Td style={{ maxWidth: 360 }}>
-                  <Text size="sm" truncate>{(p as any).message}</Text>
+                  <Text size="sm" truncate>{p.message}</Text>
                 </Table.Td>
                 <Table.Td>
                   <Group gap="xs">
@@ -96,7 +94,7 @@ export function CustomRulesSection({
 
       {editing !== null && (
         <CustomRuleEditor
-          initial={editing === "new" ? null : (customs.find(({ i }) => i === editing)!.p as any)}
+          initial={editing === "new" ? null : customs.find(({ i }) => i === editing)!.p}
           scope={scope}
           onClose={() => setEditing(null)}
           onSaved={(rule) => handleSaved(rule, editing)}

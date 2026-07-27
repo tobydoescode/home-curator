@@ -34,9 +34,13 @@ tasks:
       - uv run alembic upgrade head
 
   setup:frontend:
-    desc: Install frontend deps
+    desc: Install frontend deps and generate the typed API client
     dir: "{{.FRONTEND_DIR}}"
-    cmd: npm install
+    cmds:
+      # `src/api/generated.ts` is gitignored and `npm run build` needs it, so
+      # without this the frontend is unbuildable immediately after setup.
+      - npm install
+      - npm run gen:api:local
 
   # --- Dev servers --------------------------------------------------------
 
@@ -71,7 +75,11 @@ tasks:
 
   test:backend:
     dir: "{{.BACKEND_DIR}}"
-    cmd: env -u HA_URL -u HA_TOKEN -u SUPERVISOR_TOKEN uv run pytest -q
+    # `--all-extras` so a clean checkout provisions pytest itself rather than
+    # failing with "Failed to spawn: pytest".
+    cmd: >-
+      env -u HA_URL -u HA_TOKEN -u SUPERVISOR_TOKEN
+      uv run --all-extras pytest -q
 
   test:frontend:
     dir: "{{.FRONTEND_DIR}}"
@@ -160,7 +168,13 @@ tasks:
     desc: Lint and typecheck everything (what CI runs, minus the tests)
     cmds:
       - task: lint:backend
+      - task: lint:frontend
       - task: typecheck
+
+  lint:frontend:
+    desc: ESLint over the frontend
+    dir: "{{.FRONTEND_DIR}}"
+    cmd: npm run lint
 
   lint:backend:
     desc: Ruff + mypy over the backend
