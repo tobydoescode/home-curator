@@ -25,4 +25,7 @@ jobs:
           python-version: "3.14"
       - run: uv sync --all-extras
       - run: uv run ruff check src tests
+      # Documented in apps/backend/README.md as part of the workflow but never
+      # run here, so it had been failing unnoticed.
+      - run: uv run mypy src
       - run: uv run pytest -v

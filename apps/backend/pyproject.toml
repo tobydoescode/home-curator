@@ -75,10 +75,6 @@ extend-exclude = ["tests/realha/fixtures"]
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
 
-[tool.pyright]
-include = ["src", "tests"]
-exclude = ["tests/realha/fixtures"]
-extraPaths = ["src"]
-venvPath = "."
-venv = ".venv"
-pythonVersion = "3.12"
+# Pyright is configured in the repo-root `pyrightconfig.json`, which takes
+# precedence over this file when both exist. A `[tool.pyright]` section here
+# was therefore dead config, and had already drifted from the live one.

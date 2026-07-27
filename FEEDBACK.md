@@ -27,7 +27,7 @@ Everything below is grounded in the code as it stands. Items marked *(unverified
 | C-5 | High | Config | `Settings()` re-instantiated in request handlers, ignoring injected settings |
 | C-6 | High | Concurrency | Compiled rules mutate themselves during evaluation |
 | C-7 | High | Data safety | `policies.yaml` written non-atomically |
-| C-8 | High | CI | mypy is documented but never run; it currently fails |
+| C-8 | ~~High~~ **fixed** | CI | mypy is documented but never run; it currently fails |
 | C-9 | ~~Critical~~ **fixed** | Packaging | The addon image had never built — three independent faults |
 
 ---
@@ -241,7 +241,30 @@ with tmp.open("w") as f:
 os.replace(tmp, path)
 ```
 
-### C-8 — mypy is documented as part of the workflow but never runs, and currently fails
+### C-8 — mypy is documented as part of the workflow but never runs, and currently fails — **fixed**
+
+> **Status: fixed.** `uv run mypy src` now runs in `backend.yml` between ruff
+> and pytest, so the check the README asks contributors for is the one CI
+> enforces.
+>
+> The single error was a genuine hazard, not a style nit: `rename_pattern_entities`
+> bound `e` twice as an `except ... as e` target and then reused it as the loop's
+> entity. Python deletes an `except` target at the end of its block, so the name
+> was both actively unbound and carrying two meanings in one function. The loop
+> variable is now `entity`. Tellingly, the same function already used
+> `except Exception as ex` further down — the collision had been worked around
+> once locally rather than fixed.
+>
+> The dead `[tool.pyright]` block is deleted from `pyproject.toml`; pyright reads
+> the repo-root `pyrightconfig.json` in preference to it, and the two had already
+> drifted (only the root sets `reportMissingImports`). Keeping both meant editing
+> two files to exclude the realha fixtures.
+>
+> Verified by reintroducing the collision: mypy fails, and passes once reverted.
+>
+> Not done, deliberately: there is still no `[tool.mypy]` section, so mypy runs at
+> its lenient defaults. Tightening it is a separate decision from making the
+> documented check run at all.
 
 `apps/backend/README.md:90-96` tells contributors to run `uv run mypy src`. `.github/workflows/backend.yml:27-28` runs only `ruff` and `pytest`. mypy is in the dev extras and currently reports:
 

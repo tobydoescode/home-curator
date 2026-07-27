@@ -432,8 +432,11 @@ async def rename_pattern_entities(
 
     results: list[RenamePatternEntityResult] = []
     for eid in body.entity_ids:
-        e = state.entity_cache.entity(eid)
-        if e is None:
+        # Not `e`: this function already binds that name as an `except ... as e`
+        # target above, and Python deletes such a target at the end of its
+        # block, so reusing it here gave the name two meanings in one scope.
+        entity = state.entity_cache.entity(eid)
+        if entity is None:
             results.append(
                 RenamePatternEntityResult(
                     entity_id=eid,
@@ -457,7 +460,7 @@ async def rename_pattern_entities(
         new_name: str | None = None
         name_changed = False
         if name_pat is not None and body.name_replacement is not None:
-            current = e.display_name
+            current = entity.display_name
             proposed_name = name_pat.sub(body.name_replacement, current)
             if proposed_name != current:
                 new_name = proposed_name
