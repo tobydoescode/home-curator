@@ -1,0 +1,60 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // Run this first inside the devcontainer. `devcontainer_bootstrap`
+      // only prepares mounts; it does not start Supervisor.
+      "label": "Start Home Assistant",
+      "type": "shell",
+      "command": "supervisor_run",
+      "group": { "kind": "test", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    },
+    {
+      // Builds the real image with the correct context and registers the
+      // thin local add-on. See .devcontainer/setup-local-addon.sh for why
+      // Supervisor cannot build this repo's add-on directly.
+      "label": "Register local add-on",
+      "type": "shell",
+      "command": "bash .devcontainer/setup-local-addon.sh",
+      "group": { "kind": "test", "isDefault": false },
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Install App",
+      "type": "shell",
+      "command": "ha apps install \"local_${input:appName}\"",
+      "group": { "kind": "test", "isDefault": false },
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Start App",
+      "type": "shell",
+      "command": "ha apps stop \"local_${input:appName}\"; ha apps start \"local_${input:appName}\"; ha apps logs -f \"local_${input:appName}\"",
+      "group": { "kind": "test", "isDefault": false },
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": [],
+      "runOptions": { "reevaluateOnRerun": false }
+    },
+    {
+      "label": "Rebuild and Start App",
+      "type": "shell",
+      "command": "ha apps rebuild --force \"local_${input:appName}\"; ha apps start \"local_${input:appName}\"; ha apps logs -f \"local_${input:appName}\"",
+      "group": { "kind": "test", "isDefault": false },
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "appName",
+      "type": "pickString",
+      "description": "Which local add-on",
+      "options": ["home-curator-dev"],
+      "default": "home-curator-dev"
+    }
+  ]
+}

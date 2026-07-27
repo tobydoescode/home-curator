@@ -1,30 +1,52 @@
 {
   "name": "Home Curator (Home Assistant Supervisor)",
-  "image": "ghcr.io/home-assistant/devcontainer:2-addons",
+  "image": "ghcr.io/home-assistant/devcontainer:5-apps",
+  "overrideCommand": false,
+  "remoteUser": "vscode",
 
-  // Supervisor needs to drive Docker and manage cgroups.
+  // Supervisor drives Docker and manages cgroups from inside the container.
   "runArgs": ["-e", "GIT_EDITOR=code --wait", "--privileged"],
-  "containerEnv": { "WORKSPACE_DIRECTORY": "${containerWorkspaceFolder}" },
-
-  // The mount path is load-bearing: Supervisor discovers local add-ons by
-  // scanning /mnt/supervisor/addons/local. Mounting the repo anywhere else
-  // means it never appears in the add-on store.
-  "workspaceMount": "source=${localWorkspaceFolder},target=/mnt/supervisor/addons/local/${localWorkspaceFolderBasename},type=bind,consistency=cached",
-  "workspaceFolder": "/mnt/supervisor/addons/local/${localWorkspaceFolderBasename}",
-
-  "postStartCommand": "bash devcontainer_bootstrap",
 
   // 7123 → Home Assistant, 7357 → Supervisor's observer.
   "appPort": ["7123:8123", "7357:4357"],
+
+  "postStartCommand": "bash devcontainer_bootstrap",
+
+  // The mount path is load-bearing: Supervisor discovers local add-ons by
+  // scanning /mnt/supervisor/addons/local, so the repo has to land there or
+  // it never appears in the add-on store.
+  "workspaceFolder": "/mnt/supervisor/addons/local/${localWorkspaceFolderBasename}",
+  "workspaceMount": "source=${localWorkspaceFolder},target=${containerWorkspaceFolder},type=bind,consistency=cached",
+
+  "containerEnv": {
+    "WORKSPACE_DIRECTORY": "${containerWorkspaceFolder}"
+  },
+
+  // Required, not optional. Docker-in-Docker cannot run with /var/lib/docker
+  // on the container's overlay filesystem — without these volumes the inner
+  // daemon hangs on "Waiting for Docker to initialize..." forever and
+  // Supervisor never starts.
+  "mounts": [
+    "type=volume,target=/var/lib/docker",
+    "type=volume,target=/var/lib/containerd",
+    "type=volume,target=/mnt/supervisor",
+    "type=tmpfs,target=/tmp"
+  ],
 
   "customizations": {
     "vscode": {
       "extensions": [
         "ms-python.python",
         "charliermarsh.ruff",
-        "esbenp.prettier-vscode",
-        "dbaeumer.vscode-eslint"
-      ]
+        "timonwong.shellcheck",
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.profiles.linux": {
+          "zsh": { "path": "/usr/bin/zsh" }
+        }
+      }
     }
   }
 }

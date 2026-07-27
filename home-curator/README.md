@@ -52,20 +52,42 @@ ingress. That is enough to catch regressions, but it tests our model of ingress
 rather than ingress itself. The devcontainer runs a real Supervisor, so the
 add-on is installed, built and proxied exactly as it is on a user's system.
 
-Requires Docker and the VS Code Dev Containers extension.
+Requires Docker and the VS Code Dev Containers extension. It is heavy — a
+privileged container running Docker-in-Docker, Supervisor and Home Assistant —
+so it is for occasional verification, not the day-to-day loop. Use `task dev`
+for that.
 
-```bash
-task build:frontend          # on the HOST — generates the gitignored API client
-# then: VS Code → "Reopen in Container" → wait for devcontainer_bootstrap
-bash .devcontainer/setup-local-addon.sh
-```
+1. On the **host**, generate the gitignored API client the image build needs:
+
+   ```bash
+   task build:frontend
+   ```
+
+2. VS Code → **Reopen in Container**, and wait for `devcontainer_bootstrap`.
+
+3. Run the VS Code task **Start Home Assistant** (`supervisor_run`). This is a
+   separate step — `devcontainer_bootstrap` only prepares mounts, it does not
+   start Supervisor. First run pulls Supervisor and Home Assistant, so give it
+   a few minutes.
+
+4. Run the VS Code task **Register local add-on**, or equivalently:
+
+   ```bash
+   bash .devcontainer/setup-local-addon.sh
+   ```
 
 Home Assistant comes up on <http://localhost:7123>. Complete onboarding, then
 **Settings → Add-ons → Add-on Store → ⋮ → Check for updates**, install
 **Home Curator (dev)** from *Local add-ons*, and start it. Open it from the
 sidebar to exercise the real ingress path.
 
-After changing source, re-run the script and hit **Rebuild** in the add-on UI.
+After changing source: re-run **Register local add-on**, then **Rebuild and
+Start App**.
+
+> The `mounts` block in `devcontainer.json` is required, not cosmetic.
+> Docker-in-Docker cannot run with `/var/lib/docker` on the container's overlay
+> filesystem; without those volumes the inner daemon hangs on "Waiting for
+> Docker to initialize…" and Supervisor never starts.
 
 ### Why the extra script
 
