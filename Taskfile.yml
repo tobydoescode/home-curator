@@ -213,19 +213,9 @@ tasks:
 
   devcontainer:clean:
     desc: "Remove the devcontainer AND its own volumes (destructive: wipes the HA instance)"
-    cmd: |
-      # Deliberately NOT `docker volume prune`, which would remove every
-      # unused volume on the machine. Only volumes attached to this
-      # devcontainer are touched, and they are read off the container before
-      # it is removed.
-      cid=$(docker ps -aq --filter "label=devcontainer.local_folder={{.ROOT_DIR}}" | head -1)
-      if [ -z "$cid" ]; then echo "no devcontainer found"; exit 0; fi
-      vols=$(docker inspect "$cid" \
-        --format '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}')
-      docker rm -f "$cid" >/dev/null && echo "devcontainer removed"
-      for v in $vols; do
-        docker volume rm "$v" >/dev/null 2>&1 && echo "removed volume $v"
-      done
+    # In a script, not inline: Task renders commands as Go templates and would
+    # eat Docker's own `--format '{{...}}'`, leaving the volumes orphaned.
+    cmd: bash .devcontainer/clean.sh
 
   # --- Housekeeping -------------------------------------------------------
 
