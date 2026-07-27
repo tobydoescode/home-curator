@@ -22,7 +22,7 @@ Everything below is grounded in the code as it stands. Items marked *(unverified
 | --- | --- | --- | --- |
 | C-1 | ~~Critical~~ **fixed** | Packaging | Frontend uses absolute paths; breaks under HA ingress |
 | C-2 | ~~Critical~~ **fixed** | Release | Docker tag (`v0.1.0`) doesn't match the tag the Supervisor pulls (`0.1.0`) |
-| C-3 | Critical | First run | `CONFIG_DIR` is never created — first policy save 500s |
+| C-3 | ~~Critical~~ **fixed** | First run | `CONFIG_DIR` is never created — first policy save 500s |
 | C-4 | High | Correctness | `/api/exceptions/list` applies `area_id` filter *after* pagination |
 | C-5 | High | Config | `Settings()` re-instantiated in request handlers, ignoring injected settings |
 | C-6 | High | Concurrency | Compiled rules mutate themselves during evaluation |
@@ -109,7 +109,27 @@ Installation fails with a manifest-not-found. Additionally `config.yaml` is neve
     tags: ghcr.io/${{ github.repository_owner }}/home-curator-${{ matrix.arch }}:${{ env.VERSION }}
 ```
 
-### C-3 — First run cannot save policies: `CONFIG_DIR` is never created
+### C-3 — First run cannot save policies: `CONFIG_DIR` is never created — **fixed**
+
+> **Status: fixed.** `write_policies_file` now creates its parent directory
+> instead of refusing, so the invariant is owned by the function that needs it
+> regardless of which `Settings` instance produced the path. Startup calls a new
+> `seed_policies_file`, which writes the baseline file when absent — that both
+> creates `/config/home-curator` and makes the README's "edit it directly"
+> instruction true. Seeding never overwrites an existing file, and a failure is
+> logged rather than fatal, so a read-only config mount still boots a working
+> read-only app. `PUT /api/policies` now catches `OSError` and returns a 500
+> naming the path and the OS error instead of a bare stack trace.
+>
+> Covered by `tests/integration/test_policies_first_run.py`, which deliberately
+> does *not* pre-create `config_dir` — the thing every other fixture and
+> `task setup` was doing, which is why this was invisible. Verified by reverting
+> the writer fix: 3 tests go red.
+>
+> The README's first-run paragraph is rewritten (it also referenced the removed
+> "Settings → Naming Conventions" route), and `loader.py`'s comment claiming the
+> baseline "is written on first run" is now true rather than aspirational.
+
 
 `storage/db.py:10` creates `data_dir` via `mkdir(parents=True, exist_ok=True)`. Nothing does the equivalent for `config_dir` — grepping `src/` for `mkdir` returns exactly one hit. So on a fresh install where `/config/home-curator/` does not exist:
 
