@@ -101,6 +101,40 @@ tasks:
       - npm run gen:api:local
       - npm run build
 
+  gen-api:local:
+    desc: Regenerate the typed API client in-process (no running backend needed)
+    dir: "{{.FRONTEND_DIR}}"
+    cmd: npm run gen:api:local
+
+  # --- Addon image ---------------------------------------------------------
+
+  addon:image:
+    desc: Build the addon Docker image locally (same Dockerfile the release uses)
+    deps: [gen-api:local]
+    cmd: docker build -f home-curator/Dockerfile -t home-curator-dev:local .
+
+  addon:verify:
+    desc: Build the addon image and check the things that have broken before
+    deps: [addon:image]
+    cmds:
+      - |
+        docker run --rm --entrypoint /bin/sh home-curator-dev:local -c \
+          'cd /app && PYTHONPATH=/app/src ./.venv/bin/python -c "
+        import celpy, re2
+        from home_curator.main import create_app
+        assert create_app().openapi()[\"paths\"]
+        print(\"app and native deps import: ok\")"'
+      - |
+        docker run --rm --entrypoint /bin/sh home-curator-dev:local -c \
+          'ls /app/.venv/bin/ | grep -qE "^(pytest|mypy|ruff)$"' \
+          && { echo "FAIL: dev tooling leaked into the runtime image"; exit 1; } \
+          || echo "no dev tooling in runtime image: ok"
+      - |
+        docker run --rm --entrypoint /bin/sh home-curator-dev:local -c \
+          'grep -q "src=\"/assets/" /app/static/index.html' \
+          && { echo "FAIL: absolute asset paths break ingress"; exit 1; } \
+          || echo "frontend assets relative: ok"
+
   coverage:
     desc: Calculate backend + frontend test coverage
     cmds:

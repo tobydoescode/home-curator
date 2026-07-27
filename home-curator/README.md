@@ -45,6 +45,49 @@ Two consequences worth knowing:
   of an API that can rename and delete devices and entities. Adding a `ports:`
   mapping would expose that API unauthenticated on the LAN.
 
+## Testing against a real Supervisor
+
+`task dev` and the `e2e` suite both exercise the app behind a *simulation* of
+ingress. That is enough to catch regressions, but it tests our model of ingress
+rather than ingress itself. The devcontainer runs a real Supervisor, so the
+add-on is installed, built and proxied exactly as it is on a user's system.
+
+Requires Docker and the VS Code Dev Containers extension.
+
+```bash
+task build:frontend          # on the HOST — generates the gitignored API client
+# then: VS Code → "Reopen in Container" → wait for devcontainer_bootstrap
+bash .devcontainer/setup-local-addon.sh
+```
+
+Home Assistant comes up on <http://localhost:7123>. Complete onboarding, then
+**Settings → Add-ons → Add-on Store → ⋮ → Check for updates**, install
+**Home Curator (dev)** from *Local add-ons*, and start it. Open it from the
+sidebar to exercise the real ingress path.
+
+After changing source, re-run the script and hit **Rebuild** in the add-on UI.
+
+### Why the extra script
+
+The Supervisor cannot build this repository's add-on directly, for two reasons:
+
+- `config.yaml` sets `image:`, which Home Assistant reads as "pull from the
+  registry" rather than "build from source".
+- The Supervisor builds using the **add-on's own directory** as the Docker
+  build context, but `home-curator/Dockerfile` does `COPY apps/backend ...` and
+  needs the repository root. That is why the release workflow passes
+  `context: .` with `file: home-curator/Dockerfile`.
+
+So the script performs the real build itself — real Dockerfile, correct context
+— and registers a thin add-on whose Dockerfile is a single `FROM` of the
+resulting image. Its `config.yaml` is derived from the real one with `sed`
+rather than duplicated, so ingress, mappings, permissions and version cannot
+drift; only the slug, name, and the removed `image:` differ.
+
+The repository's own "Home Curator" entry also appears in the local add-on
+store, but will fail to install: it points at a published image, and none has
+been released. Use the "(dev)" one.
+
 ## Releasing
 
 Home Assistant pulls `<image>:<version>` using the `version` field in
