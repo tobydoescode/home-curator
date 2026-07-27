@@ -3,10 +3,16 @@ version: "0.1.0"
 slug: home-curator
 description: Keep your Home Assistant instance tidy — misconfiguration detection and mass updates.
 url: "https://github.com/tobydoescode/ha-app-home-curator"
+# 32-bit ARM is deliberately absent. Home Assistant dropped all 32-bit
+# architectures in 2025.12, and HAOS 17.0 removed the armv7 Raspberry Pi
+# targets outright, so no supported installation runs it. It is also not
+# buildable: the newest addon base image publishing an armv7 manifest ships
+# Python 3.11 (this project needs 3.12+) and has no re2-dev, which
+# cel-python's google-re2 dependency requires on musl.
+# Raspberry Pi 4 and 5 run the 64-bit aarch64 image.
 arch:
   - amd64
   - aarch64
-  - armv7
 startup: services
 boot: auto
 init: false

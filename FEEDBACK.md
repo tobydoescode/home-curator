@@ -28,6 +28,7 @@ Everything below is grounded in the code as it stands. Items marked *(unverified
 | C-6 | High | Concurrency | Compiled rules mutate themselves during evaluation |
 | C-7 | High | Data safety | `policies.yaml` written non-atomically |
 | C-8 | High | CI | mypy is documented but never run; it currently fails |
+| C-9 | ~~Critical~~ **fixed** | Packaging | The addon image had never built — three independent faults |
 
 ---
 
@@ -231,6 +232,38 @@ There is also duplicate, divergent type-checker configuration: `pyrightconfig.js
 
 ---
 
+### C-9 — The addon image had never been built — **fixed**
+
+> Found while trying to build the image for devcontainer work. Because the
+> Dockerfile was only exercised on a release tag (P-4) and no release had ever
+> been cut, it had never run. It did not work, for three independent reasons:
+>
+> 1. **`google-re2` could not compile.** `cel-python` depends on it and it
+>    publishes no musllinux wheel for any version — confirmed against both PyPI
+>    and Home Assistant's own musllinux index — so on Alpine it is always built
+>    from source, and the base image has no C++ toolchain. Fixed by adding
+>    `g++`, `re2-dev`, `abseil-cpp-dev`, `python3-dev` and `py3-pybind11-dev`
+>    as a virtual package removed in the same layer, keeping only the `re2` and
+>    `abseil-cpp` runtime libraries.
+> 2. **No `.dockerignore`.** The working tree leaked into the build context.
+>    Most damaging was the compiled `vite.config.js` — a gitignored artifact of
+>    `tsc -b` — which Vite loads in preference to `vite.config.ts`, so the
+>    frontend stage built from a stale config and then failed outright against
+>    Vite 8. Host `node_modules` were copied over the Linux install too.
+> 3. **P-1 confirmed** — `--all-extras` shipped pytest, mypy and ruff into the
+>    runtime image.
+>
+> Two further faults surfaced when testing other architectures: `node:24-alpine`
+> publishes no armv7 image, so the frontend stage died before reaching any of
+> our code (fixed with `--platform=$BUILDPLATFORM`, which also skips QEMU for
+> the entire npm/Vite step); and the runtime base has no armv7 manifest either
+> (see P-2).
+>
+> A new `docker` workflow now builds on every PR touching `apps/` or
+> `home-curator/` and asserts the properties that have actually broken: the app
+> and its native dependencies import, no dev tooling is present, and
+> `index.html` references assets relatively so ingress keeps working.
+
 ## 2. Correctness and behaviour
 
 ### F-1 — `exceptions_changed` SSE events are published but never consumed
@@ -418,13 +451,30 @@ No endpoint authenticates. This is defensible: `config.yaml` exposes no `ports:`
 
 ## 6. Packaging and build
 
-### P-1 — The production image ships pytest, mypy and ruff
+### P-1 — The production image ships pytest, mypy and ruff — **fixed**
+
+> Dropped `--all-extras`; verified absent from the built image and asserted in
+> the `docker` workflow. See C-9.
 
 `home-curator/Dockerfile:25` runs `uv sync --all-extras --frozen --no-dev`. `--no-dev` excludes dependency *groups*; `dev` here is an optional-dependency **extra** (`pyproject.toml:21-28`), which `--all-extras` explicitly pulls in. The two flags cancel out and the runtime image gets the full test toolchain.
 
 **Fix:** `uv sync --frozen --no-dev` (drop `--all-extras`), or move `dev` from `[project.optional-dependencies]` to `[dependency-groups]`.
 
-### P-2 — Base image pinned in two places, to two different versions
+### P-2 — Base image pinned in two places, to two different versions — **fixed**
+
+> Worse than described: `release.yml` passes no build-args and never reads
+> `build.yaml`, so the pinned `15.0.7` was fiction and the Dockerfile's `ARG`
+> default (`20.1.1`) was always used. Since Supervisor 2026.04 no longer passes
+> `BUILD_FROM` either, the file was dead twice over. Deleted; the Dockerfile
+> `ARG` is now the single source of truth.
+>
+> This also explained armv7: `base:20.1.1` publishes no armv7 manifest, and the
+> newest base that does (`15.0.7`) ships Python 3.11 and lacks `re2-dev`, so it
+> can satisfy neither the project's `requires-python` nor `google-re2`. armv7 is
+> therefore dropped from `config.yaml` and the release matrix — Home Assistant
+> removed all 32-bit architectures in 2025.12 and HAOS 17.0 dropped the armv7
+> Raspberry Pi targets, so no supported installation runs it. Pi 4/5 use
+> aarch64, which is verified building.
 
 `Dockerfile:1` defaults `BUILD_FROM=ghcr.io/hassio-addons/base:20.1.1`; `build.yaml:2-4` pins `15.0.7` for all three arches. A local `docker build` and a Supervisor build produce different base images — a five-major-version gap. Make `build.yaml` the single source and drop the default, or keep them in sync via a comment referencing the other.
 
@@ -441,11 +491,17 @@ The Alpine `python3` package floats with the base image. If it ever resolves bel
 
 Node has the same problem in miniature: `package.json:7` says `>=20`, root `README.md:13` says 22, CI and Dockerfile use 24.
 
-### P-4 — The Dockerfile is only exercised at release time
+### P-4 — The Dockerfile is only exercised at release time — **fixed**
+
+> New `docker` workflow builds and verifies the image on every relevant PR.
+> This is the gap that let C-9 go unnoticed indefinitely.
 
 Neither `backend.yml` nor `frontend.yml` builds the image; only `release.yml` (tag push) does. Dockerfile breakage is discovered at the worst possible moment. Add a non-pushing `docker/build-push-action` step with `push: false` for `amd64` on PRs.
 
-### P-5 — Release generates the API client from a backend pointed at a fake HA
+### P-5 — Release generates the API client from a backend pointed at a fake HA — **fixed**
+
+> `release.yml` now uses `npm run gen:api:local`, which produces the schema
+> in-process. The uvicorn boot, fake credentials and fixed `sleep 5` are gone.
 
 `release.yml:40-46` starts uvicorn with `HA_URL=http://localhost:8123`, `HA_TOKEN=fake`, sleeps 5 s, then scrapes `/openapi.json`. The websocket connect will fail; the app happens to still serve `/openapi.json` because the routes are registered outside the lifespan. It works, but it depends on that and on a fixed 5-second sleep.
 

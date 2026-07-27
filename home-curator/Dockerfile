@@ -1,7 +1,13 @@
 ARG BUILD_FROM=ghcr.io/hassio-addons/base:20.1.1
 
 # ---------- Stage 1: build the frontend ----------
-FROM node:24-alpine AS fe-builder
+# Pinned to the *build* platform, not the target. This stage emits static
+# JS/CSS, which is platform-independent, so there is nothing to gain from
+# emulating the target — and `node:24-alpine` publishes no linux/arm/v7
+# image at all, so building for armv7 failed here before reaching any of
+# our own code. Running natively also avoids QEMU for the whole npm and
+# Vite step, which dominates the cross-architecture build.
+FROM --platform=$BUILDPLATFORM node:24-alpine AS fe-builder
 
 WORKDIR /fe
 COPY apps/frontend/package.json apps/frontend/package-lock.json ./
