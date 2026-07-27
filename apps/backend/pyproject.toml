@@ -34,6 +34,10 @@ dev = [
 realha = [
     "testcontainers>=4.8",
 ]
+# Only needed to run the fake-ingress browser suite (`task test:e2e`).
+e2e = [
+    "pytest-playwright>=0.5",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/home_curator"]
@@ -46,11 +50,13 @@ build-backend = "hatchling.build"
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-# The real-HA suite needs Docker and takes minutes, so it is opt-in.
-# `task test:realha` overrides this with an explicit `-m realha`.
-addopts = "-m 'not realha'"
+# The real-HA and fake-ingress suites need Docker / a built frontend / a
+# browser, so both are opt-in. `task test:realha` and `task test:e2e`
+# override this with an explicit `-m`.
+addopts = "-m 'not realha and not e2e'"
 markers = [
     "realha: runs against a real Home Assistant container (requires Docker)",
+    "e2e: drives the built frontend behind a fake ingress (requires a built dist)",
 ]
 # Fixture code for the HA container imports `homeassistant`, which is not a
 # dependency of this project — keep it away from collection.

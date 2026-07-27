@@ -92,6 +92,25 @@ flowchart LR
 
 The frontend has no hand-written request or response types. `task gen-api` regenerates `generated.ts` from the running backend's OpenAPI schema, and `openapi-fetch` types paths, query params, and response bodies from it. A backend schema change that the frontend hasn't caught up to becomes a TypeScript error, not a runtime `undefined`.
 
-This is why `gen-api` requires the backend to be up, and why `generated.ts` is committed: CI typechecks without booting the backend.
+This is why `gen-api` requires the backend to be up. `generated.ts` is **not** committed — it is gitignored and regenerated on demand. `npm run typecheck` runs `gen:api:local` first, which produces the schema in-process without booting a server, so CI still typechecks from a clean checkout.
 
-`baseUrl` resolves to `window.location.origin`, which works unchanged in all three environments — Vite proxies `/api` in dev, the packaged addon serves the built frontend from the backend in prod, and jsdom resolves against its own origin in tests. `fetch` is dereferenced from `globalThis` at call time so tests can spy on it.
+## Base URL resolution and ingress
+
+Every URL the app emits is resolved relative to `document.baseURI` rather than `window.location.origin`, because Home Assistant serves the add-on beneath a per-session path prefix (`/api/hassio_ingress/<token>/`) and strips that prefix before proxying.
+
+```mermaid
+flowchart TD
+    HA["Home Assistant<br/><i>/api/hassio_ingress/&lt;token&gt;/…</i>"]
+    HA -->|"strips prefix<br/>adds X-Ingress-Path"| BE["Backend"]
+    BE -->|"injects &lt;base href='&lt;prefix&gt;/'&gt;"| IDX["index.html"]
+    IDX --> DOC["document.baseURI"]
+    DOC --> C1["api/client.ts<br/><i>baseUrl</i>"]
+    DOC --> C2["api/sse.ts<br/><i>new URL('api/events', …)</i>"]
+    DOC --> C3["App.tsx<br/><i>BrowserRouter basename</i>"]
+```
+
+An absolute `/api/devices` would reach the Home Assistant host rather than the add-on. A *relative* path is not sufficient either: at `<prefix>/settings/devices` it would resolve to `<prefix>/settings/api/devices`. The injected `<base href>` is absolute, so route depth stops mattering — which is why the backend (`api/spa.py`) injects it from the `X-Ingress-Path` header, and why Vite is configured with `base: "./"`.
+
+Outside ingress the header is absent, the injected tag is `<base href="/">`, and all three consumers behave exactly as they did before: Vite proxies `/api` in dev, the packaged add-on serves from its own origin, and jsdom resolves against the test origin.
+
+`fetch` is dereferenced from `globalThis` at call time so tests can spy on it.

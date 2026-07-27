@@ -10,7 +10,12 @@ export function subscribeSSE(
   onEvent: (e: SSEEvent) => void,
   onError?: (err: unknown) => void,
 ): () => void {
-  const src = new EventSource("/api/events");
+  // Relative to `document.baseURI` so the stream resolves against the ingress
+  // prefix when there is one. An absolute "/api/events" would reach the Home
+  // Assistant host rather than the add-on.
+  const src = new EventSource(
+    new URL("api/events", document.baseURI).toString(),
+  );
   src.addEventListener("message", (e) => {
     try {
       onEvent(JSON.parse(e.data) as SSEEvent);

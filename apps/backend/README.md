@@ -32,6 +32,36 @@ uv run pytest tests/unit/
 uv run pytest tests/integration/
 ```
 
+## Fake-ingress tests (`tests/e2e/`)
+
+```bash
+task test:e2e                   # builds the frontend, then runs both layers
+```
+
+Home Assistant serves the addon beneath a per-session path prefix and strips
+it before proxying, passing what it stripped in an `X-Ingress-Path` header.
+Nothing else in the test suite can catch a breakage there, because everything
+else exercises the app at the origin root, where absolute paths happen to
+work.
+
+`tests/e2e/conftest.py` reproduces that contract — a Starlette `Mount` in
+front of the real app, plus a middleware that sets the header — and serves
+the real built `dist/`. Two layers, both needed:
+
+- **HTTP** (`test_ingress_http.py`) — fetches the page, reads the `<base
+  href>` it was given, resolves the page's own asset and API URLs against it,
+  and checks they are reachable. No browser.
+- **Browser** (`test_ingress_browser.py`) — loads the page in Chromium and
+  checks the app boots. A wrong `BrowserRouter` basename passes every HTTP
+  check and still renders nothing; only this layer catches it. Verified by
+  deliberately breaking the basename: the HTTP layer stayed green, the
+  browser layer went red.
+
+The suite skips if `apps/frontend/dist` is missing. Note that
+`wait_until="networkidle"` never fires here — the SSE stream is long-lived —
+so navigation waits on `load` and leans on Playwright's auto-waiting
+assertions.
+
 ## Real-Home-Assistant tests (`tests/realha/`)
 
 ```bash

@@ -1,0 +1,70 @@
+name: e2e
+
+# Drives the built frontend behind a fake Home Assistant ingress.
+#
+# Ingress serves the add-on beneath a per-session path prefix and strips it
+# before proxying, so anything the page emits as an absolute path resolves
+# against the Home Assistant host instead of the add-on. No other suite can
+# catch that: they all exercise the app at the origin root, where absolute
+# paths happen to work.
+#
+# Two layers. The HTTP layer follows the page's own asset and API URLs and
+# checks they resolve under the prefix. The browser layer loads the page in
+# Chromium and checks the app actually boots — a wrong router basename passes
+# every HTTP check and still renders nothing.
+
+on:
+  pull_request:
+    paths:
+      - "apps/backend/**"
+      - "apps/frontend/**"
+      - ".github/workflows/e2e.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/backend/**"
+      - "apps/frontend/**"
+      - ".github/workflows/e2e.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v8.3.2
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - run: uv sync --all-extras --group e2e
+        working-directory: apps/backend
+
+      # The suite serves the real bundle, so it has to exist. The generated
+      # API client is gitignored, hence gen:api:local before the build.
+      - name: Build the frontend
+        working-directory: apps/frontend
+        run: |
+          npm ci
+          npm run gen:api:local
+          npm run build
+
+      - name: Install Chromium
+        working-directory: apps/backend
+        run: uv run --all-extras --group e2e playwright install --with-deps chromium
+
+      - name: Run the fake-ingress suite
+        working-directory: apps/backend
+        run: >-
+          env -u HA_URL -u HA_TOKEN -u SUPERVISOR_TOKEN
+          uv run --all-extras --group e2e pytest -m e2e -v

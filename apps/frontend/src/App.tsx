@@ -25,6 +25,18 @@ const colorSchemeManager = localStorageColorSchemeManager({
   key: "home-curator:color-scheme",
 });
 
+// Under Home Assistant ingress the app is served beneath a per-session path
+// prefix, which the backend injects as `<base href>`. Without a matching
+// router basename none of the routes below would ever match, because the
+// router would see the prefix as part of the path.
+//
+// Outside ingress `document.baseURI` has no prefix and this resolves to "/",
+// leaving routing unchanged.
+const basename =
+  typeof document !== "undefined" && document.baseURI
+    ? new URL(document.baseURI).pathname
+    : "/";
+
 export default function App() {
   return (
     <MantineProvider
@@ -35,7 +47,7 @@ export default function App() {
       <Notifications />
       <QueryClientProvider client={queryClient}>
         <ModalsProvider>
-          <BrowserRouter>
+          <BrowserRouter basename={basename}>
             <Routes>
               <Route element={<Layout />}>
                 <Route path="/" element={<Navigate to="/devices" replace />} />

@@ -3,9 +3,9 @@ import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 
 from home_curator.api import (
     areas as areas_api,
@@ -33,6 +33,7 @@ from home_curator.api import (
 )
 from home_curator.api.deps import AppState
 from home_curator.api.schemas import HealthResponse
+from home_curator.api.spa import mount_spa
 from home_curator.config import Settings
 from home_curator.deletion_tracker import DeletionTracker
 from home_curator.events.broker import EventBroker
@@ -255,10 +256,10 @@ def create_app(
     app.include_router(config_api.router)
 
     # Serve the built frontend if present (production image bundles it at
-    # /app/static). Mount last so /api routes take precedence.
+    # /app/static). Mounted last so /api routes take precedence.
     static_dir = os.environ.get("STATIC_DIR", "/app/static")
     if os.path.isdir(static_dir):
-        app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+        mount_spa(app, Path(static_dir))
 
     return app
 

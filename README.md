@@ -27,6 +27,7 @@ Other tasks:
 
 - `task test` — run backend + frontend test suites
 - `task test:realha` — run the backend against a real Home Assistant container (needs Docker). See [why](apps/backend/README.md#real-home-assistant-tests-testsrealha).
+- `task test:e2e` — drive the built frontend behind a fake Home Assistant ingress (builds the frontend, downloads Chromium)
 - `task gen-api` — regenerate the typed API client (run with backend up)
 - `task typecheck` — TypeScript check
 - `task clean` — remove build artifacts

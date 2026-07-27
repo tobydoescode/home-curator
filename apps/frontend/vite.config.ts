@@ -3,6 +3,11 @@ import react from "@vitejs/plugin-react";
 import path from "node:path";
 
 export default defineConfig({
+  // Emit relative asset URLs so they resolve against the `<base href>` the
+  // backend injects from Home Assistant's X-Ingress-Path header. With the
+  // default absolute base, every asset would resolve against the HA host
+  // rather than the add-on and 404 under ingress.
+  base: "./",
   plugins: [react()],
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },

@@ -32,18 +32,39 @@ describe("subscribeSSE", () => {
     vi.unstubAllGlobals();
   });
 
-  it("subscribes to /api/events and emits parsed messages", () => {
+  it("subscribes to api/events and emits parsed messages", () => {
     vi.stubGlobal("EventSource", MockEventSource);
     const onEvent = vi.fn();
     const unsubscribe = subscribeSSE(onEvent);
     const source = MockEventSource.instances[0];
 
-    expect(source.url).toBe("/api/events");
+    // Resolved against document.baseURI rather than emitted as a literal
+    // "/api/events" — see the ingress case below.
+    expect(source.url).toBe("http://localhost/api/events");
     source.emitMessage('{"kind":"devices_changed"}');
 
     expect(onEvent).toHaveBeenCalledWith({ kind: "devices_changed" });
     unsubscribe();
     expect(source.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves the stream under an ingress base href", () => {
+    // Home Assistant serves the addon beneath /api/hassio_ingress/<token>/
+    // and the backend injects that prefix as <base href>. An absolute
+    // "/api/events" would reach the HA host instead of the addon.
+    const base = document.createElement("base");
+    base.href = "http://localhost/api/hassio_ingress/testtoken/";
+    document.head.appendChild(base);
+    try {
+      vi.stubGlobal("EventSource", MockEventSource);
+      subscribeSSE(vi.fn());
+
+      expect(MockEventSource.instances[0].url).toBe(
+        "http://localhost/api/hassio_ingress/testtoken/api/events",
+      );
+    } finally {
+      base.remove();
+    }
   });
 
   it("calls onError for invalid JSON and EventSource errors", () => {

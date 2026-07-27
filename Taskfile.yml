@@ -84,6 +84,23 @@ tasks:
       env -u HA_URL -u HA_TOKEN -u SUPERVISOR_TOKEN
       uv run --all-extras --group realha pytest -m realha -v
 
+  test:e2e:
+    desc: Run the fake-ingress browser suite (builds the frontend first)
+    deps: [build:frontend]
+    dir: "{{.BACKEND_DIR}}"
+    cmds:
+      - uv run --all-extras --group e2e playwright install chromium
+      - >-
+        env -u HA_URL -u HA_TOKEN -u SUPERVISOR_TOKEN
+        uv run --all-extras --group e2e pytest -m e2e -v
+
+  build:frontend:
+    desc: Build the production frontend bundle into apps/frontend/dist
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - npm run gen:api:local
+      - npm run build
+
   coverage:
     desc: Calculate backend + frontend test coverage
     cmds:
