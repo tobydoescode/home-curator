@@ -25,7 +25,7 @@ Everything below is grounded in the code as it stands. Items marked *(unverified
 | C-3 | ~~Critical~~ **fixed** | First run | `CONFIG_DIR` is never created — first policy save 500s |
 | C-4 | ~~High~~ **fixed** | Correctness | `/api/exceptions/list` applies `area_id` filter *after* pagination |
 | C-5 | High | Config | `Settings()` re-instantiated in request handlers, ignoring injected settings |
-| C-6 | High | Concurrency | Compiled rules mutate themselves during evaluation |
+| C-6 | ~~High~~ **fixed (partly wrong as filed)** | Concurrency | Compiled rules mutate themselves during evaluation |
 | C-7 | ~~High~~ **fixed** | Data safety | `policies.yaml` written non-atomically |
 | C-8 | ~~High~~ **fixed** | CI | mypy is documented but never run; it currently fails |
 | C-9 | ~~Critical~~ **fixed** | Packaging | The addon image had never built — three independent faults |
@@ -202,7 +202,40 @@ So `create_app(settings=X)` writes policies to whatever the *environment* says, 
 
 **Fix:** put `Settings` on `AppState` (`api/deps.py:16`) alongside the other wiring and read `state.settings` in handlers. That makes the dependency explicit and removes the hidden filesystem read per request.
 
-### C-6 — Compiled rules mutate shared state during evaluation
+### C-6 — Compiled rules mutate shared state during evaluation — **fixed, and partly wrong as filed**
+
+> **Correction first.** This item claimed the lazy room-override promotion in
+> `naming_convention.evaluate()` was a live cross-thread race. It was not.
+> `compile_naming_convention` only populated `pending_room_overrides` when
+> `ctx is None`, and `RuleEngine.compile` has always passed a ctx, so that
+> branch was unreachable in production. I asserted a race from reading the
+> code without checking whether the branch could execute. The severity was
+> overstated.
+>
+> **What was actually real** was the item I filed as a footnote: `DeletionTracker`
+> state is written from the event loop (`handle_diff_from_cache`, via HA event
+> callbacks) and read from FastAPI's threadpool (`all_state()` from
+> `list_devices` and the simulator). Iterating a dict while another thread
+> inserts raises `RuntimeError: dictionary changed size during iteration` and
+> fails the request. Reproduced under a reduced thread-switch interval, then
+> fixed with a lock whose critical sections deliberately exclude the database
+> work.
+>
+> The dead lazy-resolution path is removed regardless: it made `evaluate()`
+> look impure and would have become the race I wrongly described the moment
+> anything compiled without a ctx. `ctx` is now required and overrides resolve
+> once, at compile time.
+>
+> That change had a real consequence I nearly shipped silently. Creating an
+> HA area used to activate a room override that named it, via the lazy
+> promotion. With compile-time resolution that only happens on recompile, so
+> `area_registry_updated` now rebuilds the engine.
+> `tests/integration/test_area_change_recompiles.py` covers it, and was
+> confirmed failing without the recompile.
+>
+> `CompiledCustom.runtime_errors` is deleted. It was incremented on every CEL
+> runtime error and **never read anywhere** — mutation of shared state for no
+> benefit.
 
 `rules/naming_convention.py:127-137`, inside `evaluate()`:
 

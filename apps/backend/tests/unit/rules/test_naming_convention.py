@@ -36,27 +36,27 @@ def _policy(
 
 
 def test_global_snake_case_passes():
-    rule = compile_naming_convention(_policy("snake_case"))
+    rule = compile_naming_convention(_policy("snake_case"), _ctx())
     assert rule.evaluate(_d(name="living_room_lamp"), _ctx()) is None
 
 
 def test_global_snake_case_fails_on_camelcase():
-    rule = compile_naming_convention(_policy("snake_case"))
+    rule = compile_naming_convention(_policy("snake_case"), _ctx())
     issue = rule.evaluate(_d(name="LivingRoomLamp"), _ctx())
     assert issue is not None
     assert "Convention" in issue.message
 
 
 def test_kebab_case_preset():
-    rule = compile_naming_convention(_policy("kebab-case"))
+    rule = compile_naming_convention(_policy("kebab-case"), _ctx())
     assert rule.evaluate(_d(name="hall-lamp"), _ctx()) is None
     assert rule.evaluate(_d(name="hall_lamp"), _ctx()) is not None
 
 
 def test_room_override_resolved_by_name():
     rooms = [RoomOverride(room="Garage", preset="prefix-type-n")]
-    rule = compile_naming_convention(_policy("snake_case", rooms=rooms))
     ctx = _ctx(area_name_to_id={"garage": "garage_xyz"}, area_id_to_name={"garage_xyz": "Garage"})
+    rule = compile_naming_convention(_policy("snake_case", rooms=rooms), ctx)
     # Device in Garage must match prefix-type-n (^[a-z]+_[a-z]+_[0-9]+$)
     assert rule.evaluate(_d(name="garage_light_1", area_id="garage_xyz"), ctx) is None
     assert rule.evaluate(_d(name="random_name", area_id="garage_xyz"), ctx) is not None
@@ -64,14 +64,14 @@ def test_room_override_resolved_by_name():
 
 def test_room_override_resolved_by_area_id():
     rooms = [RoomOverride(area_id="garage_xyz", preset="kebab-case")]
-    rule = compile_naming_convention(_policy("snake_case", rooms=rooms))
+    rule = compile_naming_convention(_policy("snake_case", rooms=rooms), _ctx())
     ctx = _ctx()
     assert rule.evaluate(_d(name="hall-lamp", area_id="garage_xyz"), ctx) is None
     assert rule.evaluate(_d(name="hall_lamp", area_id="garage_xyz"), ctx) is not None
 
 
 def test_exception_suppresses():
-    rule = compile_naming_convention(_policy("snake_case"))
+    rule = compile_naming_convention(_policy("snake_case"), _ctx())
     ctx = _ctx(exceptions={("device", "d1", "nc")})
     assert rule.evaluate(_d(name="NotSnake"), ctx) is None
 
@@ -87,14 +87,14 @@ def test_custom_global_pattern():
             "rooms": [],
         }
     )
-    rule = compile_naming_convention(pol)
+    rule = compile_naming_convention(pol, _ctx())
     assert rule.evaluate(_d(name="X_42"), _ctx()) is None
     assert rule.evaluate(_d(name="Y_42"), _ctx()) is not None
 
 
 def test_unresolvable_room_name_falls_back_to_global_with_error_note():
     rooms = [RoomOverride(room="Ghost", preset="prefix-type-n")]
-    rule = compile_naming_convention(_policy("snake_case", rooms=rooms))
+    rule = compile_naming_convention(_policy("snake_case", rooms=rooms), _ctx())
     ctx = _ctx()
     # No matching area → policy gets marked as degraded, but evaluation still checks global.
     assert rule.evaluate(_d(name="snake_case_ok"), ctx) is None
@@ -102,18 +102,18 @@ def test_unresolvable_room_name_falls_back_to_global_with_error_note():
     assert "Ghost" in (rule.compile_error or "")
 
 
-def test_pending_room_override_promoted_on_first_evaluate():
-    """Once a room name resolves via ctx, it joins overrides_by_area_id and the
-    compile_error clears."""
+def test_room_override_resolves_at_compile_time():
+    """Resolution happens once, in `compile`, so `evaluate` stays pure.
+
+    It used to be deferred to the first `evaluate()` that could resolve it,
+    which meant evaluation mutated the compiled rule while running
+    concurrently in FastAPI's threadpool.
+    """
     rooms = [RoomOverride(room="Garage", preset="prefix-type-n")]
-    rule = compile_naming_convention(_policy("snake_case", rooms=rooms))
-    assert rule.pending_room_overrides
-    assert rule.compile_error is not None
-
     ctx = _ctx(area_name_to_id={"garage": "garage_xyz"})
-    rule.evaluate(_d(name="snake_case_ok"), ctx)
 
-    assert rule.pending_room_overrides == []
+    rule = compile_naming_convention(_policy("snake_case", rooms=rooms), ctx)
+
     assert rule.compile_error is None
     assert "garage_xyz" in rule.overrides_by_area_id
 

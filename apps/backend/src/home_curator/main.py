@@ -173,6 +173,35 @@ def create_app(
                     await broker.publish({"kind": kind, "entity_id": entity_id})
                 await broker.publish({"kind": "entities_changed"})
 
+            def _evaluation_context() -> EvaluationContext:
+                with session_scope(session_factory) as s:
+                    return EvaluationContext(
+                        area_name_to_id=cache.area_name_to_id(),
+                        area_id_to_name=cache.area_id_to_name(),
+                        exceptions=ExceptionsRepo(s).all_acknowledged_keys(),
+                    )
+
+            async def _recompile_engine() -> None:
+                """Rebuild the engine against the current area registry.
+
+                Naming-convention room overrides are matched by area *name*
+                and resolved to an area id when the rule is compiled, so a
+                rule referring to a room that does not exist yet compiles
+                with an error. Creating that area in Home Assistant has to
+                recompile, or the override would not take effect until the
+                next policy save or restart.
+                """
+                file_ = app.state.store.policies_file
+                if file_ is None:
+                    return
+                app.state.store.engine = RuleEngine.compile(
+                    file_, _evaluation_context()
+                )
+
+            async def _handle_area_change() -> None:
+                await _refresh_and_publish_devices()
+                await _recompile_engine()
+
             def on_event(e: HAEvent) -> None:
                 loop = asyncio.get_running_loop()
                 match e.kind:
@@ -187,7 +216,7 @@ def create_app(
                             _refresh_and_publish_entity(e.entity_id, "entity_deleted")
                         )
                     case "area_updated":
-                        loop.create_task(_refresh_and_publish_devices())
+                        loop.create_task(_handle_area_change())
                     case "reconnected":
                         loop.create_task(_refresh_and_publish_devices())
                         loop.create_task(
@@ -218,13 +247,9 @@ def create_app(
                 if load_.file is None:
                     await broker.publish({"kind": "policies_changed"})
                     return
-                with session_scope(session_factory) as s:
-                    ctx_ = EvaluationContext(
-                        area_name_to_id=cache.area_name_to_id(),
-                        area_id_to_name=cache.area_id_to_name(),
-                        exceptions=ExceptionsRepo(s).all_acknowledged_keys(),
-                    )
-                app.state.store.engine = RuleEngine.compile(load_.file, ctx_)
+                app.state.store.engine = RuleEngine.compile(
+                    load_.file, _evaluation_context()
+                )
                 app.state.store.policies_file = load_.file
                 await broker.publish({"kind": "policies_changed"})
 

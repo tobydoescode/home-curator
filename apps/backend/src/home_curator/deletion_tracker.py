@@ -1,4 +1,5 @@
 """Tracks device and entity deletions and reappearances via cache state transitions."""
+import threading
 from datetime import UTC, datetime
 from typing import Any
 
@@ -44,6 +45,12 @@ class DeletionTracker:
         self._repo = DeletionRepo(session)
         self._state: dict[str, dict[str, Any]] = {}
         self._entity_state: dict[str, dict[str, Any]] = {}
+        # The state dicts are written from the event loop (HA event callbacks
+        # drive `handle_diff_from_cache`) and read from FastAPI's threadpool
+        # (`list_devices` and the simulator are sync handlers). Iterating a
+        # dict while another thread inserts into it raises
+        # "dictionary changed size during iteration" and fails the request.
+        self._lock = threading.Lock()
 
         self._last_known_identifiers: dict[str, tuple[tuple[str, str], ...]] = {
             d.id: cache.identifiers(d.id) or () for d in cache.devices()
@@ -67,10 +74,12 @@ class DeletionTracker:
 
     # ---- device API (unchanged) ----
     def state_for(self, device_id: str) -> dict[str, Any]:
-        return dict(self._state.get(device_id, {}))
+        with self._lock:
+            return dict(self._state.get(device_id, {}))
 
     def all_state(self) -> dict[str, dict[str, Any]]:
-        return {k: dict(v) for k, v in self._state.items()}
+        with self._lock:
+            return {k: dict(v) for k, v in self._state.items()}
 
     def handle_diff_from_cache(self) -> None:
         """Device-cache diff. Call after `RegistryCache.refresh()`."""
@@ -89,6 +98,7 @@ class DeletionTracker:
                 deleted_at=datetime.now(UTC),
             )
 
+        reappeared: list[str] = []
         for did in current_ids - before_ids:
             identifiers = self._cache.identifiers(did) or ()
             if not identifiers:
@@ -96,7 +106,7 @@ class DeletionTracker:
             h = identifiers_hash(identifiers)
             if self._repo.is_reappearance(h):
                 self._repo.mark_reappeared(h)
-                self._state[did] = {STATE_KEY_REAPPEARED: True}
+                reappeared.append(did)
 
         self._last_known_identifiers = {
             d.id: self._cache.identifiers(d.id) or () for d in self._cache.devices()
@@ -105,16 +115,23 @@ class DeletionTracker:
             d.id: self._last_known_first_seen.get(d.id, datetime.now(UTC))
             for d in self._cache.devices()
         }
-        self._state = {
-            did: s for did, s in self._state.items() if did in current_ids
-        }
+        # One short critical section, deliberately outside the repository
+        # calls above so a reader never waits on database I/O.
+        with self._lock:
+            for did in reappeared:
+                self._state[did] = {STATE_KEY_REAPPEARED: True}
+            self._state = {
+                did: s for did, s in self._state.items() if did in current_ids
+            }
 
     # ---- entity API (new) ----
     def entity_state_for(self, entity_id: str) -> dict[str, Any]:
-        return dict(self._entity_state.get(entity_id, {}))
+        with self._lock:
+            return dict(self._entity_state.get(entity_id, {}))
 
     def all_entity_state(self) -> dict[str, dict[str, Any]]:
-        return {k: dict(v) for k, v in self._entity_state.items()}
+        with self._lock:
+            return {k: dict(v) for k, v in self._entity_state.items()}
 
     def handle_entity_diff_from_cache(self) -> None:
         """Entity-cache diff. Call after `EntityRegistryCache.refresh()`.
@@ -142,13 +159,14 @@ class DeletionTracker:
 
         # Additions — may be reappearances (same identity hash under same or
         # different entity_id).
+        reappeared: list[str] = []
         for eid in current_ids - before_ids:
             e = current_by_id[eid]
             identity = _entity_identity(e.platform, e.unique_id, e.entity_id)
             h = identifiers_hash([identity])
             if self._repo.is_reappearance(h):
                 self._repo.mark_reappeared(h)
-                self._entity_state[eid] = {STATE_KEY_REAPPEARED: True}
+                reappeared.append(eid)
 
         # Snapshot for next round, pruned to current entities.
         self._last_known_entity_identity = {
@@ -161,6 +179,9 @@ class DeletionTracker:
             )
             for e in self._entity_cache.entities()
         }
-        self._entity_state = {
-            eid: s for eid, s in self._entity_state.items() if eid in current_ids
-        }
+        with self._lock:
+            for eid in reappeared:
+                self._entity_state[eid] = {STATE_KEY_REAPPEARED: True}
+            self._entity_state = {
+                eid: s for eid, s in self._entity_state.items() if eid in current_ids
+            }

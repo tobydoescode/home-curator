@@ -95,8 +95,8 @@ def test_runtime_error_counted():
         }
     )
     rule = compile_custom(p)
-    rule.evaluate(_d(), _ctx())
-    assert rule.runtime_errors >= 1
+    # A CEL runtime error must not escape; the rule simply reports no issue.
+    assert rule.evaluate(_d(), _ctx()) is None
 
 
 def test_exception_suppresses():
@@ -131,9 +131,12 @@ def test_disabled_rule_does_not_fire():
     assert rule.evaluate(_d(area_id=None), _ctx()) is None
 
 
-def test_runtime_errors_capped():
-    from home_curator.rules.custom_cel import MAX_RUNTIME_ERRORS
+def test_repeated_runtime_errors_stay_contained():
+    """A bad expression firing against every device must not accumulate state.
 
+    This previously incremented a counter nothing read, which also meant
+    `evaluate` mutated the shared compiled rule from FastAPI's threadpool.
+    """
     p = CustomPolicy.model_validate(
         {
             "id": "c",
@@ -146,7 +149,6 @@ def test_runtime_errors_capped():
         }
     )
     rule = compile_custom(p)
-    # Evaluate MAX + 10 times; counter should stop at MAX
-    for _ in range(MAX_RUNTIME_ERRORS + 10):
-        rule.evaluate(_d(), _ctx())
-    assert rule.runtime_errors == MAX_RUNTIME_ERRORS
+
+    for _ in range(100):
+        assert rule.evaluate(_d(), _ctx()) is None

@@ -106,7 +106,6 @@ class CompiledNamingConvention:
     global_pattern: Pattern[str]
     global_starts_with_room: bool
     overrides_by_area_id: dict[str, _OverrideEntry] = field(default_factory=dict)
-    pending_room_overrides: list[tuple[str, _OverrideEntry]] = field(default_factory=list)
     unresolved_room_names: list[str] = field(default_factory=list)
     rule_type: str = "naming_convention"
     scope: TargetScope = "devices"
@@ -124,17 +123,6 @@ class CompiledNamingConvention:
         device = thing
         if ("device", device.id, self.id) in ctx.exceptions:
             return None
-        if self.pending_room_overrides:
-            still_pending: list[tuple[str, _OverrideEntry]] = []
-            for room_name, entry in self.pending_room_overrides:
-                resolved = ctx.resolve_area_id_from_name(room_name)
-                if resolved is None:
-                    still_pending.append((room_name, entry))
-                else:
-                    self.overrides_by_area_id[resolved] = entry
-                    if room_name in self.unresolved_room_names:
-                        self.unresolved_room_names.remove(room_name)
-            self.pending_room_overrides = still_pending
 
         override = device.area_id and self.overrides_by_area_id.get(device.area_id)
         if override and not override.enabled:
@@ -165,10 +153,20 @@ class CompiledNamingConvention:
 
 
 def compile_naming_convention(
-    p: NamingConventionPolicy, ctx: EvaluationContext | None = None
+    p: NamingConventionPolicy, ctx: EvaluationContext
 ) -> CompiledNamingConvention:
+    """Resolve every room override against `ctx` up front.
+
+    `ctx` is required rather than optional. It used to be allowed to be None,
+    in which case unresolved overrides were stashed and promoted lazily on the
+    first `evaluate()` that could resolve them — which made evaluation mutate
+    the compiled rule. `RuleEngine.compile` has always supplied a ctx, so that
+    path was unreachable in production, but it left `evaluate()` looking
+    impure and would have become a genuine cross-thread race the moment
+    anything compiled without one: evaluation runs concurrently in FastAPI's
+    threadpool.
+    """
     overrides: dict[str, _OverrideEntry] = {}
-    pending: list[tuple[str, _OverrideEntry]] = []
     unresolved: list[str] = []
     for override in p.rooms:
         entry = _OverrideEntry(
@@ -184,12 +182,7 @@ def compile_naming_convention(
         )
         area_id = _resolve_area_id(override, ctx)
         if area_id is None:
-            room_name = override.room
-            if room_name and ctx is None:
-                pending.append((room_name, entry))
-                unresolved.append(room_name)
-            else:
-                unresolved.append(room_name or "?")
+            unresolved.append(override.room or "?")
             continue
         overrides[area_id] = entry
     return CompiledNamingConvention(
@@ -200,15 +193,14 @@ def compile_naming_convention(
         global_pattern=_pattern_from_config(p.global_),
         global_starts_with_room=p.starts_with_room,
         overrides_by_area_id=overrides,
-        pending_room_overrides=pending,
         unresolved_room_names=unresolved,
     )
 
 
-def _resolve_area_id(override: RoomOverride, ctx: EvaluationContext | None) -> str | None:
+def _resolve_area_id(override: RoomOverride, ctx: EvaluationContext) -> str | None:
     if override.area_id:
         return override.area_id
-    if override.room and ctx:
+    if override.room:
         return ctx.resolve_area_id_from_name(override.room)
     return None
 

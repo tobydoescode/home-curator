@@ -18,12 +18,6 @@ from home_curator.rules.base import (
 
 _ENV = celpy.Environment()
 
-# Cap on the per-rule runtime-error counter to prevent unbounded growth when a
-# misconfigured expression fires against many devices. The engine exposes the
-# counter as a diagnostic signal; the exact value is not load-bearing.
-MAX_RUNTIME_ERRORS = 1000
-
-
 def _compile(expr: str) -> Any:
     ast = _ENV.compile(expr)
     return _ENV.program(ast)
@@ -46,7 +40,6 @@ class CompiledCustom:
     _when: Any = field(default=None, init=False, repr=False)
     _assert: Any = field(default=None, init=False, repr=False)
     compile_error: str | None = field(default=None, init=False)
-    runtime_errors: int = field(default=0, init=False)
 
     def evaluate(self, thing: object, ctx: EvaluationContext) -> Issue | None:
         if not self.enabled or self.compile_error:
@@ -87,11 +80,13 @@ class CompiledCustom:
                     return None
             asserted = bool(self._assert.evaluate(cel_ctx))
         except Exception:
-            # cel-python raises CELEvalError on bad field access etc. Broad
-            # catch prevents one bad input from breaking the whole evaluation
-            # pass; counter caps so the number stays useful for diagnostics.
-            if self.runtime_errors < MAX_RUNTIME_ERRORS:
-                self.runtime_errors += 1
+            # cel-python raises CELEvalError on bad field access etc. A broad
+            # catch stops one bad input breaking the whole evaluation pass.
+            #
+            # This used to also bump a `runtime_errors` counter. Nothing ever
+            # read it, and incrementing it made `evaluate` mutate shared state
+            # from FastAPI's threadpool. Reinstate it as a return value if the
+            # diagnostic is ever wanted.
             return None
         if asserted:
             return None
