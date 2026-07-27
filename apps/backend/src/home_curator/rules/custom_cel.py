@@ -24,7 +24,7 @@ _ENV = celpy.Environment()
 MAX_RUNTIME_ERRORS = 1000
 
 
-def _compile(expr: str):
+def _compile(expr: str) -> Any:
     ast = _ENV.compile(expr)
     return _ENV.program(ast)
 

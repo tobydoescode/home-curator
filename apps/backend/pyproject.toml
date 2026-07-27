@@ -65,6 +65,20 @@ filterwarnings = [
     "error::DeprecationWarning:home_curator.*",
 ]
 
+[tool.mypy]
+# `strict` rather than a hand-picked subset: the codebase is already almost
+# fully typed, so the whole set cost ~38 fixes, nearly all of them missing
+# annotations. Pinned to the minimum supported interpreter, not CI's, so
+# 3.12-incompatible typing cannot slip through.
+python_version = "3.12"
+strict = true
+
+[[tool.mypy.overrides]]
+# celpy ships no type information; without this, importing it makes every
+# expression that touches it Any and `strict` reports the module as missing.
+module = ["celpy.*"]
+ignore_missing_imports = true
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"

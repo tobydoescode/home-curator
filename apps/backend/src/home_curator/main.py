@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import os
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -56,7 +57,7 @@ async def _safety_resync_loop(
     entity_cache: EntityRegistryCache,
     tracker: DeletionTracker,
     broker: EventBroker,
-    session_commit,
+    session_commit: Callable[[], None],
 ) -> None:
     while True:
         await asyncio.sleep(5 * 60)
@@ -78,7 +79,7 @@ def create_app(
     ha_client: HAClient | None = None, settings: Settings | None = None
 ) -> FastAPI:
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # Build effective config inside lifespan so importing this module has
         # no filesystem side-effect (make_engine creates data_dir).
         effective_settings = settings or Settings()
@@ -148,7 +149,7 @@ def create_app(
                 else RuleEngine(compiled=[])
             )
 
-            async def _refresh_and_publish_devices():
+            async def _refresh_and_publish_devices() -> None:
                 try:
                     await cache.refresh()
                     tracker.handle_diff_from_cache()
@@ -157,7 +158,9 @@ def create_app(
                     log.exception("registry refresh on HA event failed")
                 await broker.publish({"kind": "devices_changed"})
 
-            async def _refresh_and_publish_entity(entity_id: str | None, kind: str):
+            async def _refresh_and_publish_entity(
+                entity_id: str | None, kind: str
+            ) -> None:
                 try:
                     await entity_cache.refresh()
                     tracker.handle_entity_diff_from_cache()
@@ -208,7 +211,7 @@ def create_app(
                 broker=broker,
             )
 
-            async def reload_policies():
+            async def reload_policies() -> None:
                 load_ = load_policies_file(effective_settings.policies_path)
                 app.state.store.policies_error = load_.error
                 # Keep last-good rules loaded on invalid reloads.

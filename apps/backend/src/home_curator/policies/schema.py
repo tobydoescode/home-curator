@@ -1,4 +1,5 @@
-from typing import Annotated, Literal
+from collections.abc import Sequence
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -42,7 +43,7 @@ class NamingPatternConfig(BaseModel):
     pattern: str | None = None
 
     @model_validator(mode="after")
-    def _custom_needs_pattern(self):
+    def _custom_needs_pattern(self) -> Self:
         has_pattern = bool((self.pattern or "").strip())
         if self.preset == "custom" and not has_pattern:
             raise ValueError("preset='custom' requires a non-empty 'pattern'")
@@ -62,19 +63,19 @@ class RoomOverride(BaseModel):
     starts_with_room: bool | None = None
 
     @model_validator(mode="after")
-    def _needs_reference(self):
+    def _needs_reference(self) -> Self:
         if not self.room and not self.area_id:
             raise ValueError("room override needs 'room' or 'area_id'")
         return self
 
     @model_validator(mode="after")
-    def _enabled_requires_preset(self):
+    def _enabled_requires_preset(self) -> Self:
         if self.enabled and self.preset is None:
             raise ValueError("enabled override must specify 'preset'")
         return self
 
     @model_validator(mode="after")
-    def _pattern_valid_for_preset(self):
+    def _pattern_valid_for_preset(self) -> Self:
         if not self.enabled or self.preset is None:
             return self
         has_pattern = bool((self.pattern or "").strip())
@@ -85,7 +86,9 @@ class RoomOverride(BaseModel):
         return self
 
 
-def _validate_unique_room_overrides(rooms, *, context: str) -> None:
+def _validate_unique_room_overrides(
+    rooms: "Sequence[RoomOverride | EntityIdRoomOverride]", *, context: str
+) -> None:
     """Shared uniqueness check. Used by the device NamingConventionPolicy,
     and the name/entity_id blocks of EntityNamingConventionPolicy. A single
     room can have only one override — the evaluator keys by area_id / room
@@ -117,7 +120,7 @@ class NamingConventionPolicy(_PolicyBase):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     @model_validator(mode="after")
-    def _unique_room_overrides(self):
+    def _unique_room_overrides(self) -> Self:
         _validate_unique_room_overrides(self.rooms, context="rooms")
         return self
 
@@ -135,7 +138,7 @@ class EntityIdRoomOverride(BaseModel):
     enabled: bool = True
 
     @model_validator(mode="after")
-    def _needs_reference(self):
+    def _needs_reference(self) -> Self:
         if not self.room and not self.area_id:
             raise ValueError("room override needs 'room' or 'area_id'")
         return self
@@ -151,7 +154,7 @@ class EntityNameBlock(BaseModel):
     rooms: list[RoomOverride] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _unique_rooms(self):
+    def _unique_rooms(self) -> Self:
         _validate_unique_room_overrides(self.rooms, context="name.rooms")
         return self
 
@@ -168,7 +171,7 @@ class EntityIdBlock(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _reject_preset(cls, data):
+    def _reject_preset(cls, data: Any) -> Any:
         if isinstance(data, dict) and "preset" in data:
             raise ValueError(
                 "'preset' is not settable on entity_id — the convention is "
@@ -180,7 +183,7 @@ class EntityIdBlock(BaseModel):
         return data
 
     @model_validator(mode="after")
-    def _unique_rooms(self):
+    def _unique_rooms(self) -> Self:
         _validate_unique_room_overrides(self.rooms, context="entity_id.rooms")
         return self
 

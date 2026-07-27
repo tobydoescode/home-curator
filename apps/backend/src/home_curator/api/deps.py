@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from fastapi import Request
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from home_curator.deletion_tracker import DeletionTracker
 from home_curator.events.broker import EventBroker
@@ -21,9 +21,11 @@ class AppState:
     engine: RuleEngine
     policies_file: PoliciesFile | None
     policies_error: str | None
-    session_factory: sessionmaker
+    session_factory: sessionmaker[Session]
     broker: EventBroker
 
 
 def app_state(request: Request) -> AppState:
-    return request.app.state.store
+    state = request.app.state.store
+    assert isinstance(state, AppState)
+    return state

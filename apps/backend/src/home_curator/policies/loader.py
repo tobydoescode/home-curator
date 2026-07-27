@@ -4,7 +4,8 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
-from ruamel.yaml import YAML, YAMLError
+from ruamel.yaml import YAML
+from ruamel.yaml.error import YAMLError
 
 from home_curator.policies.schema import PoliciesFile
 from home_curator.policies.writer import write_policies_file

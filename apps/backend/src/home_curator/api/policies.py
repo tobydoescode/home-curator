@@ -17,7 +17,7 @@ from home_curator.config import Settings
 from home_curator.policies.schema import CustomPolicy, PoliciesFile, Policy
 from home_curator.policies.writer import write_policies_file
 from home_curator.rules.base import Device, Entity
-from home_curator.rules.custom_cel import compile_custom
+from home_curator.rules.custom_cel import CompiledCustom, compile_custom
 from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
 
@@ -145,7 +145,7 @@ def simulate_policy(
     return _simulate_devices(rule, state)
 
 
-def _simulate_devices(rule, state: AppState) -> SimulateResponse:
+def _simulate_devices(rule: CompiledCustom, state: AppState) -> SimulateResponse:
     all_devices = state.cache.devices()
     tracker_state = state.tracker.all_state()
     hydrated = [
@@ -193,7 +193,7 @@ def _simulate_devices(rule, state: AppState) -> SimulateResponse:
     )
 
 
-def _simulate_entities(rule, state: AppState) -> SimulateResponse:
+def _simulate_entities(rule: CompiledCustom, state: AppState) -> SimulateResponse:
     area_id_to_name = state.cache.area_id_to_name()
     devices_by_id: dict[str, Device] = {
         d.id: Device(

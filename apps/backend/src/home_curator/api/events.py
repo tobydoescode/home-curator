@@ -1,5 +1,6 @@
 import asyncio
 import json
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, Request
 from sse_starlette.sse import EventSourceResponse
@@ -11,7 +12,9 @@ _APP_STATE_DEPENDENCY = Depends(app_state)
 
 
 @router.get("/events")
-async def events(request: Request, state: AppState = _APP_STATE_DEPENDENCY):
+async def events(
+    request: Request, state: AppState = _APP_STATE_DEPENDENCY
+) -> EventSourceResponse:
     """Server-Sent Events stream of registry change notifications.
 
     Each `message` event carries JSON `{kind}` where kind is
@@ -19,7 +22,7 @@ async def events(request: Request, state: AppState = _APP_STATE_DEPENDENCY):
     """
     queue = state.broker.subscribe()
 
-    async def event_source():
+    async def event_source() -> AsyncIterator[dict[str, str]]:
         try:
             while True:
                 if await request.is_disconnected():

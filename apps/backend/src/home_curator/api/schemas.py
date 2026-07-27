@@ -4,7 +4,7 @@ These define the shapes returned by every endpoint. Paired with FastAPI's
 `response_model=` they drive the OpenAPI spec at `/openapi.json`, which the
 frontend uses to generate a typed client.
 """
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -325,7 +325,7 @@ class SimulateRequest(BaseModel):
     policy_id: str | None = None
 
     @model_validator(mode="after")
-    def _one_of(self):
+    def _one_of(self) -> Self:
         if (self.policy is None) == (self.policy_id is None):
             raise ValueError("Provide exactly one of 'policy' or 'policy_id'")
         return self

@@ -1,11 +1,12 @@
 """SQLAlchemy custom column types."""
-from datetime import UTC
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime
+from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.types import TypeDecorator
 
 
-class TZDateTime(TypeDecorator):
+class TZDateTime(TypeDecorator[datetime]):
     """Timezone-aware datetime that survives SQLite's tzinfo-stripping round-trip.
 
     Incoming aware datetimes are normalised to UTC before storage. On read,
@@ -15,13 +16,17 @@ class TZDateTime(TypeDecorator):
     impl = DateTime
     cache_ok = True
 
-    def process_bind_param(self, value, dialect):
+    def process_bind_param(
+        self, value: datetime | None, dialect: Dialect
+    ) -> datetime | None:
         del dialect
         if value is not None and value.tzinfo is not None:
             return value.astimezone(UTC).replace(tzinfo=None)
         return value
 
-    def process_result_value(self, value, dialect):
+    def process_result_value(
+        self, value: datetime | None, dialect: Dialect
+    ) -> datetime | None:
         del dialect
         if value is not None:
             return value.replace(tzinfo=UTC)

@@ -1,3 +1,5 @@
+from typing import Self
+
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, model_validator
 
@@ -10,6 +12,7 @@ from home_curator.api.schemas import (
     ExceptionRow,
     ExceptionsListResponse,
 )
+from home_curator.rules.base import Device, Entity
 from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
 
@@ -31,7 +34,7 @@ class AcknowledgeBody(BaseModel):
     acknowledged_by: str | None = None
 
     @model_validator(mode="after")
-    def _exactly_one_target(self):
+    def _exactly_one_target(self) -> Self:
         if (self.device_id is None) == (self.entity_id is None):
             raise ValueError(
                 "exactly one of device_id / entity_id is required",
@@ -66,7 +69,9 @@ def acknowledge(
 
 
 @router.delete("/device/{device_id}/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
-def clear(device_id: str, policy_id: str, state: AppState = _APP_STATE_DEPENDENCY):
+def clear(
+    device_id: str, policy_id: str, state: AppState = _APP_STATE_DEPENDENCY
+) -> None:
     """Remove an acknowledged exception for (device_id, policy_id)."""
     with session_scope(state.session_factory) as s:
         ExceptionsRepo(s).clear(device_id, policy_id)
@@ -74,7 +79,9 @@ def clear(device_id: str, policy_id: str, state: AppState = _APP_STATE_DEPENDENC
 
 
 @router.delete("/entity/{entity_id}/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
-def clear_entity(entity_id: str, policy_id: str, state: AppState = _APP_STATE_DEPENDENCY):
+def clear_entity(
+    entity_id: str, policy_id: str, state: AppState = _APP_STATE_DEPENDENCY
+) -> None:
     """Remove an acknowledged exception for (entity_id, policy_id). No-op if absent."""
     with session_scope(state.session_factory) as s:
         ExceptionsRepo(s).clear_entity(entity_id, policy_id)
@@ -103,7 +110,9 @@ def list_for_device(
         ]
 
 
-def _effective_area_id(entity, devices_by_id) -> str | None:
+def _effective_area_id(
+    entity: Entity, devices_by_id: dict[str, Device]
+) -> str | None:
     """The area an entity actually belongs to.
 
     An entity's own `area_id` is only an override; when it is unset the
