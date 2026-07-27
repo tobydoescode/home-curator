@@ -1,30 +1,54 @@
-## 0.2.0 — 2026-04-22
-
-### Breaking
-- The canned policy type `name_starts_with_room` has been removed. Its behaviour is now a modifier toggle inside `naming_convention` (`starts_with_room: true`). Files that still reference `name_starts_with_room` will fail to load; edit `/config/home-curator/policies.yaml` by hand to remove the standalone policy and set `starts_with_room: true` on the naming convention instead.
-
-### Added
-- Settings area split into Device Settings, Entity Settings (placeholder), Global Policies (custom CEL rules + live simulator), and Exceptions.
-- Per-room overrides can now set Preset = "Disabled" to opt a room out of the naming policy entirely.
-- Room overrides use a real HA-area picker instead of free-text.
-- Custom CEL rules are authorable in the UI with multiline editors, debounced compile validation, and a grouped failing/errored/passing results simulator.
-- Exceptions page lists all acknowledged exceptions with single and bulk delete.
-
-### Changed
-- `GET /api/exceptions/list` returns a paginated, filterable, joined response (legacy `GET /api/exceptions?device_id=…` is unchanged).
-- `PUT /api/policies` now cascades: orphan exceptions (referencing a policy that no longer exists) are deleted automatically.
-- `naming_convention` policies gain `starts_with_room: bool` and per-room overrides gain `enabled: bool`.
-- Custom policies gain `scope: devices` (required; `entities` reserved for future use).
-
-### API
-- New: `GET /api/policies/file`, `POST /api/policies/compile`, `POST /api/policies/simulate`, `GET /api/areas`, `GET /api/exceptions/list`, `POST /api/exceptions/bulk-delete`.
+# Changelog
 
 ## 0.1.0
 
-- Initial release.
-- Devices view with search, filtering, selection, pagination, and live SSE updates.
-- Built-in rules: missing room, naming convention (global + per-room), reappeared-after-delete.
-- Custom rules via CEL expressions.
-- Bulk actions: assign room, rename, rename-pattern (with dry-run preview).
-- Exception acknowledgement per device.
-- Settings UI for naming conventions.
+First release.
+
+### Devices
+
+- Devices view with search (plain or regex), filtering by room, issue type and
+  integration, multi-select, sortable columns, pagination and live SSE updates.
+- Bulk actions: assign room, rename, and regex rename-pattern with a dry-run
+  preview.
+- Edit drawer for a single device, and delete (single and bulk) with
+  per-device results so a partial failure reports which devices failed.
+
+### Entities
+
+- Entities view mirroring Devices, with additional filtering by domain and by
+  disabled / hidden state, and a device column joined from the device registry.
+- Bulk actions: assign room, enable / disable, show / hide, delete, and a
+  dual-regex rename covering both `entity_id` and friendly name, with dry-run.
+- Edit drawer for a single entity, including `entity_id` rename.
+- Deep-linkable: `?entity=<id>` opens the drawer directly.
+
+### Policies
+
+- Built-in rules: missing room, naming convention (global plus per-room
+  overrides, with a `starts_with_room` modifier), and reappeared-after-delete.
+- Entity-scope rules: entity naming convention (separate friendly-name and
+  `entity_id` blocks) and entity missing area, with a lenient mode that accepts
+  the owning device's area.
+- Custom rules via CEL expressions, scoped to devices or entities, authored in
+  the UI with debounced compile validation and a simulator that groups results
+  into failing, errored and passing.
+- Policies are hot-reloaded from `policies.yaml`; invalid content keeps the
+  last-good rules loaded and surfaces the error in the UI.
+- Baseline policies are merged in on load, so a config file written by an
+  earlier version still gains newly-added built-in rules.
+
+### Exceptions
+
+- Acknowledge an issue per device or per entity, with an optional note.
+- Exceptions page listing every acknowledgement, with filtering, pagination and
+  bulk delete.
+- Removing a policy cascades: exceptions referencing it are deleted
+  automatically.
+
+### Interface
+
+- Settings split into Device Settings, Entity Settings, Global Policies and
+  Exceptions.
+- Per-table column visibility, persisted locally.
+- Manual resync button for when the cache looks stale, light/dark colour scheme
+  toggle, and a live indicator showing when the last registry event arrived.

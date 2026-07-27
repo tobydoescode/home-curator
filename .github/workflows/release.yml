@@ -3,7 +3,10 @@ name: release
 on:
   push:
     tags:
-      - "v*"
+      # Both forms are accepted; the leading `v` is stripped before use so
+      # the published tag always matches config.yaml's `version`.
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+"
 
 jobs:
   build:
@@ -22,6 +25,32 @@ jobs:
             platform: linux/arm/v7
     steps:
       - uses: actions/checkout@v7
+
+      # The Supervisor pulls `<image>:<version>` using the `version` field
+      # from config.yaml, so the pushed tag has to match it exactly. A `v`
+      # prefix on the git tag would publish an image nobody can pull, and a
+      # config.yaml that was never bumped would leave users on the old
+      # version with no update prompt. Fail before building rather than
+      # publishing something unusable.
+      #
+      # Plain grep/sed rather than yq so this can run before any tooling is
+      # set up. Kept POSIX-portable (no GNU-only `\?`) so the same command
+      # can be checked on a developer machine.
+      - name: Resolve and verify version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          declared=$(grep -m1 '^version:' home-curator/config.yaml \
+            | sed 's/^version:[[:space:]]*//; s/^"//; s/"$//')
+          if [ "$version" != "$declared" ]; then
+            echo "::error::git tag '$GITHUB_REF_NAME' implies version" \
+                 "'$version', but home-curator/config.yaml declares" \
+                 "'$declared'. Bump config.yaml and commit it to main" \
+                 "before tagging."
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "Publishing version $version"
+
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
@@ -59,4 +88,4 @@ jobs:
           file: home-curator/Dockerfile
           platforms: ${{ matrix.platform }}
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/home-curator-${{ matrix.arch }}:${{ github.ref_name }}
+          tags: ghcr.io/${{ github.repository_owner }}/home-curator-${{ matrix.arch }}:${{ env.VERSION }}

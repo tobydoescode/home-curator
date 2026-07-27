@@ -34,6 +34,22 @@ Two consequences worth knowing:
   of an API that can rename and delete devices and entities. Adding a `ports:`
   mapping would expose that API unauthenticated on the LAN.
 
+## Releasing
+
+Home Assistant pulls `<image>:<version>` using the `version` field in
+`config.yaml`. For a repository addon it reads that file **from the git repo**,
+not from the image — so the bump has to be on `main` before the tag is pushed,
+or users stay on the old image with no update prompt.
+
+1. Bump `version:` in `config.yaml`.
+2. Add a matching `## <version>` heading to `CHANGELOG.md`.
+3. Commit both to `main`. The backend test suite fails if the two disagree
+   (`tests/unit/test_addon_metadata.py`), so this is checked on every PR.
+4. Tag and push: `git tag 0.2.0 && git push origin 0.2.0`.
+
+The release workflow strips a leading `v` if present, so `v0.2.0` and `0.2.0`
+both work, and refuses to publish if the tag and `config.yaml` disagree.
+
 ## Logs
 
 See the addon's logs for rule-engine errors and HA websocket reconnects.
