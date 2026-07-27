@@ -20,7 +20,7 @@ Everything below is grounded in the code as it stands. Items marked *(unverified
 
 | ID | Severity | Area | Issue |
 | --- | --- | --- | --- |
-| C-1 | Critical | Packaging | Frontend uses absolute paths; breaks under HA ingress |
+| C-1 | ~~Critical~~ **fixed** | Packaging | Frontend uses absolute paths; breaks under HA ingress |
 | C-2 | Critical | Release | Docker tag (`v0.1.0`) doesn't match the tag the Supervisor pulls (`0.1.0`) |
 | C-3 | Critical | First run | `CONFIG_DIR` is never created — first policy save 500s |
 | C-4 | High | Correctness | `/api/exceptions/list` applies `area_id` filter *after* pagination |
@@ -33,7 +33,16 @@ Everything below is grounded in the code as it stands. Items marked *(unverified
 
 ## 1. Critical / blocking
 
-### C-1 — The packaged frontend cannot load under HA ingress *(unverified at runtime)*
+### C-1 — The packaged frontend cannot load under HA ingress — **fixed**
+
+> **Status: fixed.** The backend now injects `<base href>` from the
+> `X-Ingress-Path` header (`api/spa.py`), Vite builds with `base: "./"`, and the
+> API client, SSE subscription and router basename all resolve against
+> `document.baseURI`. Guarded by `tests/e2e/` — an HTTP layer that follows the
+> page's own asset and API URLs, and a Chromium layer that confirms the app
+> actually boots under the prefix. Both were verified to fail when the
+> respective defect is reintroduced. The description below is kept for context.
+
 
 `home-curator/config.yaml:17-18` declares `ingress: true`. Home Assistant serves an ingress add-on under a path prefix (`/api/hassio_ingress/<session>/…`), which means every asset and API path the SPA emits must be **relative** to that prefix.
 
@@ -222,6 +231,16 @@ Two user-visible divergences between structurally parallel pages:
 | Stale selection pruning | none | prunes on data change (`EntitiesPage.tsx:200-213`) |
 
 `EntitiesPage.tsx:98` even carries a comment explaining why the URL is the better source of truth — the fix just wasn't applied to Devices. Selecting devices, filtering them out of view, then acting on the selection currently operates on invisible rows.
+
+### F-6b — Sidebar nav items are not real links
+
+`components/Layout.tsx:66-77` renders each nav item as a Mantine `NavLink` with an `onClick` that calls `preventDefault()` then `navigate()`, and **no `href`**. Mantine renders the root as an `<a>`, but an anchor without `href` has no implicit `link` role.
+
+Consequences: screen readers do not announce them as links; keyboard tab order skips them; and middle-click, ⌘-click and "open in new tab" all do nothing. Found while writing the ingress browser tests — `get_by_role("link", …)` could not match them, and the test had to fall back to locating by text.
+
+`pages/Settings/SettingsLayout.tsx:22` *does* set `href`, so the two navs behave differently.
+
+**Fix:** give `NavLink` `component={Link}` and `to=` (React Router's `Link` renders a real anchor with a resolved `href`, and correctly honours the router basename), or at minimum set `href` alongside the existing handler.
 
 ### F-6 — Stale comment in `list_entities`
 
@@ -488,6 +507,16 @@ A user hitting the CEL editor has no reference. This is the highest-value doc to
 ### D-6 — No LICENSE
 
 There is no LICENSE file. `repository.yaml` publishes this as an installable HA add-on repository — users have no terms. Add one.
+
+### D-6b — Errors in `docs/architecture/`
+
+Spotted while updating those diagrams for the ingress fix:
+
+- `live-updates.md:103` documents the manual resync endpoint as `POST /api/resync`. The actual route is `POST /api/cache/resync` (`api/cache.py:6,10`). **Still outstanding.**
+- `frontend.md` stated that `generated.ts` "is committed: CI typechecks without booting the backend". It is gitignored (`apps/frontend/.gitignore:5`); what actually makes CI work is `npm run typecheck` running `gen:api:local` first. **Fixed** as part of C-1.
+- `frontend.md` described `baseUrl` resolving to `window.location.origin` as correct in all environments — it documented the C-1 bug as intended behaviour. **Fixed.**
+
+Worth a pass over the rest of these diagrams against the code; they were written quickly and at least three claims in two files were wrong.
 
 ### D-7 — `docs/` is gitignored but three files are tracked anyway
 
