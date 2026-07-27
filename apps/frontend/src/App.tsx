@@ -7,6 +7,7 @@ import { Notifications } from "@mantine/notifications";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
+import { appBasename } from "@/api/basePath";
 import { Layout } from "@/components/Layout";
 import { DevicesPage } from "@/pages/Devices/DevicesPage";
 import { EntitiesPage } from "@/pages/Entities/EntitiesPage";
@@ -30,12 +31,8 @@ const colorSchemeManager = localStorageColorSchemeManager({
 // router basename none of the routes below would ever match, because the
 // router would see the prefix as part of the path.
 //
-// Outside ingress `document.baseURI` has no prefix and this resolves to "/",
-// leaving routing unchanged.
-const basename =
-  typeof document !== "undefined" && document.baseURI
-    ? new URL(document.baseURI).pathname
-    : "/";
+// See basePath.ts for why this must not come from `document.baseURI`.
+const basename = appBasename();
 
 export default function App() {
   return (

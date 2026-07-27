@@ -1,3 +1,5 @@
+import { appBaseUrl } from "./basePath";
+
 export type SSEEvent =
   | { kind: "devices_changed" }
   | { kind: "policies_changed" }
@@ -10,12 +12,10 @@ export function subscribeSSE(
   onEvent: (e: SSEEvent) => void,
   onError?: (err: unknown) => void,
 ): () => void {
-  // Relative to `document.baseURI` so the stream resolves against the ingress
-  // prefix when there is one. An absolute "/api/events" would reach the Home
-  // Assistant host rather than the add-on.
-  const src = new EventSource(
-    new URL("api/events", document.baseURI).toString(),
-  );
+  // Resolved against the app's base so the stream reaches the addon under
+  // ingress. An absolute "/api/events" would reach the Home Assistant host
+  // instead.
+  const src = new EventSource(`${appBaseUrl()}/api/events`);
   src.addEventListener("message", (e) => {
     try {
       onEvent(JSON.parse(e.data) as SSEEvent);
