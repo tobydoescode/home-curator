@@ -103,6 +103,20 @@ def list_for_device(
         ]
 
 
+def _effective_area_id(entity, devices_by_id) -> str | None:
+    """The area an entity actually belongs to.
+
+    An entity's own `area_id` is only an override; when it is unset the
+    entity belongs to its device's area. `/api/entities` filters on the
+    resolved area, so this endpoint has to agree — matching on the raw
+    `area_id` would hide every entity that inherits its area.
+    """
+    if entity.area_id:
+        return entity.area_id
+    device = devices_by_id.get(entity.device_id) if entity.device_id else None
+    return device.area_id if device is not None else None
+
+
 @router.get("/list", response_model=ExceptionsListResponse)
 def list_paginated(
     search: str | None = None,
@@ -118,19 +132,11 @@ def list_paginated(
 
     Filters are ANDed. Passing `device_id` restricts to device-kind rows;
     passing `entity_id` restricts to entity-kind rows; passing neither
-    returns both kinds. `area_id` joins the device or entity cache
-    post-fetch since area membership lives there, not the SQLite row.
+    returns both kinds. `area_id` is resolved against the device and entity
+    caches — area membership lives there, not on the SQLite row — and the
+    resulting ids are pushed into the query so pagination applies to the
+    filtered set.
     """
-    with session_scope(state.session_factory) as s:
-        rows, total = ExceptionsRepo(s).list_paginated(
-            search=search,
-            policy_ids=set(policy_id) if policy_id else None,
-            device_ids=set(device_id) if device_id else None,
-            entity_ids=set(entity_id) if entity_id else None,
-            page=page,
-            page_size=page_size,
-        )
-
     devices_by_id = {d.id: d for d in state.cache.devices()}
     area_id_to_name = state.cache.area_id_to_name()
     entities_by_id = (
@@ -138,20 +144,28 @@ def list_paginated(
         if state.entity_cache is not None else {}
     )
 
+    targets_in_area: tuple[set[str], set[str]] | None = None
     if area_id:
         allowed = set(area_id)
-        filtered = []
-        for r in rows:
-            if r.device_id is not None:
-                d = devices_by_id.get(r.device_id)
-                if d is not None and d.area_id in allowed:
-                    filtered.append(r)
-            elif r.entity_id is not None:
-                e = entities_by_id.get(r.entity_id)
-                if e is not None and e.area_id in allowed:
-                    filtered.append(r)
-        rows = filtered
-        total = len(rows)
+        targets_in_area = (
+            {d.id for d in devices_by_id.values() if d.area_id in allowed},
+            {
+                e.entity_id
+                for e in entities_by_id.values()
+                if _effective_area_id(e, devices_by_id) in allowed
+            },
+        )
+
+    with session_scope(state.session_factory) as s:
+        rows, total = ExceptionsRepo(s).list_paginated(
+            search=search,
+            policy_ids=set(policy_id) if policy_id else None,
+            device_ids=set(device_id) if device_id else None,
+            entity_ids=set(entity_id) if entity_id else None,
+            targets_in_area=targets_in_area,
+            page=page,
+            page_size=page_size,
+        )
 
     policy_names: dict[str, str] = {}
     if state.policies_file is not None:
@@ -207,9 +221,9 @@ async def bulk_delete(
     state: AppState = _APP_STATE_DEPENDENCY,
 ) -> BulkDeleteResponse:
     """Delete multiple exceptions in one transaction and notify SSE subscribers."""
-    ids = set(body.ids)
     with session_scope(state.session_factory) as s:
-        deleted = ExceptionsRepo(s).bulk_delete(ids)
-    if deleted > 0:
+        deleted = ExceptionsRepo(s).bulk_delete(set(body.ids))
+    if deleted:
         await state.broker.publish({"kind": "exceptions_changed"})
-    return BulkDeleteResponse(deleted=sorted(ids))
+    # The ids actually removed, not the ids requested.
+    return BulkDeleteResponse(deleted=deleted)

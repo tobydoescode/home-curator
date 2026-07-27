@@ -191,6 +191,7 @@ class ExceptionsRepo:
         policy_ids: set[str] | None = None,
         device_ids: set[str] | None = None,
         entity_ids: set[str] | None = None,
+        targets_in_area: tuple[set[str], set[str]] | None = None,
         page: int = 1,
         page_size: int = 50,
     ) -> tuple[list[Exemption], int]:
@@ -200,6 +201,13 @@ class ExceptionsRepo:
         device_id OR entity_id (case-insensitive). Passing `device_ids`
         restricts to device-kind rows; passing `entity_ids` restricts to
         entity-kind rows; passing neither returns both kinds.
+
+        `targets_in_area` is a `(device_ids, entity_ids)` pair matched with
+        OR rather than AND, because a row carries exactly one of the two —
+        ANDing them would match nothing. It exists so area filtering happens
+        in the query: doing it after this method returned would filter a
+        single already-paginated page, hiding later matches and making
+        `total` a per-page count.
         """
         stmt = select(Exemption)
         if policy_ids:
@@ -208,6 +216,14 @@ class ExceptionsRepo:
             stmt = stmt.where(Exemption.device_id.in_(device_ids))
         if entity_ids:
             stmt = stmt.where(Exemption.entity_id.in_(entity_ids))
+        if targets_in_area is not None:
+            area_device_ids, area_entity_ids = targets_in_area
+            stmt = stmt.where(
+                or_(
+                    Exemption.device_id.in_(area_device_ids),
+                    Exemption.entity_id.in_(area_entity_ids),
+                )
+            )
         if search:
             like = f"%{search.lower()}%"
             stmt = stmt.where(
@@ -226,11 +242,20 @@ class ExceptionsRepo:
         rows = list(self.session.execute(stmt).scalars())
         return rows, int(total)
 
-    def bulk_delete(self, ids: set[int]) -> int:
+    def bulk_delete(self, ids: set[int]) -> list[int]:
+        """Delete the given exceptions, returning the ids that actually existed.
+
+        Returns the ids rather than a count so callers can report what was
+        really removed; echoing back the requested ids would claim success
+        for rows that were never there.
+        """
         if not ids:
-            return 0
-        result = cast(
-            CursorResult[object],
-            self.session.execute(delete(Exemption).where(Exemption.id.in_(ids))),
+            return []
+        existing = sorted(
+            self.session.execute(
+                select(Exemption.id).where(Exemption.id.in_(ids))
+            ).scalars()
         )
-        return _deleted_count(result)
+        if existing:
+            self.session.execute(delete(Exemption).where(Exemption.id.in_(existing)))
+        return existing

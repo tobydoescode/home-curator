@@ -23,7 +23,7 @@ Everything below is grounded in the code as it stands. Items marked *(unverified
 | C-1 | ~~Critical~~ **fixed** | Packaging | Frontend uses absolute paths; breaks under HA ingress |
 | C-2 | ~~Critical~~ **fixed** | Release | Docker tag (`v0.1.0`) doesn't match the tag the Supervisor pulls (`0.1.0`) |
 | C-3 | ~~Critical~~ **fixed** | First run | `CONFIG_DIR` is never created — first policy save 500s |
-| C-4 | High | Correctness | `/api/exceptions/list` applies `area_id` filter *after* pagination |
+| C-4 | ~~High~~ **fixed** | Correctness | `/api/exceptions/list` applies `area_id` filter *after* pagination |
 | C-5 | High | Config | `Settings()` re-instantiated in request handlers, ignoring injected settings |
 | C-6 | High | Concurrency | Compiled rules mutate themselves during evaluation |
 | C-7 | High | Data safety | `policies.yaml` written non-atomically |
@@ -148,7 +148,32 @@ effective_settings.config_dir.mkdir(parents=True, exist_ok=True)
 
 Then correct the README, or implement the seed-on-first-run the README promises. Pick one — right now they disagree.
 
-### C-4 — `/api/exceptions/list` filters by area after paginating
+### C-4 — `/api/exceptions/list` filters by area after paginating — **fixed**
+
+> **Status: fixed**, and it turned out to be three defects rather than one.
+>
+> 1. **Filtering after pagination.** Area filtering ran in Python against a
+>    single already-paginated page, so matches beyond page one were
+>    unreachable and `total` reported a per-page count. Area ids are now
+>    resolved to device and entity ids up front and pushed into the query via
+>    a new `targets_in_area` parameter, so `LIMIT`/`OFFSET` apply to the
+>    filtered set. The pair is ORed, not ANDed — a row carries exactly one of
+>    the two target columns, so ANDing them would match nothing.
+> 2. **Entities were matched on their own `area_id`**, which is only an
+>    override. An entity inheriting its area from its device was invisible to
+>    the filter, contradicting `/api/entities`, which matches on the resolved
+>    area. Both now agree.
+> 3. **`bulk_delete` echoed back the requested ids**, claiming success for
+>    rows that never existed. The repository now returns the ids it actually
+>    deleted.
+>
+> Covered by `tests/integration/test_exceptions_area_filter.py` (10 tests) —
+> there was no coverage of this parameter at all. All five relevant tests were
+> confirmed failing before the fix.
+>
+> Still true, and separate: the filter is unreachable from the UI —
+> `useExceptions.ts` plumbs `area_id` through but `ExceptionsPage.tsx` never
+> passes it. That is F-2's territory.
 
 `api/exceptions.py:124-154`:
 

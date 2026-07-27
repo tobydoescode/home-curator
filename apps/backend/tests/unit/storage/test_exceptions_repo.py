@@ -145,7 +145,7 @@ def test_list_paginated_filters_by_policy_and_device(session_factory):
     assert [r.device_id for r in rows] == ["d1"]
 
 
-def test_bulk_delete_returns_deleted_count(session_factory):
+def test_bulk_delete_returns_the_ids_it_deleted(session_factory):
     with session_scope(session_factory) as s:
         s.add_all([
             Exemption(id=1, device_id="d1", policy_id="p1"),
@@ -154,7 +154,21 @@ def test_bulk_delete_returns_deleted_count(session_factory):
         ])
     with session_scope(session_factory) as s:
         deleted = ExceptionsRepo(s).bulk_delete({1, 3})
-    assert deleted == 2
+    assert deleted == [1, 3]
     with session_scope(session_factory) as s:
         rows, total = ExceptionsRepo(s).list_paginated()
         assert total == 1 and rows[0].id == 2
+
+
+def test_bulk_delete_ignores_ids_that_do_not_exist(session_factory):
+    """The caller is told what was really removed, not what it asked for."""
+    with session_scope(session_factory) as s:
+        s.add(Exemption(id=1, device_id="d1", policy_id="p1"))
+    with session_scope(session_factory) as s:
+        deleted = ExceptionsRepo(s).bulk_delete({1, 42})
+    assert deleted == [1]
+
+
+def test_bulk_delete_of_nothing_is_a_no_op(session_factory):
+    with session_scope(session_factory) as s:
+        assert ExceptionsRepo(s).bulk_delete(set()) == []
