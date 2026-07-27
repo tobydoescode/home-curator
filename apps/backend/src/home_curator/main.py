@@ -3,35 +3,21 @@ import asyncio
 import logging
 import os
 from collections.abc import AsyncIterator, Callable
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 
-from home_curator.api import (
-    areas as areas_api,
-)
-from home_curator.api import (
-    cache as cache_api,
-)
-from home_curator.api import (
-    config_api,
-)
-from home_curator.api import (
-    devices as devices_api,
-)
-from home_curator.api import (
-    entities as entities_api,
-)
-from home_curator.api import (
-    events as events_api,
-)
-from home_curator.api import (
-    exceptions as exceptions_api,
-)
-from home_curator.api import (
-    policies as policies_api,
-)
+# Aliased: the lifespan has local `cache` and `events` names, and an
+# unaliased module import would be shadowed by them.
+from home_curator.api import areas as areas_api
+from home_curator.api import cache as cache_api
+from home_curator.api import config_api
+from home_curator.api import devices as devices_api
+from home_curator.api import entities as entities_api
+from home_curator.api import events as events_api
+from home_curator.api import exceptions as exceptions_api
+from home_curator.api import policies as policies_api
 from home_curator.api.deps import AppState
 from home_curator.api.schemas import HealthResponse
 from home_curator.api.spa import mount_spa
@@ -42,6 +28,7 @@ from home_curator.ha_client.base import HAClient
 from home_curator.ha_client.models import HAEvent
 from home_curator.ha_client.websocket import WebSocketHAClient
 from home_curator.policies.loader import load_policies_file, seed_policies_file
+from home_curator.policies.watcher import watch_policies
 from home_curator.registry_cache.cache import RegistryCache
 from home_curator.registry_cache.entity_cache import EntityRegistryCache
 from home_curator.rules.base import EvaluationContext
@@ -75,6 +62,24 @@ async def _safety_resync_loop(
             log.exception("safety resync failed")
 
 
+def _connect_to_home_assistant(settings: Settings) -> HAClient:
+    """Build the websocket client from configuration.
+
+    The URL is derived from `HA_URL` rather than configured separately, so a
+    user only has to get one of them right.
+    """
+    ha_url = settings.ha_url
+    if ha_url is None:
+        raise RuntimeError(
+            "HA_URL must be set (or SUPERVISOR_TOKEN, for add-on auto-discovery)"
+        )
+    ws_url = (
+        ha_url.replace("https://", "wss://").replace("http://", "ws://")
+        + "/api/websocket"
+    )
+    return WebSocketHAClient(url=ws_url, token=settings.effective_token or "")
+
+
 def create_app(
     ha_client: HAClient | None = None, settings: Settings | None = None
 ) -> FastAPI:
@@ -83,32 +88,28 @@ def create_app(
         # Build effective config inside lifespan so importing this module has
         # no filesystem side-effect (make_engine creates data_dir).
         effective_settings = settings or Settings()
-        engine_db = make_engine(effective_settings.db_path)
-        session_factory = make_session_factory(engine_db)
 
-        if ha_client is not None:
-            client: HAClient = ha_client
-        else:
-            ha_url = effective_settings.ha_url
-            assert ha_url is not None, (
-                "HA_URL must be set (or SUPERVISOR_TOKEN to use auto-discovery)"
-            )
-            ws_url = (
-                ha_url.replace("https://", "wss://").replace("http://", "ws://")
-                + "/api/websocket"
-            )
-            client = WebSocketHAClient(
-                url=ws_url,
-                token=effective_settings.effective_token or "",
-            )
+        # Each resource registers its own cleanup as it is acquired, and the
+        # stack unwinds in reverse on the way out — including when startup
+        # itself fails part-way. This replaced a hand-written teardown
+        # duplicated across an `except BaseException` and a `finally`, which
+        # had already drifted apart: the failure path stopped the Home
+        # Assistant client *after* closing the session its event callbacks
+        # use, while the success path stopped it before.
+        async with AsyncExitStack() as stack:
+            engine_db = make_engine(effective_settings.db_path)
+            stack.callback(engine_db.dispose)
+            session_factory = make_session_factory(engine_db)
 
-        await client.start()
-        # From here on, failures must stop the client before re-raising.
-        session = None
-        task = None
-        watcher_task = None
-        unsub = None
-        try:
+            # Opened before the client starts, so it is closed after the
+            # client stops: in-flight event callbacks write through it.
+            session = session_factory()
+            stack.callback(session.close)
+
+            client = ha_client or _connect_to_home_assistant(effective_settings)
+            await client.start()
+            stack.push_async_callback(client.stop)
+
             cache = RegistryCache(client)
             await cache.load()
             entity_cache = EntityRegistryCache(
@@ -117,7 +118,6 @@ def create_app(
                 device_lookup=cache.device,
             )
             await entity_cache.load()
-            session = session_factory()
             tracker = DeletionTracker(cache=cache, session=session, entity_cache=entity_cache)
             broker = EventBroker()
             # Creates the addon's config directory on a fresh install and drops
@@ -223,10 +223,11 @@ def create_app(
                             _refresh_and_publish_entity(None, "entities_changed")
                         )
 
-            unsub = client.subscribe(on_event)
-            task = asyncio.create_task(
+            stack.callback(client.subscribe(on_event))
+            resync_task = asyncio.create_task(
                 _safety_resync_loop(cache, entity_cache, tracker, broker, session.commit)
             )
+            stack.callback(resync_task.cancel)
 
             app.state.store = AppState(
                 settings=effective_settings,
@@ -254,36 +255,12 @@ def create_app(
                 app.state.store.policies_file = load_.file
                 await broker.publish({"kind": "policies_changed"})
 
-            from home_curator.policies.watcher import watch_policies
             watcher_task = asyncio.create_task(
                 watch_policies(effective_settings.policies_path, reload_policies)
             )
-        except BaseException:
-            if unsub is not None:
-                unsub()
-            if task is not None:
-                task.cancel()
-            if watcher_task is not None:
-                watcher_task.cancel()
-            if session is not None:
-                session.close()
-            engine_db.dispose()
-            await client.stop()
-            raise
+            stack.callback(watcher_task.cancel)
 
-        try:
             yield
-        finally:
-            if unsub is not None:
-                unsub()
-            if task is not None:
-                task.cancel()
-            if watcher_task is not None:
-                watcher_task.cancel()
-            await client.stop()
-            if session is not None:
-                session.close()
-            engine_db.dispose()
 
     app = FastAPI(lifespan=lifespan, title="Home Curator")
 
@@ -310,9 +287,8 @@ def create_app(
     return app
 
 
-# Uvicorn entrypoint — created lazily so test imports don't touch the filesystem.
-def _lazy_app() -> FastAPI:
-    return create_app()
-
-
-app = _lazy_app()
+# Uvicorn entrypoint. Importing this module has no filesystem side-effect:
+# `create_app` only registers routes, and everything that touches disk or the
+# network happens inside the lifespan. (The wrapper this replaced was named
+# `_lazy_app` but was called immediately, so it deferred nothing.)
+app = create_app()

@@ -1,10 +1,11 @@
 """In-memory cache of HA devices and areas, refreshed from an HAClient."""
 import asyncio
 import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from home_curator.ha_client.base import HAClient
 from home_curator.ha_client.models import HAArea, HADevice
+from home_curator.registry_cache.diff import Diff
 from home_curator.rules.base import Device, EntitySummary
 
 
@@ -12,13 +13,6 @@ from home_curator.rules.base import Device, EntitySummary
 class Area:
     id: str
     name: str
-
-
-@dataclass(frozen=True)
-class Diff:
-    added: list[str] = field(default_factory=list)
-    removed: list[str] = field(default_factory=list)
-    updated: list[str] = field(default_factory=list)
 
 
 def _to_device(d: HADevice, area_lookup: dict[str, str]) -> Device:

@@ -4,18 +4,11 @@ so rule-engine input is a single flat read."""
 import asyncio
 import copy
 from collections.abc import Callable
-from dataclasses import dataclass, field
 
 from home_curator.ha_client.base import HAClient
 from home_curator.ha_client.models import HAEntity
+from home_curator.registry_cache.diff import Diff
 from home_curator.rules.base import Device, Entity
-
-
-@dataclass(frozen=True)
-class Diff:
-    added: list[str] = field(default_factory=list)
-    removed: list[str] = field(default_factory=list)
-    updated: list[str] = field(default_factory=list)
 
 
 def _domain_of(entity_id: str) -> str:

@@ -9,8 +9,7 @@ from typing import Literal, Self
 from pydantic import BaseModel, Field, model_validator
 
 from home_curator.policies.schema import Policy
-
-Severity = Literal["info", "warning", "error"]
+from home_curator.rules.base import Severity
 
 
 class HealthResponse(BaseModel):

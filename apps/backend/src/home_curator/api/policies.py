@@ -1,5 +1,4 @@
 """GET / PUT /api/policies."""
-from celpy.adapter import json_to_cel
 from fastapi import APIRouter, Depends, HTTPException
 
 from home_curator.api.deps import AppState, app_state
@@ -15,7 +14,7 @@ from home_curator.api.schemas import (
 )
 from home_curator.policies.schema import CustomPolicy, PoliciesFile, Policy
 from home_curator.policies.writer import write_policies_file
-from home_curator.rules.base import Device, Entity
+from home_curator.rules.base import Device, Entity, EvaluationContext
 from home_curator.rules.custom_cel import CompiledCustom, compile_custom
 from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
@@ -161,21 +160,19 @@ def _simulate_devices(rule: CompiledCustom, state: AppState) -> SimulateResponse
     failing: list[SimulateTargetRow] = []
     errored: list[SimulateTargetRow] = []
     passing: list[SimulateTargetRow] = []
-    # Simulator runs raw CEL — acknowledged exceptions are intentionally not applied here.
+    # `check` runs the raw expressions: acknowledged exceptions are
+    # intentionally not applied here, so the author sees the rule's real reach.
+    ctx = EvaluationContext(area_name_to_id={}, area_id_to_name={}, exceptions=set())
     for d in hydrated:
-        cel_ctx = {"device": json_to_cel(d.to_cel_context())}
-        try:
-            if rule._when is not None and not bool(rule._when.evaluate(cel_ctx)):
-                continue
-            matched_when += 1
-            ok = bool(rule._assert.evaluate(cel_ctx))
-        except Exception as e:  # noqa: BLE001
-            errored.append(SimulateTargetRow(
-                id=d.id, name=d.display_name, room=d.area_name, error=str(e),
-            ))
+        outcome = rule.check(d, ctx)
+        if not outcome.matched_when:
             continue
+        matched_when += 1
         row = SimulateTargetRow(id=d.id, name=d.display_name, room=d.area_name)
-        if ok:
+        if outcome.error is not None:
+            row.error = outcome.error
+            errored.append(row)
+        elif outcome.passed:
             passing.append(row)
         else:
             row.message = rule.message
@@ -205,6 +202,12 @@ def _simulate_entities(rule: CompiledCustom, state: AppState) -> SimulateRespons
         for d in state.cache.devices()
     }
     all_entities: list[Entity] = state.entity_cache.entities()
+    ctx = EvaluationContext(
+        area_name_to_id={},
+        area_id_to_name=area_id_to_name,
+        exceptions=set(),
+        devices_by_id=devices_by_id,
+    )
     matched_when = 0
     failing: list[SimulateTargetRow] = []
     errored: list[SimulateTargetRow] = []
@@ -217,25 +220,17 @@ def _simulate_entities(rule: CompiledCustom, state: AppState) -> SimulateRespons
         area_name = (
             area_id_to_name.get(effective_area_id) if effective_area_id else None
         )
-        entity_ctx = e.to_cel_context(
-            device_context=owning.to_cel_context() if owning is not None else None,
-            area_name=area_name,
-        )
-        cel_ctx = {"entity": json_to_cel(entity_ctx)}
-        try:
-            if rule._when is not None and not bool(rule._when.evaluate(cel_ctx)):
-                continue
-            matched_when += 1
-            ok = bool(rule._assert.evaluate(cel_ctx))
-        except Exception as ex:  # noqa: BLE001
-            errored.append(SimulateTargetRow(
-                id=e.entity_id, name=e.display_name, room=area_name, error=str(ex),
-            ))
+        outcome = rule.check(e, ctx)
+        if not outcome.matched_when:
             continue
+        matched_when += 1
         row = SimulateTargetRow(
             id=e.entity_id, name=e.display_name, room=area_name,
         )
-        if ok:
+        if outcome.error is not None:
+            row.error = outcome.error
+            errored.append(row)
+        elif outcome.passed:
             passing.append(row)
         else:
             row.message = rule.message

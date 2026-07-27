@@ -23,6 +23,21 @@ def _compile(expr: str) -> Any:
     return _ENV.program(ast)
 
 
+@dataclass(frozen=True)
+class CelOutcome:
+    """What the expressions said about one device or entity.
+
+    `matched_when` is False when the rule's `when` gate excluded this thing
+    entirely. `passed` is the value of `assert` and is None when evaluation
+    raised. The simulator reports all three separately, which is why this is
+    richer than the bool `evaluate` needs.
+    """
+
+    matched_when: bool
+    passed: bool | None
+    error: str | None = None
+
+
 @dataclass
 class CompiledCustom:
     # Public, required at construction:
@@ -41,54 +56,70 @@ class CompiledCustom:
     _assert: Any = field(default=None, init=False, repr=False)
     compile_error: str | None = field(default=None, init=False)
 
+    def check(self, thing: object, ctx: EvaluationContext) -> CelOutcome:
+        """Run the expressions against `thing`. No policy semantics applied.
+
+        Deliberately knows nothing about `enabled` or acknowledged
+        exceptions — those are `evaluate`'s business, and the simulator wants
+        the raw result. Sharing this is what stops the simulator and the rule
+        engine drifting apart: they previously had two copies of this loop,
+        with the simulator reaching into `_when` and `_assert` directly.
+        """
+        cel_ctx = self._cel_context(thing, ctx)
+        try:
+            if self._when is not None and not bool(self._when.evaluate(cel_ctx)):
+                return CelOutcome(matched_when=False, passed=None)
+            return CelOutcome(
+                matched_when=True, passed=bool(self._assert.evaluate(cel_ctx))
+            )
+        except Exception as e:  # noqa: BLE001 - reported, not raised
+            # cel-python raises CELEvalError on bad field access etc. A broad
+            # catch stops one bad input breaking the whole evaluation pass.
+            return CelOutcome(matched_when=True, passed=None, error=str(e))
+
+    def _cel_context(
+        self, thing: object, ctx: EvaluationContext
+    ) -> dict[str, Any]:
+        if self.scope == "entities":
+            assert isinstance(thing, Entity)
+            owning_device_ctx: dict[str, Any] | None = None
+            if thing.device_id and thing.device_id in ctx.devices_by_id:
+                owning_device_ctx = ctx.devices_by_id[thing.device_id].to_cel_context()
+            area_name = (
+                ctx.area_id_to_name.get(thing.area_id) if thing.area_id else None
+            )
+            return {
+                "entity": json_to_cel(
+                    thing.to_cel_context(
+                        device_context=owning_device_ctx, area_name=area_name
+                    )
+                )
+            }
+        assert isinstance(thing, Device)
+        return {"device": json_to_cel(thing.to_cel_context())}
+
     def evaluate(self, thing: object, ctx: EvaluationContext) -> Issue | None:
         if not self.enabled or self.compile_error:
             return None
 
         if self.scope == "entities":
             assert isinstance(thing, Entity)
-            entity = thing
-            if ("entity", entity.entity_id, self.id) in ctx.exceptions:
+            assert isinstance(thing, Entity)
+            if ("entity", thing.entity_id, self.id) in ctx.exceptions:
                 return None
-            owning_device_ctx: dict[str, Any] | None = None
-            if entity.device_id and entity.device_id in ctx.devices_by_id:
-                owning_device_ctx = ctx.devices_by_id[entity.device_id].to_cel_context()
-            area_name = (
-                ctx.area_id_to_name.get(entity.area_id) if entity.area_id else None
-            )
-            cel_ctx = {
-                "entity": json_to_cel(
-                    entity.to_cel_context(
-                        device_context=owning_device_ctx, area_name=area_name,
-                    )
-                ),
-            }
             target_kind: TargetKind = "entity"
-            target_id = entity.entity_id
+            target_id = thing.entity_id
         else:
             assert isinstance(thing, Device)
-            device = thing
-            if ("device", device.id, self.id) in ctx.exceptions:
+            if ("device", thing.id, self.id) in ctx.exceptions:
                 return None
-            cel_ctx = {"device": json_to_cel(device.to_cel_context())}
             target_kind = "device"
-            target_id = device.id
+            target_id = thing.id
 
-        try:
-            if self._when is not None:
-                if not bool(self._when.evaluate(cel_ctx)):
-                    return None
-            asserted = bool(self._assert.evaluate(cel_ctx))
-        except Exception:
-            # cel-python raises CELEvalError on bad field access etc. A broad
-            # catch stops one bad input breaking the whole evaluation pass.
-            #
-            # This used to also bump a `runtime_errors` counter. Nothing ever
-            # read it, and incrementing it made `evaluate` mutate shared state
-            # from FastAPI's threadpool. Reinstate it as a return value if the
-            # diagnostic is ever wanted.
-            return None
-        if asserted:
+        outcome = self.check(thing, ctx)
+        # An expression that threw reports nothing rather than failing the
+        # whole pass; a rule that passed has no issue to report.
+        if not outcome.matched_when or outcome.passed is not False:
             return None
         return Issue(
             policy_id=self.id,

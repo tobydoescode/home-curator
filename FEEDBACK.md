@@ -512,7 +512,9 @@ def paginated_listing(items, *, predicates, sort_keys, render, evaluate, ctx, pa
 
 and on the frontend, a `useTablePageState({ arrayKeys, boolKeys })` hook that owns URL⇄filter serialisation and sort cycling for both pages. Extract the shared bits before adding a third resource type (Automations and Areas are already on the nav).
 
-### A-2 — `create_app`'s lifespan is a 160-line closure
+### A-2 — `create_app`'s lifespan is a 160-line closure — **fixed**
+
+> **Status: fixed.** Teardown is now a single `AsyncExitStack`: each resource registers its cleanup as it is acquired and the stack unwinds in reverse, for both a failed startup and a normal shutdown. The two hand-written blocks it replaced had already drifted — the failure path closed the database session *before* stopping the Home Assistant client, whose event callbacks write through that session, while the success path stopped it first. The session is now opened before the client starts so the ordering falls out of the stack rather than being restated. Client construction moved to `_connect_to_home_assistant`, and the `assert` on `HA_URL` became a real `RuntimeError` (part of **S-4**). `main.py` 318 → 294 lines, with `tests/integration/test_lifespan_teardown.py` covering the failed-startup path that previously had none.
 
 `main.py:79-239` holds the entire composition root inside one `asynccontextmanager`, including two nested async refresh functions, an event dispatcher, a policy-reload closure, and hand-rolled cleanup duplicated across an `except BaseException` block and a `finally` block (`:214-239`). The duplicated teardown is exactly the kind of thing that drifts — the two blocks already differ in ordering (`session.close()` before vs after `client.stop()`).
 
@@ -520,7 +522,9 @@ and on the frontend, a `useTablePageState({ arrayKeys, boolKeys })` hook that ow
 
 The import block at `main.py:10-33` — eight separate `from home_curator.api import (x as y)` statements — is a ruff/isort artifact of the aliasing. `from home_curator.api import areas, cache, config_api, devices, ...` collapses it to one line.
 
-### A-3 — `_lazy_app` isn't lazy
+### A-3 — `_lazy_app` isn't lazy — **fixed**
+
+> **Status: fixed.** Replaced with `app = create_app()` and a comment describing what actually keeps imports side-effect-free (everything touching disk or network is inside the lifespan). The import block went from eight three-line `from ... import (...)` blocks to eight single lines — ruff's isort re-splits the parenthesised form, and the aliases have to stay because the lifespan binds local `cache` and `events` names that would otherwise shadow the modules.
 
 ```python
 # main.py:266-271
@@ -533,7 +537,9 @@ app = _lazy_app()
 
 This is called immediately at import. The *actual* mechanism that keeps imports side-effect-free is the deferral of `Settings()`/`make_engine` into the lifespan (correctly noted at `main.py:81-82`). The wrapper adds nothing and the comment misdescribes it. Replace with `app = create_app()`.
 
-### A-4 — The simulator reaches into rule internals and duplicates the evaluator
+### A-4 — The simulator reaches into rule internals and duplicates the evaluator — **fixed**
+
+> **Status: fixed.** `CompiledCustom.check()` returns a `CelOutcome` (`matched_when`, `passed`, `error`) and is used by both `evaluate` and the simulator. The two private-attribute reaches into `_when` / `_assert` are gone, along with the duplicated evaluation loop. `check` deliberately knows nothing about `enabled` or acknowledged exceptions — that is `evaluate`'s business, and it is precisely what the simulator wants to bypass, so the difference is now expressed by which function you call rather than by a second implementation.
 
 `api/policies.py:160,163,218,221` read `rule._when` and `rule._assert` — private, `init=False` fields of `CompiledCustom` (`rules/custom_cel.py:46-47`). It then reimplements the when/assert evaluation loop twice (`_simulate_devices`, `_simulate_entities`), diverging from `CompiledCustom.evaluate` in three ways: no `enabled` check, no exception filtering (intentional, and documented at `:156`), no runtime-error counter.
 
@@ -547,7 +553,11 @@ def check(self, thing, ctx, *, apply_exceptions: bool = True) -> Verdict:  # mat
 
 — and have both `evaluate()` and the simulator call it. That kills the private access, the duplication, and the drift.
 
-### A-5 — Domain types are duplicated across three layers
+### A-5 — Domain types are duplicated across three layers — **fixed**
+
+> **Status: fixed.** `Severity` had three identical definitions and now has one, in `rules/base.py` with the rest of the domain vocabulary. `Diff` had two identical dataclasses and now lives in `registry_cache/diff.py`, so a caller handling one cache's diff type-checks against the other's.
+>
+> `EntitySummary` is deliberately left as two types: a `TypedDict` in the domain and a Pydantic model in the API schema. They are the same fields at different layers, and merging them would either put pydantic in the domain or drop the API's OpenAPI schema. Same reasoning as A-1: unify what must agree, not everything that looks alike.
 
 `EntitySummary` exists as a `TypedDict` in `rules/base.py:10-12` and as a Pydantic model in `api/schemas.py:29-33`. `Severity` is declared three times: `rules/base.py:5`, `policies/schema.py:5`, `api/schemas.py:13`. `Diff` is defined identically in `registry_cache/cache.py:17-21` and `registry_cache/entity_cache.py:14-18`. Consolidate into one module the others import from.
 

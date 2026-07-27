@@ -3,7 +3,8 @@ from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-Severity = Literal["info", "warning", "error"]
+from home_curator.rules.base import Severity
+
 NamingPreset = Literal["snake_case", "kebab-case", "title-case", "prefix-type-n", "custom"]
 CustomScope = Literal["devices", "entities"]
 
