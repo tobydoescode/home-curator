@@ -26,7 +26,7 @@ Everything below is grounded in the code as it stands. Items marked *(unverified
 | C-4 | ~~High~~ **fixed** | Correctness | `/api/exceptions/list` applies `area_id` filter *after* pagination |
 | C-5 | High | Config | `Settings()` re-instantiated in request handlers, ignoring injected settings |
 | C-6 | High | Concurrency | Compiled rules mutate themselves during evaluation |
-| C-7 | High | Data safety | `policies.yaml` written non-atomically |
+| C-7 | ~~High~~ **fixed** | Data safety | `policies.yaml` written non-atomically |
 | C-8 | ~~High~~ **fixed** | CI | mypy is documented but never run; it currently fails |
 | C-9 | ~~Critical~~ **fixed** | Packaging | The addon image had never built — three independent faults |
 
@@ -228,7 +228,34 @@ Two adjacent races worth the same fix:
 
 **Fix:** make `evaluate()` pure. Resolve room overrides once at compile time (the engine is recompiled on every policy reload and on startup, `main.py:127-131,206`, so there is no need for lazy resolution), and return `runtime_errors` out of the call rather than accumulating in the rule. If lazy resolution must stay, keep it in a per-request structure, not on the shared compiled rule.
 
-### C-7 — `policies.yaml` is written non-atomically
+### C-7 — `policies.yaml` is written non-atomically — **fixed**
+
+> **Status: fixed.** The write now goes to a temporary file in the same
+> directory, is flushed and `fsync`ed, and is renamed over the target with
+> `os.replace`. A reader sees the old file or the new one, never a partial
+> one. A failed write removes the temporary file rather than leaving debris.
+>
+> Two things made this worse than a plain torn-write risk:
+>
+> - The watcher watches that directory, so the truncation itself could
+>   trigger a reload that read the half-written file and surfaced a spurious
+>   syntax error mid-save.
+> - Comment preservation reads the existing file back, so a file left corrupt
+>   by an interrupted write made *every* subsequent save fail with an
+>   unhandled 500 — locking the user out of the UI that would have repaired
+>   it. An unparseable existing file is now treated as having no comments to
+>   preserve.
+>
+> **R-5 is fixed with it**, because it had to be: an atomic save replaces the
+> inode and emits events for the temporary file too, so without filtering,
+> every save would trigger extra recompiles. The watcher now filters the
+> batch down to the policies file.
+>
+> `tests/integration/test_policies_atomic_save.py` covers the interaction that
+> the fix could plausibly have broken: `PUT /api/policies` does not recompile
+> the engine itself, it relies on the watcher, so if the rename had not
+> triggered a reload, saving from the UI would have silently stopped taking
+> effect.
 
 `policies/writer.py:28-33` truncates the user's file and streams YAML into the open handle. A crash, a full disk, or a container stop mid-write leaves a truncated `policies.yaml`. Worse, the file watcher (`policies/watcher.py:8`) is watching that directory and will fire a reload against the half-written file.
 
@@ -459,7 +486,9 @@ Evaluation is only invalidated by: a registry change (already broadcast via SSE)
 
 `api/events.py:24-32` checks `request.is_disconnected()` only at the top of each loop iteration, and the loop blocks for up to 25 s in `asyncio.wait_for`. Combined with R-1 this means a disconnected client's queue keeps filling for up to 25 s after it's gone. Racing the queue read against a disconnect poll, or letting `EventSourceResponse` handle the ping itself, fixes both.
 
-### R-5 — The policy watcher fires on unrelated files
+### R-5 — The policy watcher fires on unrelated files — **fixed**
+
+> Fixed alongside C-7; see there for why it could not be deferred.
 
 `policies/watcher.py:8` watches `path.parent` and reloads on *any* change in `CONFIG_DIR`. Under the add-on that's `/config/home-curator/`, which is currently single-purpose — but an editor swapfile or a future sibling file triggers a full recompile. Filter on the changed path matching `policies_path`.
 
