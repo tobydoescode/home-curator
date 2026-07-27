@@ -1,0 +1,58 @@
+name: real-ha
+
+# Runs the backend against a real Home Assistant container.
+#
+# Home Curator is built on Home Assistant websocket commands that are absent
+# from HA's published API reference (`config/device_registry/*`,
+# `config/entity_registry/*`, `config_entries/get`). There is no written spec
+# to code against, so this job is the spec: a pinned HA instance with a known
+# registry shape, driven through the real WebSocketHAClient.
+#
+# Kept out of the default backend workflow because it needs Docker and takes
+# minutes rather than seconds.
+
+on:
+  pull_request:
+    paths:
+      - "apps/backend/**"
+      - ".github/workflows/realha.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/backend/**"
+      - ".github/workflows/realha.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: realha-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v8.3.2
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      # Pull up front so a slow registry shows up as its own failed step
+      # rather than as an opaque container-boot timeout inside pytest.
+      - name: Pull Home Assistant image
+        run: |
+          image=$(grep -oE 'ghcr\.io/home-assistant/home-assistant:[^"]+' \
+            tests/realha/conftest.py | head -1)
+          echo "Pulling $image"
+          docker pull "$image"
+
+      - run: uv sync --all-extras --group realha
+
+      - name: Run the real-HA suite
+        run: >-
+          env -u HA_URL -u HA_TOKEN -u SUPERVISOR_TOKEN
+          uv run --all-extras --group realha pytest -m realha -v

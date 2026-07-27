@@ -26,11 +26,76 @@ Or directly:
 
 ```bash
 cd apps/backend
-uv run pytest                   # 112 tests
+uv run pytest                   # 381 tests
 uv run pytest --cov=home_curator
 uv run pytest tests/unit/
 uv run pytest tests/integration/
 ```
+
+## Real-Home-Assistant tests (`tests/realha/`)
+
+```bash
+task test:realha                # needs Docker; ~10s once the image is cached
+```
+
+### Why these exist
+
+Home Curator reads and writes the Home Assistant registries. Those live
+behind websocket commands — `config/device_registry/list`,
+`config/entity_registry/update`, `config/device_registry/remove_config_entry`
+and friends — which are **absent from Home Assistant's published API
+reference**. They are first-party and are the supported route (HA's REST API
+exposes no registry at all, and the only alternative is editing `.storage`
+with HA stopped), but there is no written spec to code `ha_client/websocket.py`
+against.
+
+So several things in that module are inferences from observed behaviour:
+that `created_at` / `modified_at` arrive as unix floats with `0.0` meaning
+"unset"; that every entity registry entry carries a `device_id` key; that
+unlinking every config entry from a device makes HA delete it. `FakeHAClient`
+cannot check any of that — it encodes the same assumptions.
+
+These tests are the missing spec. They boot a pinned Home Assistant
+container, populate it with a known registry shape, and drive it through the
+real `WebSocketHAClient`.
+
+### How it works
+
+- `fixtures/config/` is mounted at `/config` in the container. It holds a
+  minimal `configuration.yaml` — deliberately **not** `default_config:`,
+  which would pull in bluetooth/usb/ssdp/zeroconf discovery and turn a
+  ~5-second boot into a minute. `config:` is load-bearing: it is the
+  integration that registers the registry websocket commands.
+- `fixtures/config/custom_components/curator_test/` is a small fixture
+  integration that creates deterministic devices, entities and areas
+  mirroring the `fake_ha` fixture in `tests/integration/conftest.py`, so the
+  same expectations can be asserted against both. It is excluded from ruff,
+  mypy and pyright — it imports `homeassistant`, which is not a dependency of
+  this project, and it runs inside the container, not in our virtualenv.
+- A token is bootstrapped over the onboarding API: `POST
+  /api/onboarding/users` returns an auth code, `POST /auth/token` exchanges
+  it for a bearer token. A fresh config directory per session is what keeps
+  onboarding reachable.
+
+### Conventions
+
+- Every module **must** declare `pytestmark = pytest.mark.realha`. The suite
+  is deselected by default via `addopts` so `task test:backend` stays fast
+  and hermetic. Marking from a `pytest_collection_modifyitems` hook does not
+  work — the hook receives every collected item, not just this package's, and
+  runs after `-m` deselection has already happened.
+- The container is **session-scoped and shared**. Mutating tests must restore
+  what they changed; destructive tests must use a fixture reserved for them
+  (`sensor.disposable`, `sensor.disposable_event`, `multi_entry_device`).
+  Deleting a fixture another test reads will fail intermittently depending on
+  collection order.
+
+### The pinned image
+
+`HA_IMAGE` in `tests/realha/conftest.py` is pinned, and a Renovate custom
+manager (see `renovate.json`) raises a PR when a new Home Assistant is
+released. A failing bump PR is an early warning that HA changed a command
+Home Curator depends on — which is the main ongoing value of this suite.
 
 ## Manual smoke test against a real HA
 

@@ -1,0 +1,37 @@
+# Minimal Home Assistant config for the real-HA test container.
+#
+# `default_config:` is deliberately not used — it pulls in bluetooth, usb,
+# ssdp, dhcp, zeroconf and cloud, which do network discovery that is slow and
+# noisy inside a CI container without adding anything the tests need.
+#
+# `config:` is load-bearing: it is the integration that registers the
+# `config/device_registry/*`, `config/entity_registry/*` and
+# `config/area_registry/*` websocket commands that Home Curator is built on.
+# Without it the app cannot talk to Home Assistant at all.
+
+homeassistant:
+  name: Curator Test
+  latitude: 51.5
+  longitude: -0.1
+  elevation: 0
+  unit_system: metric
+  currency: GBP
+  country: GB
+  time_zone: Etc/UTC
+
+http:
+  server_host: 0.0.0.0
+  server_port: 8123
+
+# Required by the app.
+config:
+websocket_api:
+
+# Required to bootstrap a user + token over the onboarding API.
+api:
+frontend:
+person:
+onboarding:
+
+# Deterministic device / entity / area fixtures.
+curator_test:

@@ -1,0 +1,13 @@
+{
+  "domain": "curator_test",
+  "name": "Curator Test Fixture",
+  "version": "1.0.0",
+  "documentation": "https://github.com/tobydoescode/ha-app-home-curator",
+  "issue_tracker": "https://github.com/tobydoescode/ha-app-home-curator/issues",
+  "codeowners": [],
+  "dependencies": [],
+  "requirements": [],
+  "iot_class": "local_push",
+  "config_flow": true,
+  "integration_type": "service"
+}

@@ -1,5 +1,6 @@
 {
   "include": ["apps/backend/src", "apps/backend/tests", "apps/backend/alembic"],
+  "exclude": ["apps/backend/tests/realha/fixtures"],
   "extraPaths": ["apps/backend/src"],
   "venvPath": "apps/backend",
   "venv": ".venv",

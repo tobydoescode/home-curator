@@ -2,6 +2,17 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
   "assignees": ["tobydoescode"],
+  "customManagers": [
+    {
+      "description": "Home Assistant image pinned by the real-HA test harness. A failing bump PR is an early warning that HA changed a websocket command Home Curator depends on.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^apps/backend/tests/realha/conftest\\.py$/"],
+      "matchStrings": [
+        "HA_IMAGE = \"(?<depName>ghcr\\.io/home-assistant/home-assistant):(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ],
   "packageRules": [
     {
       "matchUpdateTypes": ["patch"],

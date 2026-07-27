@@ -77,6 +77,13 @@ tasks:
     dir: "{{.FRONTEND_DIR}}"
     cmd: npm run test:run
 
+  test:realha:
+    desc: Run the suite against a real Home Assistant container (needs Docker, slow)
+    dir: "{{.BACKEND_DIR}}"
+    cmd: >-
+      env -u HA_URL -u HA_TOKEN -u SUPERVISOR_TOKEN
+      uv run --all-extras --group realha pytest -m realha -v
+
   coverage:
     desc: Calculate backend + frontend test coverage
     cmds:

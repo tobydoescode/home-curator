@@ -27,6 +27,14 @@ dev = [
     "ruff>=0.3",
 ]
 
+[dependency-groups]
+# Only needed to run the real-Home-Assistant suite (`task test:realha`).
+# A dependency group rather than an extra so `uv sync --no-dev` keeps it out
+# of the production image.
+realha = [
+    "testcontainers>=4.8",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/home_curator"]
 
@@ -38,6 +46,15 @@ build-backend = "hatchling.build"
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# The real-HA suite needs Docker and takes minutes, so it is opt-in.
+# `task test:realha` overrides this with an explicit `-m realha`.
+addopts = "-m 'not realha'"
+markers = [
+    "realha: runs against a real Home Assistant container (requires Docker)",
+]
+# Fixture code for the HA container imports `homeassistant`, which is not a
+# dependency of this project — keep it away from collection.
+norecursedirs = ["tests/realha/fixtures"]
 filterwarnings = [
     "error::DeprecationWarning:home_curator.*",
 ]
@@ -45,12 +62,16 @@ filterwarnings = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# Runs inside the Home Assistant container against HA's own API surface, not
+# in this project's virtualenv.
+extend-exclude = ["tests/realha/fixtures"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
 
 [tool.pyright]
 include = ["src", "tests"]
+exclude = ["tests/realha/fixtures"]
 extraPaths = ["src"]
 venvPath = "."
 venv = ".venv"
