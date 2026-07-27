@@ -76,7 +76,16 @@ async def update_policies(
     """
     data = body.model_dump(mode="json", by_alias=True)
     settings = Settings()
-    write_policies_file(settings.policies_path, data)
+    try:
+        write_policies_file(settings.policies_path, data)
+    except OSError as e:
+        # Read-only mount, permissions, disk full. The user cannot fix this
+        # from the UI, but naming the path and the OS error tells them where
+        # to look instead of returning a bare stack trace.
+        raise HTTPException(
+            status_code=500,
+            detail=f"could not write {settings.policies_path}: {e}",
+        ) from e
 
     kept_ids = {p.id for p in body.policies}
     with session_scope(state.session_factory) as s:

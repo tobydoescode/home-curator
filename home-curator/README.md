@@ -4,12 +4,23 @@ Install by adding this repo to Home Assistant:
 
 **Settings → Add-ons → Add-on Store → ⋮ → Repositories → paste URL**.
 
-Then install "Home Curator" and open it from the sidebar. On first start a default `policies.yaml` is created at `/config/home-curator/policies.yaml`. Edit it directly (the UI also edits a subset of the file via Settings → Naming Conventions) to configure:
+Then install "Home Curator" and open it from the sidebar.
 
-- naming-convention rules (global + per-room overrides)
-- missing-area detection
+On first start the addon creates `/config/home-curator/` and writes a default
+`policies.yaml` there. Everything is configurable from **Settings** in the UI,
+and the same file can be edited by hand — it is reloaded within about a second
+of being saved. Invalid content keeps the last-good rules loaded and shows the
+error in the UI rather than taking the addon down.
+
+It configures:
+
+- naming conventions for devices and for entities (global + per-room overrides)
+- missing-area detection, for devices and entities
 - reappeared-after-delete detection
-- custom CEL expressions
+- custom rules written as CEL expressions, scoped to devices or entities
+
+Your edits are never overwritten. Newly-added built-in rules from an addon
+update are merged in on load, keeping your `enabled` and `severity` choices.
 
 ## Ingress
 

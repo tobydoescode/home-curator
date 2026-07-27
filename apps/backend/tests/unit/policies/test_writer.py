@@ -42,6 +42,25 @@ def test_write_preserves_comments_in_existing_file(tmp_path):
     assert "enabled: false" in text
 
 
-def test_write_rejects_missing_parent(tmp_path: Path):
-    with pytest.raises(FileNotFoundError):
-        write_policies_file(tmp_path / "missing" / "policies.yaml", {"version": 1, "policies": []})
+def test_write_creates_a_missing_parent_directory(tmp_path: Path):
+    """Under the addon the parent is /config/home-curator, which does not
+    exist on a fresh install and which nothing else creates. Refusing here
+    meant the very first policy save returned a 500."""
+    path = tmp_path / "missing" / "nested" / "policies.yaml"
+
+    write_policies_file(path, {"version": 1, "policies": []})
+
+    assert path.is_file()
+    assert "version: 1" in path.read_text()
+
+
+def test_write_surfaces_an_unwritable_parent(tmp_path: Path):
+    """A read-only config mount must still raise rather than silently no-op."""
+    parent = tmp_path / "readonly"
+    parent.mkdir()
+    parent.chmod(0o500)
+    try:
+        with pytest.raises(OSError):
+            write_policies_file(parent / "sub" / "policies.yaml", {"version": 1, "policies": []})
+    finally:
+        parent.chmod(0o700)

@@ -7,12 +7,14 @@ from pydantic import ValidationError
 from ruamel.yaml import YAML, YAMLError
 
 from home_curator.policies.schema import PoliciesFile
+from home_curator.policies.writer import write_policies_file
 
 # Baseline policies shipped by the addon. Three device + three entity.
-# When `policies.yaml` doesn't exist, the whole list is written on first run.
-# When it does exist, missing entries (by id) are merged in on load so users
-# whose file predates a new baseline addition (e.g. the entity baseline added
-# alongside the Entities view) still get the new sections rendered.
+# When `policies.yaml` doesn't exist, the whole list is written on first run
+# by `seed_policies_file`. When it does exist, missing entries (by id) are
+# merged in on load so users whose file predates a new baseline addition
+# (e.g. the entity baseline added alongside the Entities view) still get the
+# new sections rendered.
 #
 # Severities / enabled flags chosen to match the spec defaults:
 #   Device baseline (all enabled):
@@ -112,6 +114,27 @@ def _merge_missing_baselines(loaded: PoliciesFile) -> PoliciesFile:
             ],
         }
     )
+
+
+def seed_policies_file(path: Path) -> bool:
+    """Write the baseline policies file if it isn't there. Returns whether it wrote.
+
+    Called once at startup. Two reasons it exists rather than relying on the
+    load-time defaults:
+
+    - The addon README tells users they can edit
+      `/config/home-curator/policies.yaml` directly. Without seeding there is
+      nothing to edit until they have saved through the UI at least once.
+    - `/config/home-curator` does not exist on a fresh install, so seeding is
+      also what creates the directory (`write_policies_file` makes parents).
+
+    Never overwrites an existing file — an upgrade path is `_merge_missing_baselines`'s
+    job, in memory, so a user's customisations are untouched.
+    """
+    if path.exists():
+        return False
+    write_policies_file(path, _default_policies().model_dump(mode="json", by_alias=True))
+    return True
 
 
 @dataclass

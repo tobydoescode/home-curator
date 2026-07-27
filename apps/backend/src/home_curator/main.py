@@ -40,7 +40,7 @@ from home_curator.events.broker import EventBroker
 from home_curator.ha_client.base import HAClient
 from home_curator.ha_client.models import HAEvent
 from home_curator.ha_client.websocket import WebSocketHAClient
-from home_curator.policies.loader import load_policies_file
+from home_curator.policies.loader import load_policies_file, seed_policies_file
 from home_curator.registry_cache.cache import RegistryCache
 from home_curator.registry_cache.entity_cache import EntityRegistryCache
 from home_curator.rules.base import EvaluationContext
@@ -119,6 +119,23 @@ def create_app(
             session = session_factory()
             tracker = DeletionTracker(cache=cache, session=session, entity_cache=entity_cache)
             broker = EventBroker()
+            # Creates /config/home-curator on a fresh install and drops the
+            # baseline file in it, so the directory exists before the first
+            # policy save and users can hand-edit the file as documented.
+            # Not fatal if it fails — a read-only config mount should still
+            # give a working, read-only app rather than refusing to boot.
+            try:
+                if seed_policies_file(effective_settings.policies_path):
+                    log.info(
+                        "Seeded default policies at %s",
+                        effective_settings.policies_path,
+                    )
+            except OSError:
+                log.exception(
+                    "could not seed %s; policy edits will fail until the "
+                    "directory is writable",
+                    effective_settings.policies_path,
+                )
             load = load_policies_file(effective_settings.policies_path)
             ctx = EvaluationContext(
                 area_name_to_id=cache.area_name_to_id(),
