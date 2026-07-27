@@ -156,6 +156,77 @@ tasks:
     dir: "{{.FRONTEND_DIR}}"
     cmd: npm run typecheck
 
+  # --- Devcontainer (real Supervisor) --------------------------------------
+  #
+  # Heavy: a privileged container running Docker-in-Docker, Supervisor and
+  # Home Assistant. For occasional verification against real ingress, not the
+  # day-to-day loop — use `task dev` for that.
+
+  devcontainer:up:
+    desc: Start the Home Assistant Supervisor devcontainer (privileged, pulls ~2GB)
+    deps: [gen-api:local]
+    cmds:
+      - npx --yes @devcontainers/cli up --workspace-folder .
+      - 'echo ""'
+      - 'echo "Container is up, but Supervisor is NOT started yet."'
+      - 'echo "Next:  task devcontainer:start-ha   (takes a few minutes)"'
+
+  devcontainer:start-ha:
+    desc: Start Supervisor + Home Assistant inside the devcontainer
+    cmds:
+      - |
+        cid=$(docker ps -q --filter "label=devcontainer.local_folder={{.ROOT_DIR}}" | head -1)
+        if [ -z "$cid" ]; then echo "devcontainer not running — task devcontainer:up"; exit 1; fi
+        docker exec -d "$cid" bash -lc 'supervisor_run > /tmp/supervisor.log 2>&1'
+        echo "Supervisor starting; waiting for Home Assistant on :7123 …"
+        for i in $(seq 1 90); do
+          if curl -s -o /dev/null -m 3 http://localhost:7123/; then
+            echo "Home Assistant is up: http://localhost:7123"; exit 0
+          fi
+          sleep 10
+        done
+        echo "timed out; check: docker exec $cid tail -50 /tmp/supervisor.log"; exit 1
+
+  devcontainer:addon:
+    desc: Build + register the addon inside the devcontainer, then install and start it
+    cmds:
+      - |
+        cid=$(docker ps -q --filter "label=devcontainer.local_folder={{.ROOT_DIR}}" | head -1)
+        if [ -z "$cid" ]; then echo "devcontainer not running — task devcontainer:up"; exit 1; fi
+        ws=$(docker exec "$cid" sh -c 'findmnt -rno TARGET | grep -m1 "local/$(basename {{.ROOT_DIR}})"')
+        docker exec "$cid" bash -lc "cd '$ws' && bash .devcontainer/setup-local-addon.sh"
+        docker exec "$cid" bash -lc 'ha apps reload && ha apps install local_home-curator-dev && ha apps start local_home-curator-dev'
+        docker exec "$cid" bash -lc 'ha apps info local_home-curator-dev | grep -E "^state|ingress_url"'
+
+  devcontainer:logs:
+    desc: Tail the addon's logs inside the devcontainer
+    cmd: |
+      cid=$(docker ps -q --filter "label=devcontainer.local_folder={{.ROOT_DIR}}" | head -1)
+      docker exec "$cid" bash -lc 'ha apps logs -f local_home-curator-dev'
+
+  devcontainer:down:
+    desc: Stop and remove the devcontainer (named volumes are kept)
+    cmd: |
+      cid=$(docker ps -aq --filter "label=devcontainer.local_folder={{.ROOT_DIR}}")
+      if [ -z "$cid" ]; then echo "no devcontainer found"; exit 0; fi
+      docker rm -f $cid >/dev/null && echo "devcontainer removed"
+
+  devcontainer:clean:
+    desc: "Remove the devcontainer AND its own volumes (destructive: wipes the HA instance)"
+    cmd: |
+      # Deliberately NOT `docker volume prune`, which would remove every
+      # unused volume on the machine. Only volumes attached to this
+      # devcontainer are touched, and they are read off the container before
+      # it is removed.
+      cid=$(docker ps -aq --filter "label=devcontainer.local_folder={{.ROOT_DIR}}" | head -1)
+      if [ -z "$cid" ]; then echo "no devcontainer found"; exit 0; fi
+      vols=$(docker inspect "$cid" \
+        --format '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}')
+      docker rm -f "$cid" >/dev/null && echo "devcontainer removed"
+      for v in $vols; do
+        docker volume rm "$v" >/dev/null 2>&1 && echo "removed volume $v"
+      done
+
   # --- Housekeeping -------------------------------------------------------
 
   clean:

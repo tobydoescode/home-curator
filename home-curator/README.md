@@ -57,32 +57,38 @@ privileged container running Docker-in-Docker, Supervisor and Home Assistant —
 so it is for occasional verification, not the day-to-day loop. Use `task dev`
 for that.
 
-1. On the **host**, generate the gitignored API client the image build needs:
+From the host, three steps:
 
-   ```bash
-   task build:frontend
-   ```
+```bash
+task devcontainer:up          # boots the container (pulls ~2GB the first time)
+task devcontainer:start-ha    # starts Supervisor + Home Assistant; a few minutes
+task devcontainer:addon       # builds, registers, installs and starts the addon
+```
 
-2. VS Code → **Reopen in Container**, and wait for `devcontainer_bootstrap`.
+Then open <http://localhost:7123>, complete onboarding, and find **Home Curator
+(dev)** in the sidebar. That serves the add-on through the real ingress proxy.
 
-3. Run the VS Code task **Start Home Assistant** (`supervisor_run`). This is a
-   separate step — `devcontainer_bootstrap` only prepares mounts, it does not
-   start Supervisor. First run pulls Supervisor and Home Assistant, so give it
-   a few minutes.
+Other tasks: `devcontainer:logs` tails the add-on's log, `devcontainer:down`
+removes the container but keeps the Home Assistant instance, and
+`devcontainer:clean` removes both. `clean` only deletes volumes attached to
+this devcontainer — it deliberately avoids `docker volume prune`.
 
-4. Run the VS Code task **Register local add-on**, or equivalently:
+Inside VS Code the same steps exist as tasks (**Start Home Assistant**,
+**Register local add-on**, **Install App**, **Rebuild and Start App**) if you
+prefer *Reopen in Container*.
 
-   ```bash
-   bash .devcontainer/setup-local-addon.sh
-   ```
+Two things are easy to trip over:
 
-Home Assistant comes up on <http://localhost:7123>. Complete onboarding, then
-**Settings → Add-ons → Add-on Store → ⋮ → Check for updates**, install
-**Home Curator (dev)** from *Local add-ons*, and start it. Open it from the
-sidebar to exercise the real ingress path.
+- `devcontainer_bootstrap` runs automatically but only prepares mounts. It does
+  **not** start Supervisor — that is `supervisor_run`, which is why
+  `start-ha` is a separate step.
+- `apps/frontend/src/api/generated.ts` is gitignored and the image build needs
+  it. `devcontainer:up` generates it first; if you run the scripts by hand,
+  run `task build:frontend` on the host beforehand. This devcontainer has no
+  uv or node toolchain.
 
-After changing source: re-run **Register local add-on**, then **Rebuild and
-Start App**.
+After changing source: re-run `task devcontainer:addon`, or the **Rebuild and
+Start App** task.
 
 > The `mounts` block in `devcontainer.json` is required, not cosmetic.
 > Docker-in-Docker cannot run with `/var/lib/docker` on the container's overlay
