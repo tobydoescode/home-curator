@@ -1,0 +1,100 @@
+name: docker
+
+# Builds the addon image without publishing it.
+#
+# Until this existed the Dockerfile was only ever exercised on a release tag,
+# and since no release had been cut it had never been built at all. It did
+# not work: google-re2 (a cel-python dependency) has no musllinux wheel and
+# so must be compiled on Alpine, with no toolchain present; and with no
+# .dockerignore the developer's compiled vite.config.js leaked into the build
+# context and Vite loaded it in preference to vite.config.ts.
+#
+# One architecture is enough to catch that class of breakage; the release
+# workflow still builds all three.
+
+on:
+  pull_request:
+    paths:
+      - "apps/**"
+      - "home-curator/**"
+      - ".dockerignore"
+      - ".github/workflows/docker.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/**"
+      - "home-curator/**"
+      - ".dockerignore"
+      - ".github/workflows/docker.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: apps/frontend/package-lock.json
+      - uses: astral-sh/setup-uv@v8.3.2
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      # src/api/generated.ts is gitignored, and the frontend stage needs it.
+      # Generated in-process rather than against a running server.
+      - name: Generate the API client
+        working-directory: apps/backend
+        run: uv sync --all-extras
+      - name: Generate the API client (frontend)
+        working-directory: apps/frontend
+        run: |
+          npm ci
+          npm run gen:api:local
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build the addon image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: home-curator/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: home-curator:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # A green build is not proof the image works — verify the pieces that
+      # have actually broken before.
+      - name: Verify the image
+        run: |
+          echo "--- app and its native deps import ---"
+          docker run --rm --entrypoint /bin/sh home-curator:ci -c \
+            'cd /app && PYTHONPATH=/app/src ./.venv/bin/python -c "
+          import celpy, re2
+          from home_curator.main import create_app
+          assert create_app().openapi()[\"paths\"]
+          print(\"ok\")"'
+
+          echo "--- dev tooling stays out of the runtime image ---"
+          if docker run --rm --entrypoint /bin/sh home-curator:ci -c \
+              'ls /app/.venv/bin/ | grep -qE "^(pytest|mypy|ruff)$"'; then
+            echo "::error::dev dependencies leaked into the runtime image"
+            exit 1
+          fi
+
+          echo "--- frontend assets are relative, for ingress ---"
+          if docker run --rm --entrypoint /bin/sh home-curator:ci -c \
+              'grep -q "src=\"/assets/" /app/static/index.html'; then
+            echo "::error::index.html references assets absolutely; breaks ingress"
+            exit 1
+          fi

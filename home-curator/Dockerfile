@@ -17,12 +17,21 @@ FROM ${BUILD_FROM}
 
 ENV LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1
 
-RUN apk add --no-cache python3 py3-pip
+# `re2` and `abseil-cpp` are runtime libraries, kept in the image. cel-python
+# depends on google-re2, which publishes no musllinux wheel, so on Alpine it
+# is always compiled from source — hence the toolchain below, added and
+# removed in one layer so it never reaches the final image.
+RUN apk add --no-cache python3 py3-pip re2 abseil-cpp
 
 COPY apps/backend/pyproject.toml apps/backend/uv.lock /app/
 WORKDIR /app
-RUN pip install --no-cache-dir --break-system-packages uv && \
-    uv sync --all-extras --frozen --no-dev
+# `--no-dev` alone does not exclude the `dev` extra — that is a separate
+# concept from dependency groups — so `--all-extras` was shipping pytest,
+# mypy and ruff into the production image.
+RUN apk add --no-cache --virtual .build-deps g++ re2-dev abseil-cpp-dev python3-dev py3-pybind11-dev && \
+    pip install --no-cache-dir --break-system-packages uv && \
+    uv sync --frozen --no-dev && \
+    apk del .build-deps
 
 COPY apps/backend/src /app/src
 COPY apps/backend/alembic /app/alembic

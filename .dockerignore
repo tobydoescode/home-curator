@@ -1,0 +1,40 @@
+# Keep host build artifacts out of the Docker build context.
+#
+# Without this, `COPY apps/frontend/ ./` drags in the developer's compiled
+# `vite.config.js` — a gitignored artifact of `tsc -b` — which Vite loads in
+# preference to `vite.config.ts`, so the image built from a stale config (or
+# failed outright). It also copied host `node_modules`, built for the
+# developer's platform, over the Linux install from `npm ci`.
+#
+# Note: `src/api/generated.ts` is gitignored but *is* required by the build,
+# so it is deliberately not excluded here.
+
+# Dependencies and virtualenvs — reinstalled inside the image
+**/node_modules
+**/.venv
+
+# Build output — produced inside the image
+**/dist
+apps/frontend/vite.config.js
+apps/frontend/vite.config.d.ts
+apps/frontend/*.tsbuildinfo
+
+# Python caches and local state
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/.coverage
+**/htmlcov
+apps/backend/.dev-data
+apps/backend/.dev-config
+
+# Repo tooling and local scratch, none of which the image needs
+.git
+.github
+.worktrees
+.superpowers
+.playwright-mcp
+docs
+.env
