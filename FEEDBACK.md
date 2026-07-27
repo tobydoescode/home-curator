@@ -641,7 +641,9 @@ Home Assistant provides `addon_config:rw`, which maps a private `/addon_configs/
 
 This matters more than usual here because the app evaluates user-authored CEL, writes YAML, and performs bulk destructive operations against the registry.
 
-### S-2 — `hassio_api: true` appears unnecessary
+### S-2 — `hassio_api: true` appears unnecessary — **fixed**
+
+> **Status: fixed.** Removed alongside S-1. Nothing calls the Supervisor API; `homeassistant_api` stays, since that is the proxy the websocket client connects through.
 
 `config.yaml:13-14` requests both `hassio_api` and `homeassistant_api`. The client only ever talks to the HA core websocket (`main.py:94-101`, defaulting to `http://supervisor/core` per `config.py:33`), which is what `homeassistant_api` grants. Nothing in `src/` calls the Supervisor API. Drop `hassio_api` unless there's a planned use.
 
@@ -753,7 +755,9 @@ def test_models_match_migrations(tmp_path):
 
 `Taskfile.yml:80-94` defines coverage tasks; no workflow runs them and no threshold is enforced. Coverage can regress silently. Add `--cov-fail-under=<current>` to CI and ratchet.
 
-### T-4 — No end-to-end test
+### T-4 — No end-to-end test — **fixed**
+
+> **Status: fixed.** `tests/e2e/` drives the built frontend behind a simulated ingress, in two layers — HTTP and Chromium. Added with C-1, which is exactly the class of bug it was named for.
 
 Everything is unit or API-level. The ingress bug (C-1) is exactly the class of failure that only a real browser load catches — and `.playwright-mcp/` artifacts show Playwright was used manually during development. One smoke test that loads the built `dist/` through the backend's `StaticFiles` mount and asserts the devices table renders would have caught it.
 

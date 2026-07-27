@@ -104,7 +104,6 @@ class CompiledCustom:
 
         if self.scope == "entities":
             assert isinstance(thing, Entity)
-            assert isinstance(thing, Entity)
             if ("entity", thing.entity_id, self.id) in ctx.exceptions:
                 return None
             target_kind: TargetKind = "entity"
