@@ -21,7 +21,7 @@ Everything below is grounded in the code as it stands. Items marked *(unverified
 | ID | Severity | Area | Issue |
 | --- | --- | --- | --- |
 | C-1 | ~~Critical~~ **fixed** | Packaging | Frontend uses absolute paths; breaks under HA ingress |
-| C-2 | Critical | Release | Docker tag (`v0.1.0`) doesn't match the tag the Supervisor pulls (`0.1.0`) |
+| C-2 | ~~Critical~~ **fixed** | Release | Docker tag (`v0.1.0`) doesn't match the tag the Supervisor pulls (`0.1.0`) |
 | C-3 | Critical | First run | `CONFIG_DIR` is never created — first policy save 500s |
 | C-4 | High | Correctness | `/api/exceptions/list` applies `area_id` filter *after* pagination |
 | C-5 | High | Config | `Settings()` re-instantiated in request handlers, ignoring injected settings |
@@ -74,7 +74,22 @@ const src = new EventSource(new URL("api/events", document.baseURI));
 
 With `base: "./"` Vite emits relative asset paths and `document.baseURI` resolves to the ingress prefix. Add an integration check to CI that asserts `dist/index.html` contains no `src="/`.
 
-### C-2 — Released image tag doesn't match the tag the Supervisor pulls
+### C-2 — Released image tag doesn't match the tag the Supervisor pulls — **fixed**
+
+> **Status: fixed.** `release.yml` now strips a leading `v`, publishes
+> `<image>:<version>`, and refuses to build if the tag and `config.yaml`
+> disagree. `tests/unit/test_addon_metadata.py` fails the normal backend suite
+> when `config.yaml` and `CHANGELOG.md` drift, so a forgotten bump is caught on
+> the pull request rather than at release. The release process is documented in
+> `home-curator/README.md`.
+>
+> Note for accuracy: the repo has **no git tags**, so nothing had ever been
+> released and no user was affected — this blocked the *first* release rather
+> than breaking an existing one. Version stays `0.1.0`; the CHANGELOG's two
+> entries were consolidated into a single `0.1.0` covering everything actually
+> built (which also closes D-2), since there was no released `0.1.0` for anyone
+> to have upgraded from.
+
 
 - `.github/workflows/release.yml:62` pushes `ghcr.io/<owner>/home-curator-<arch>:${{ github.ref_name }}` — for tag `v0.1.0` this is `:v0.1.0`.
 - `home-curator/config.yaml:2,21` declares `version: "0.1.0"` and `image: ghcr.io/tobydoescode/home-curator-{arch}`. The Supervisor pulls `<image>:<version>` — i.e. `:0.1.0`, **without** the `v`.
@@ -472,7 +487,14 @@ There is no ESLint or Prettier config anywhere in the tracked file list. TypeScr
 
 `home-curator/README.md:7`: *"On first start a default `policies.yaml` is created at `/config/home-curator/policies.yaml`."* Nothing writes it (see C-3). It also references *"Settings → Naming Conventions"*, a route that now redirects away (`App.tsx:51-54`).
 
-### D-2 — `CHANGELOG.md` is behind by a whole feature
+### D-2 — `CHANGELOG.md` is behind by a whole feature — **fixed**
+
+> **Status: fixed** alongside C-2. Consolidated into a single `0.1.0` entry
+> covering the entity work, resync, column visibility and settings
+> restructure, and the stale claim that `entities` scope was "reserved for
+> future use" is gone. Kept in sync going forward by
+> `tests/unit/test_addon_metadata.py`.
+
 
 `home-curator/CHANGELOG.md` stops at `0.2.0` (dated 2026-04-22). Since then the repo gained the entire Entities view, entity policies, entity bulk actions, the resync button, column visibility, and a settings restructure. The file also states *"Custom policies gain `scope: devices` (required; `entities` reserved for future use)"* — `entities` scope shipped (`policies/schema.py:200`). And no entry matches `config.yaml`'s declared `0.1.0` (see C-2).
 
