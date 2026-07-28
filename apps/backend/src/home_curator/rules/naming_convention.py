@@ -1,6 +1,5 @@
 import re
 from dataclasses import dataclass, field
-from re import Pattern
 
 from home_curator.policies.schema import (
     NamingConventionPolicy,
@@ -15,6 +14,7 @@ from home_curator.rules.base import (
     Severity,
     TargetScope,
 )
+from home_curator.user_regex import UserPattern, compile_user_pattern
 
 PRESET_TO_PATTERN: dict[str, str] = {
     "snake_case": r"^[a-z0-9]+(_[a-z0-9]+)*$",
@@ -26,8 +26,10 @@ PRESET_TO_PATTERN: dict[str, str] = {
     #   - standalone digit-words after the first token ("Side Lamp 2") —
     #     the first token must still start with a letter so names don't
     #     begin with a number.
-    #   - digit-led techy abbreviations after the first token ("3D Printer",
-    #     "4K Camera", "12V Sensor") via [0-9]+[A-Z]+[a-z0-9']*.
+    #   - digit-led techy abbreviations after the first token ("Printer 3D",
+    #     "Camera 4K", "Sensor 12V") via [0-9]+[A-Z]+[a-z0-9']*. Note "after":
+    #     "3D Printer" is rejected, because the first token must start with a
+    #     letter. The examples here previously said otherwise.
     #   - lowercase function words (articles, short prepositions, conjunctions)
     #     after the first token ("Mum and Dad's Bedroom", "Rooms of the House").
     #     Never at the start — that's a real capitalisation mistake.
@@ -46,12 +48,14 @@ PRESET_TO_PATTERN: dict[str, str] = {
 }
 
 
-def _pattern_from_config(cfg: NamingPatternConfig) -> Pattern[str]:
+def _pattern_from_config(cfg: NamingPatternConfig) -> UserPattern:
     if cfg.preset == "custom":
         if not cfg.pattern:
             raise ValueError("preset='custom' requires a non-empty pattern")
-        return re.compile(cfg.pattern)
-    return re.compile(PRESET_TO_PATTERN[cfg.preset])
+        return compile_user_pattern(cfg.pattern)
+    # Built-in presets go through the same engine, so a preset and a custom
+    # pattern cannot behave differently.
+    return compile_user_pattern(PRESET_TO_PATTERN[cfg.preset])
 
 
 def _room_prefix(preset: NamingPreset, area_id: str, area_name: str | None) -> str | None:
@@ -92,7 +96,7 @@ def _room_prefix(preset: NamingPreset, area_id: str, area_name: str | None) -> s
 @dataclass
 class _OverrideEntry:
     enabled: bool
-    pattern: Pattern[str] | None
+    pattern: UserPattern | None
     preset: NamingPreset | None
     starts_with_room: bool | None
 
@@ -103,7 +107,7 @@ class CompiledNamingConvention:
     enabled: bool
     severity: Severity
     global_preset: NamingPreset
-    global_pattern: Pattern[str]
+    global_pattern: UserPattern
     global_starts_with_room: bool
     overrides_by_area_id: dict[str, _OverrideEntry] = field(default_factory=dict)
     unresolved_room_names: list[str] = field(default_factory=list)

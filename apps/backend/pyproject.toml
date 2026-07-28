@@ -13,6 +13,10 @@ dependencies = [
     "ruamel.yaml>=0.18",
     "watchfiles>=0.21",
     "cel-python>=0.3",
+    # Imported directly by `user_regex`, not only pulled in by cel-python.
+    # Declared so a future cel-python release dropping it cannot silently
+    # break user-supplied pattern compilation.
+    "google-re2>=1.1",
     "websockets>=12.0",
     "httpx>=0.27",
     "sse-starlette>=2.1",
@@ -77,6 +81,13 @@ strict = true
 # celpy ships no type information; without this, importing it makes every
 # expression that touches it Any and `strict` reports the module as missing.
 module = ["celpy.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# google-re2 ships no type information either. The blast radius is one module:
+# `user_regex` casts to its own `UserPattern` protocol at the boundary, so no
+# other file sees an untyped pattern object.
+module = ["re2"]
 ignore_missing_imports = true
 
 [tool.ruff]

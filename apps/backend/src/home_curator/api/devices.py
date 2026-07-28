@@ -1,5 +1,4 @@
 """GET /api/devices — filtered, paginated, issue-enriched device listing."""
-import re
 from collections import Counter
 from typing import Literal
 
@@ -33,6 +32,7 @@ from home_curator.ha_client.models import HADeviceUpdate
 from home_curator.rules.base import Device, EvaluationContext, Issue
 from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
+from home_curator.user_regex import UserPatternError, compile_user_pattern
 
 router = APIRouter(prefix="/api", tags=["devices"])
 
@@ -310,9 +310,9 @@ async def rename_pattern(
 ) -> RenamePatternResponse:
     """Regex find-and-replace across device names. Use dry_run=true to preview."""
     try:
-        pat = re.compile(body.pattern)
-    except re.error as e:
-        return RenamePatternResponse(error=f"invalid regex: {e}", results=[])
+        pat = compile_user_pattern(body.pattern)
+    except UserPatternError as e:
+        return RenamePatternResponse(error=str(e), results=[])
     results: list[RenamePatternResult] = []
     for did in body.device_ids:
         d = state.cache.device(did)

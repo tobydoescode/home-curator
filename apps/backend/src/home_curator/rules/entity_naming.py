@@ -18,7 +18,6 @@ prefix directly — they have no other anchor.
 """
 import re
 from dataclasses import dataclass, field
-from re import Pattern
 
 from home_curator.policies.schema import (
     EntityIdBlock,
@@ -39,11 +38,12 @@ from home_curator.rules.naming_convention import (
     pattern_from_config,
     room_prefix,
 )
+from home_curator.user_regex import UserPattern
 
 # entity_id is "<domain>.<object>"; both domain (always snake by HA) and
 # object are checked against snake_case. Object is what a per-room prefix
 # applies to.
-_ENTITY_ID_OBJECT_PATTERN: Pattern[str] = pattern_from_config(
+_ENTITY_ID_OBJECT_PATTERN: UserPattern = pattern_from_config(
     NamingPatternConfig(preset="snake_case"),
 )
 
@@ -60,7 +60,7 @@ def _to_snake(s: str) -> str:
 @dataclass
 class _NameCompiled:
     global_preset: NamingPreset
-    global_pattern: Pattern[str]
+    global_pattern: UserPattern
     global_starts_with_room: bool
     overrides_by_area_id: dict[str, _OverrideEntry] = field(default_factory=dict)
 

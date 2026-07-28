@@ -573,7 +573,36 @@ def check(self, thing, ctx, *, apply_exceptions: bool = True) -> Verdict:  # mat
 
 **Fix:** `asyncio.Queue(maxsize=100)` and drop-oldest on overflow. These events are notifications, not a log — losing one is harmless because the client refetches on any event.
 
-### R-2 — User-supplied regexes run with no timeout (ReDoS)
+### R-2 — User-supplied regexes run with no timeout (ReDoS) — **fixed**
+
+> **Status: fixed.** All five call sites now compile through
+> `home_curator/user_regex.py`, which uses RE2 (`google-re2`) instead of `re`.
+> RE2 does not backtrack, so matching is linear in the input by construction —
+> this removes the failure mode rather than bounding it. A timeout was never an
+> option: a running `re` match cannot be interrupted, so the worker is gone
+> until it returns regardless of any deadline set around it.
+>
+> Measured on the pattern below at 26 characters: `re` 4.66 s, RE2 0.0000 s.
+> The trade is syntax — RE2 has no lookahead, lookbehind or backreferences,
+> because those are precisely what force backtracking. Such patterns are now
+> rejected with an explanation naming the construct, instead of being accepted
+> and occasionally hanging. A differential test over both engines found no
+> behavioural difference on ordinary patterns, and every built-in naming preset
+> compiles and matches identically.
+>
+> `google-re2` was already installed as a `cel-python` dependency, so this added
+> nothing to the image; it is now declared explicitly in `pyproject.toml`,
+> because it is imported directly and a future `cel-python` release dropping it
+> would otherwise break pattern compilation silently.
+>
+> `tests/unit/test_user_regex.py` covers it, including a test that pins the
+> premise by asserting plain `re` really is slow on the same input — without it,
+> the fast-path assertion would prove nothing if `re` ever stopped backtracking.
+>
+> Two unrelated errors were found and corrected while confirming preset
+> behaviour: the `title-case` comment in `rules/naming_convention.py` and the
+> matching passage in `docs/policies.md` both listed `3D Printer` as accepted.
+> It is rejected under both engines — a name may not begin with a digit.
 
 Four paths compile and run caller-supplied regex against every device/entity name:
 

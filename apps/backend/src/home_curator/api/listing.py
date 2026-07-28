@@ -10,10 +10,10 @@ one: two endpoints differing on what "in an area" means, or on how missing
 values sort. Those definitions belong in one place.
 """
 
-import re
 from collections.abc import Awaitable, Callable, Iterable
 
 from home_curator.rules.base import Issue, Severity
+from home_curator.user_regex import UserPatternError, compile_user_pattern
 
 SEVERITY_RANK: dict[Severity, int] = {"info": 1, "warning": 2, "error": 3}
 RANK_TO_SEVERITY: dict[int, Severity] = {v: k for k, v in SEVERITY_RANK.items()}
@@ -42,8 +42,8 @@ def matches_query(text: str, q: str, regex: bool) -> bool:
         return True
     if regex:
         try:
-            return re.search(q, text) is not None
-        except re.error:
+            return compile_user_pattern(q).search(text) is not None
+        except UserPatternError:
             return False
     return q.lower() in text.lower()
 

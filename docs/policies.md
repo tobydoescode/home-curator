@@ -160,6 +160,13 @@ failing the whole page.
 
 ## Naming presets
 
+Patterns are compiled with [RE2](https://github.com/google/re2), not Python's
+`re`. RE2 cannot backtrack, so no pattern can hang the add-on — but it also
+has no lookahead, lookbehind or backreferences, since those are what make
+backtracking necessary. A pattern using them is rejected with an explanation
+rather than accepted and occasionally taking minutes. Everything else behaves
+identically.
+
 | Preset | Matches | Examples |
 | --- | --- | --- |
 | `snake_case` | `^[a-z0-9]+(_[a-z0-9]+)*$` | `living_room_lamp` |
@@ -178,8 +185,9 @@ failing the whole page.
 
 `title-case` is deliberately lenient about real-world English, and accepts:
 apostrophes (`Clara's`), hyphenated words (`En-Suite`), acronyms (`AP`,
-`ESPresense`), trailing numbers (`Side Lamp 2`), digit-led abbreviations
-(`3D Printer`, `12V Sensor`), lowercase function words after the first word
+`ESPresense`), trailing numbers (`Side Lamp 2`), digit-led abbreviations *after* the first
+word (`Printer 3D`, `Sensor 12V` — but not `3D Printer`, since a name may not
+begin with a digit), lowercase function words after the first word
 (`Mum and Dad's Bedroom`), and a trailing parenthesised note (`Hub (Local)`).
 It deliberately still rejects names carrying a MAC address, because colons are
 excluded from that trailing group.

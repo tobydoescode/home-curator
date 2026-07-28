@@ -3,7 +3,6 @@
 Structural parallel to `devices.py`, reading from `state.entity_cache` and
 dispatching the engine in `entities` scope.
 """
-import re
 from collections import Counter
 from typing import Literal
 
@@ -38,6 +37,7 @@ from home_curator.ha_client.models import HAEntityUpdate
 from home_curator.rules.base import Entity, EvaluationContext, Issue
 from home_curator.storage.db import session_scope
 from home_curator.storage.exceptions_repo import ExceptionsRepo
+from home_curator.user_regex import UserPatternError, compile_user_pattern
 
 router = APIRouter(prefix="/api", tags=["entities"])
 _APP_STATE_DEPENDENCY = Depends(app_state)
@@ -382,15 +382,15 @@ async def rename_pattern_entities(
     name_pat = None
     if body.id_pattern is not None:
         try:
-            id_pat = re.compile(body.id_pattern)
-        except re.error as e:
+            id_pat = compile_user_pattern(body.id_pattern)
+        except UserPatternError as e:
             return RenamePatternEntityResponse(
                 results=[], error=f"invalid id_pattern: {e}",
             )
     if body.name_pattern is not None:
         try:
-            name_pat = re.compile(body.name_pattern)
-        except re.error as e:
+            name_pat = compile_user_pattern(body.name_pattern)
+        except UserPatternError as e:
             return RenamePatternEntityResponse(
                 results=[], error=f"invalid name_pattern: {e}",
             )
