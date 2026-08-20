@@ -43,7 +43,7 @@ jobs:
           node-version: "24"
           cache: "npm"
           cache-dependency-path: apps/frontend/package-lock.json
-      - uses: astral-sh/setup-uv@v8.3.2
+      - uses: astral-sh/setup-uv@v9.0.0
       - uses: actions/setup-python@v6
         with:
           python-version: "3.14"

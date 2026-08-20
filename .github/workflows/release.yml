@@ -64,7 +64,7 @@ jobs:
       # approach booted uvicorn against fake HA credentials and slept for a
       # fixed 5 seconds, which only worked because routes are registered
       # outside the lifespan, and would have raced on a slow runner.
-      - uses: astral-sh/setup-uv@v8.3.2
+      - uses: astral-sh/setup-uv@v9.0.0
       - uses: actions/setup-python@v6
         with: { python-version: "3.14" }
       - uses: actions/setup-node@v7
