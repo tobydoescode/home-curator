@@ -46,7 +46,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.2
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: "3.15"
 
       # src/api/generated.ts is gitignored, and the frontend stage needs it.
       # Generated in-process rather than against a running server.
