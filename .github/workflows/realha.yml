@@ -39,7 +39,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.2
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: "3.15"
 
       # Pull up front so a slow registry shows up as its own failed step
       # rather than as an opaque container-boot timeout inside pytest.
