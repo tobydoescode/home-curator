@@ -7,7 +7,7 @@ ARG BUILD_FROM=ghcr.io/hassio-addons/base:20.1.1
 # image at all, so building for armv7 failed here before reaching any of
 # our own code. Running natively also avoids QEMU for the whole npm and
 # Vite step, which dominates the cross-architecture build.
-FROM --platform=$BUILDPLATFORM node:24-alpine AS fe-builder
+FROM --platform=$BUILDPLATFORM node:26-alpine AS fe-builder
 
 WORKDIR /fe
 COPY apps/frontend/package.json apps/frontend/package-lock.json ./
