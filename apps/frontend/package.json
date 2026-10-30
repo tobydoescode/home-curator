@@ -46,7 +46,7 @@
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.8.0",
     "jsdom": "^30.0.0",
-    "msw": "^2.4.0",
+    "msw": "^3.0.0",
     "openapi-typescript": "^7.4.0",
     "postcss": "^8.4.0",
     "postcss-preset-mantine": "^1.17.0",
